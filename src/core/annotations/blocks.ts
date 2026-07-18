@@ -195,13 +195,39 @@ function measureLines(lines: readonly string[], font: FontSpec, measurer: String
 // Drawing
 // ---------------------------------------------------------------------------
 
-/** Builds the `rect()` `BoxStyle`, omitting `fill`/`stroke` entirely (rather
- *  than setting them to `undefined`) when the corresponding color is
- *  `null` — required under this project's `exactOptionalPropertyTypes`. */
+/** G2 N50: jar's `TextBlockBordered#drawU` always applies an EXPLICIT
+ *  stroke -- `stroke:none` when `lineColor` is `null`, never an omitted
+ *  attribute -- with `stroke-width` set to the style's OWN
+ *  `lineThickness` (`AnnotationBoxStyle#lineThickness`, `style.ts`'s
+ *  `titleBorderThickness`/`legendBorderThickness` skinparam wiring) --
+ *  jar-verified `bajula-59-puxi485` (`document { header { BackgroundColor
+ *  lightGray } }`, no `LineColor`/`BorderThickness` override: oracle draws
+ *  `style="stroke:none;stroke-width:1;"`, the root-default `lineThickness`,
+ *  this port omitted both entirely) and `cifeta-62-xodi576`/`medexe-08-
+ *  ledo064` (`skinparam Legend/title { BorderThickness N }`: oracle's
+ *  `stroke-width` follows the override, not the fixed root default).
+ *  `rx`/`ry` are likewise ALWAYS paired when `roundCorner` is non-zero
+ *  (`URectangle.rounded` sets both to the SAME halved value) and BOTH
+ *  omitted (never a literal `rx="0"`) when it is zero -- a
+ *  `RoundRectangle2D` with zero radius degenerates to a plain
+ *  `Rectangle2D` upstream, never reaching the rx/ry-emitting branch --
+ *  jar-verified the SAME `bajula-59-puxi485` fixture (header, roundCorner 0:
+ *  no `rx`/`ry` at all) and `mumefa-23-xoxe715` (legend, roundCorner 15: the
+ *  oracle's `ry="7.5"` was missing from this port's rx-only output). Builds
+ *  `fill` the same as before (omitted, not `undefined`, when
+ *  `backgroundColor` is `null` — required under this project's
+ *  `exactOptionalPropertyTypes`). */
 function borderBoxStyle(style: AnnotationBoxStyle): BoxStyle {
-  const box: BoxStyle = { rx: style.roundCorner / SVG_ROUND_CORNER_DIVISOR };
+  const box: BoxStyle = {
+    stroke: style.lineColor ?? 'none',
+    strokeWidth: style.lineThickness,
+  };
+  if (style.roundCorner !== 0) {
+    const corner = style.roundCorner / SVG_ROUND_CORNER_DIVISOR;
+    box.rx = corner;
+    box.ry = corner;
+  }
   if (style.backgroundColor !== null) box.fill = style.backgroundColor;
-  if (style.lineColor !== null) box.stroke = style.lineColor;
   return box;
 }
 

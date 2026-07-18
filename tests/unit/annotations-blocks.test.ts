@@ -58,6 +58,7 @@ function makeStyle(overrides: Partial<AnnotationBoxStyle> = {}): AnnotationBoxSt
     backgroundColor: null,
     lineColor: null,
     roundCorner: 0,
+    lineThickness: 1, // G2 N50: root{}'s LineThickness 1.0 default
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
     margin: { top: 0, right: 0, bottom: 0, left: 0 },
     horizontalAlignment: HorizontalAlignment.LEFT,
@@ -127,6 +128,66 @@ describe('buildAnnotationBlock — legend defaults (jar fixture)', () => {
   it('first baseline = margin.top + padding.top + ascent (G2 N45: fontSize - getDescent)', () => {
     const first = /<text x="17" y="([\d.]+)"/.exec(block.body);
     expect(Number(first![1])).toBeCloseTo(12 + 5 + ASCENT_14, 6);
+  });
+});
+
+// G2 N50: `core/annotations/blocks.ts#borderBoxStyle` jar-verified gaps
+// (`plans/g2-class-svg/ledger.md` N49's `bajula-59-puxi485`/
+// `mumefa-23-xoxe715` drill) -- jar's `TextBlockBordered#drawU` always
+// applies an explicit stroke (`stroke:none` when `lineColor` is `null`,
+// never an omitted attribute) with `stroke-width` set to the style's own
+// `lineThickness` (root default 1, overridable via `skinparam Legend/title
+// { BorderThickness N }` -- see the sibling describe block below), and a
+// `RoundRectangle2D` with `roundCorner === 0` degenerates to a plain
+// `<rect>` with NO `rx`/`ry` attribute at all -- never a literal `rx="0"`.
+// `rx`/`ry` are always PAIRED when roundCorner is non-zero (jar never emits
+// one without the other).
+describe('buildAnnotationBlock — border rect stroke/rx defaults (G2 N50)', () => {
+  const measurer = new FixedMeasurer(10, 14);
+
+  it('legend default: rx AND ry both present (paired), stroke-width="1"', () => {
+    const block = buildAnnotationBlock('legend', ['x'], LEGEND_STYLE, measurer);
+    expect(block.body).toMatch(/rx="7\.5"/);
+    expect(block.body).toMatch(/ry="7\.5"/);
+    expect(block.body).toMatch(/stroke-width="1"/);
+  });
+
+  it('roundCorner 0 + lineColor null (document-header shape): NO rx/ry, explicit stroke="none" + stroke-width="1"', () => {
+    const style = makeStyle({
+      backgroundColor: '#D3D3D3',
+      lineColor: null,
+      roundCorner: 0,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    const block = buildAnnotationBlock('header', ['h'], style, measurer);
+    expect(block.body).not.toMatch(/rx=/);
+    expect(block.body).not.toMatch(/ry=/);
+    expect(block.body).toMatch(/stroke="none"/);
+    expect(block.body).toMatch(/stroke-width="1"/);
+  });
+
+  it('roundCorner 0 + lineColor set: stroke=color, stroke-width="1", still no rx/ry', () => {
+    const style = makeStyle({
+      backgroundColor: '#FFFF00',
+      lineColor: '#000000',
+      roundCorner: 0,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    const block = buildAnnotationBlock('footer', ['f'], style, measurer);
+    expect(block.body).not.toMatch(/rx=/);
+    expect(block.body).not.toMatch(/ry=/);
+    expect(block.body).toMatch(/stroke="#000000"/);
+    expect(block.body).toMatch(/stroke-width="1"/);
+  });
+
+  // G2 N50: `skinparam Legend/title { BorderThickness N }` (`style.ts
+  // #applyBoxSuffix`'s `borderthickness` case) threads through to
+  // `lineThickness`, which this function now emits verbatim as
+  // `stroke-width` (jar-verified `cifeta-62-xodi576`/`medexe-08-ledo064`).
+  it('non-default lineThickness overrides stroke-width', () => {
+    const style = makeStyle({ lineColor: '#0000FF', lineThickness: 5 });
+    const block = buildAnnotationBlock('legend', ['x'], style, measurer);
+    expect(block.body).toMatch(/stroke-width="5"/);
   });
 });
 

@@ -14269,3 +14269,303 @@ lost), and no further stash/checkout/reset/clean commands were run for
 the remainder of the iteration -- the disposable-worktree approach was
 adopted specifically to avoid repeating this. Flagging explicitly per the
 mission's "always log the decision" discipline rather than omitting it.
+
+## N50 -- both named chrome-block rect gaps (item 1) LANDED, plus a bonus
+## mechanism (chrome `LineThickness`) they unmasked; item 2 (class.header
+## nested cascade) assessed and deferred with a stated reason; near-zero
+## harvest scanned (31 named, not drilled -- time budget).
+
+Baseline confirmed exact against the brief: `251/718 -- 1-3:39 -- 4-10:115
+-- 11-30:35 -- 31+:278 -- errors:0`. Ratchet: 251 fixtures / 253 tests.
+
+### Mechanism 1 -- LANDED: `core/annotations/blocks.ts#borderBoxStyle`
+### always omitted `stroke`/`stroke-width` when `lineColor` was `null`,
+### always emitted a literal `rx="0"` (never omitted), and never paired
+### `ry` with `rx`
+
+Root cause, jar-verified against BOTH N49-named fixtures directly
+(`bajula-59-puxi485`, document-header `BackgroundColor lightGray`, no
+`LineColor`/roundCorner 0; `mumefa-23-xoxe715`, legend roundCorner 15):
+`TextBlockBordered#drawU`'s stroke is applied UNCONDITIONALLY upstream
+(`stroke:none` when the line color is transparent/null, never an omitted
+attribute) with an explicit `stroke-width`, and `URectangle.rounded
+(cornersize)` sets BOTH `rx`/`ry` to the SAME halved value together --
+never one without the other. A `RoundRectangle2D` with `cornersize === 0`
+degenerates to a plain `Rectangle2D` upstream, which never reaches the
+rx/ry-emitting branch at all (confirmed via `bajula`'s header, roundCorner
+0: oracle SVG carries no `rx`/`ry` attribute whatsoever, not `rx="0"`).
+
+Fixed additively in `borderBoxStyle`: `stroke` is now always set
+(`style.lineColor ?? 'none'`), `rx`/`ry` are only set (as a pair) when
+`style.roundCorner !== 0`. TDD: 3 new unit tests in `annotations-blocks
+.test.ts` (legend-default pairing, roundCorner-0/lineColor-null shape,
+roundCorner-0/lineColor-set shape) written RED against the un-fixed
+function first, confirmed failing, then GREEN after the fix.
+
+**`bajula-59-puxi485` reaches 0/0 diffs immediately** (its only 3 diffs
+were exactly this mechanism's 3 attributes). `mumefa-23-xoxe715` drops
+from 3 diffs to 1 (the `rect/@fill` mystery below, NOT this mechanism).
+
+### The `mumefa-23-xoxe715` `fill="#DDDDDD"` vs `fill="none"` mystery --
+### INVESTIGATED, mechanism NOT confirmed, deliberately NOT attempted
+
+Spent real diagnosis time on this before deferring (not a drive-by skip).
+`mumefa`'s ONLY `<style>` declaration is `document { BackGroundColor
+yellow }` -- no `legend` selector at all -- yet jar draws the legend's
+OWN background rect `fill="none"` instead of its usual `#DDDDDD` skin
+default (`plantuml.skin:48`, `legend { BackGroundColor #D } }`). Ruled
+out via 2 counter-fixtures: `conara-44-fisa089` (`<style> legend {
+LineColor Orange } }`, no BackgroundColor at any level) keeps the
+`#DDDDDD` default; `majoge-68-zuji574` (`<style> document { ... legend {
+BackgroundColor green } } }`, an EXPLICIT nested override) correctly
+shows green -- so the trigger is specifically "a `document`-LEVEL (not
+`document.legend`) BackgroundColor override, with NO legend-specific
+override present". Traced upstream's `Style.java#createTextBlockBordered`
+/ `StyleSignatureBasic#matchAll` / `StyleStorage#computeMergedStyle`: the
+query signature for legend is `{root,document,classDiagram,legend}`
+(`EntityImageLegend.create`), matching is pure SET-CONTAINMENT (`element
+.key.snames.containsAll(declaration.key.snames)`, NOT ancestor-path/
+specificity), and the merge folds ALL matching styles in STORAGE
+ITERATION order (insertion order, `OVERWRITE_EXISTING_VALUE`) -- so
+`document`'s entry (containing the user's yellow, merged in-place at its
+ORIGINAL base-skin insertion position) and the base skin's OWN
+`document.legend` entry (`BackGroundColor #D`) both match, and my
+static read of the Java couldn't establish WITHOUT INSTRUMENTATION which
+one iterates last for this exact `<style>`-block shape (the base skin's
+own `document{ legend {...} }` nesting vs. a user-authored flat
+`document {...}` block may not produce the SAME `StyleSignatureBasic`
+`level`/key structure I assumed by inspection alone). Per diagnosis.md,
+did NOT guess a fix without confirming the mechanism via instrumentation
+(would require a patched local oracle jar printf, same technique N46 used
+for its own DecorateEntityImage mechanism -- not attempted this iteration,
+time budget). Re-named precisely for a future iteration: "legend/chrome
+default-BackgroundColor suppressed to transparent when an ANCESTOR
+(`document`)-level, non-element-specific `<style>` BackgroundColor
+override is present and no element-specific override exists -- a
+StyleStorage iteration-order question, NOT a specificity question,
+requires jar instrumentation to resolve" -- 1 confirmed corpus reach
+(`mumefa-23-xoxe715`), do not conflate with the item-4/5 rx/stroke gaps
+this iteration DID land (those are the OTHER 2 of `mumefa`'s original 3
+diffs, both now fixed).
+
+### Mechanism 2 -- LANDED (bonus, surfaced while regression-scanning
+### mechanism 1): chrome `LineThickness` (`skinparam Legend/title {
+### BorderThickness N }`) was entirely unwired -- `AnnotationBoxStyle` had
+### no field for it at all (a prior, explicit T2-contract scope decision,
+### `style.ts`'s old `mainframe` doc comment)
+
+Found while classifying the 1-3-diff bucket post-mechanism-1: `cifeta-62-
+xodi576` (`skinparam Legend { BorderColor blue; BorderThickness 5.0;
+FontStyle italic }`) and `medexe-08-ledo064` (`skinparam title {
+BorderThickness 2; ... }`) each carried EXACTLY 1 diff --
+`rect/@stroke-width` -- once mechanism 1 landed (their `BorderColor`/
+`FontStyle` already resolved correctly via the PRE-EXISTING `applyBoxSuffix`
+skinparam-block plumbing, confirmed by direct SVG diff: only stroke-width
+differed). Root cause: `FromSkinparamToStyle.java:166,172` maps
+`titleBorderThickness`/`legendBorderThickness` to `PName.LineThickness`
+(the SAME upstream property `noteBorderThickness`/`classBorderThickness`/
+`arrowThickness` all map to, for their own respective elements) --
+`AnnotationBoxStyle` simply never modeled the field, so `borderBoxStyle`
+hardcoded `stroke-width` to a fixed constant.
+
+Fixed additively: `AnnotationBoxStyle.lineThickness: number` (new
+required field, root default `1` per `plantuml.skin:15`'s `root {
+LineThickness 1.0 }` -- EVERY `BASE_DEFAULTS` entry updated, `mainframe`
+gets `1.5` per its OWN override at `plantuml.skin:85`, jar-verified via
+direct doc-comment citation, not corpus-verified since mainframe has no
+corpus reach). `applyBoxSuffix` (already handling `bordercolor`/
+`backgroundcolor`/`borderroundcorner` for the SAME title/legend-only
+`BOX_KEY_ELEMENTS` set) gained a `borderthickness` case (`parseFloat`, not
+`parseInt` -- jar accepts fractional values, `BorderThickness 5.0`).
+`borderBoxStyle` now emits `strokeWidth: style.lineThickness` instead of a
+fixed constant. Deliberately did NOT wire a `<style>`-block (`<style>
+legend { LineThickness N } }`) equivalent -- grepped the full corpus for
+`LineThickness` inside `<style>` blocks; the only 4 hits are `package`/
+`.tagname`/`spot` selectors, ZERO have a chrome-element (`legend`/`title`/
+etc.) selector, so that half has no corpus reach and was left unbuilt
+(no speculative addition, per code-principles.md).
+
+TDD: 6 new unit tests (4 in `annotations-style.test.ts` -- `Legend/
+TitleBorderThickness` overrides, header/footer/caption no-op, mainframe's
+own 1.5 default; 1 in `annotations-blocks.test.ts` -- non-default
+`lineThickness` reaches `stroke-width`) written RED first (confirmed
+failing against the un-fixed `style.ts`), then GREEN. 2 PRE-existing
+full-object-shape `toEqual` assertions (title/legend defaults) updated in
+place to include the new `lineThickness` field (would otherwise fail on
+the added key) -- not a behavior change, a fixture-shape update. 2 other
+test files (`annotations-chrome.test.ts`, `annotations-mainframe.test.ts`)
+construct `AnnotationBoxStyle` object literals directly and needed a
+`lineThickness: 1` field added to stay assignable (`exactOptionalProperty
+Types` makes the new required field a compile error otherwise) --
+confirmed via `npm run typecheck`, zero behavior change (both already used
+default/plain styles with no border expectations of their own).
+
+**`cifeta-62-xodi576` and `medexe-08-ledo064` both reach 0/0 diffs.**
+
+### Item 2 (`classDiagram.class.header` nested style cascade,
+### `fumalu-64-vude116`) -- ASSESSED, NOT attempted, reason stated
+
+Re-measured post-mechanism-1 (rx/stroke fixes touch unrelated geometry):
+diffCount is 5 (not N49's originally-cited 8 -- diff count naturally
+shrinks as shared-code fixes land elsewhere in the SAME fixture). Diffs:
+`svg/@width`+`@viewBox[2]` (delta 2, a knock-on LAYOUT change, not just a
+render-only chrome addition -- the header's `FontSize 20` override widens
+the classifier's own measured header-row text, which is a `layout.ts`-
+level concern, not `renderer-classifier-box.ts`-level), `rect/@x`+
+`text/@x` (delta 1.6875, consistent with that same width shift), and
+`g[2][childCount]` (7 vs 10 -- jar draws 3 EXTRA primitives: a header-row
+background rect + a divider-strip rect + an outline-only body-border
+redraw layered on top, per `DecorateEntityImage#drawU`'s header-row
+special case). Confirmed this is a real, substantial, MULTI-LAYER feature
+(new `classDiagram.class.header` selector level threaded through BOTH
+`style-cascade-class.ts` AND `layout.ts`'s row-height computation, plus 3
+new render primitives in `renderer-classifier-box.ts`) at exactly 1
+confirmed corpus reach -- NOT a quick win, matching N49's own original
+assessment. Deliberately NOT attempted this iteration (mission's own
+constraint-budget discipline: a 1-reach, multi-file, layout-touching
+feature is a poor use of the remaining iteration budget versus other
+named items) -- left named, un-narrowed, for a future iteration with more
+budget to spend on it specifically.
+
+### Near-zero harvest (item 3) -- SCANNED, not drilled (time budget)
+
+Full 1-3-bucket enumeration (disposable `scripts/_tmp-n50-census.ts`,
+deleted before finishing) after mechanisms 1+2 landed: 31 fixtures remain
+(down from 39). Quick triage by diff shape (NOT a deep drill -- logged for
+the next iteration to pick up, not independently jar-verified beyond what
+each diff string already shows):
+
+- `jezepa-12-padu194`/`vufuko-05-lapu034` (2): `skinparam arrowThickness`
+  + `-[thickness=N]->` -- EDGE stroke-width, unrelated to chrome (different
+  module, `renderer-arrowhead.ts`/`SvekEdge` territory).
+- `ragona-89-fadi984` (1): `skinparam classBorderThickness<<stereo>>` --
+  classifier-BODY border thickness per stereotype tag, NOT chrome (a
+  `style-cascade-class.ts`/`renderer-classifier-box.ts` tag-cascade gap,
+  looks like a natural sibling of item 1/2's `LineThickness` work but for
+  the classifier box selector, not the chrome selector).
+- `cunavo-77-filo788` (3): `skinparam classHeaderBackgroundColor`/
+  `classBorderColor` -- classifier divider-line stroke COLOR not picking
+  up the override (`#181818` vs `#FF00FF`), a DIFFERENT classifier-box
+  mechanism from ragona's thickness gap despite the superficially similar
+  "stroke" diff shape.
+- `zirori-93-jefo337` (2): `svg/@background #FFFFFF vs #1B1B1B` -- the
+  ALREADY-DOCUMENTED dark-theme document-chrome-override gap (`style.ts`'s
+  own file doc comment: "`plantuml.skin:561-576` dark-theme document
+  overrides... recorded here but NOT wired... flagged for T9"). Confirms
+  real corpus reach for that pre-existing, explicitly-deferred item; not a
+  new finding.
+- `mumefa-23-xoxe715` (1): the fill mystery above.
+- Remaining ~24: mostly `[childCount]` + dimension-delta shapes (missing/
+  extra small primitives -- badge, note, member-row, or uid-numbering
+  territory per the diff shapes' own paths, e.g. `zuxoxu-54-pejo512`'s
+  `@id` off-by-N pattern) that overlap the ALREADY-NAMED note-of-member/
+  enhanced-body-member/item-20/item-28 queue items from N47-49 -- not
+  independently re-classified this iteration (would require the SAME
+  per-fixture drill discipline N48/N49 applied, out of remaining budget).
+
+None of the above attempted. Logged here (not silently dropped) so the
+next iteration doesn't have to re-derive the same triage.
+
+### Full-corpus regression scan (before/after per-fixture zero-diff-set
+### comparison against the git-tracked `ratchet.json`'s pre-iteration 251
+### entries -- no worktree needed, since the ratchet manifest itself IS the
+### "before" snapshot and is git-tracked)
+
+**9 new zero-diff, 0 regressed** (`comm`-verified at the filename level,
+twice -- once after mechanism 1, once after mechanism 2). Mechanism 1: 7
+new (`bajula-59-puxi485`, `conara-44-fisa089`, `majoge-68-zuji574`,
+`modube-37-jiru720`, `zegeso-35-xiko243`, `zofoji-16-mixu665`, `zudogo-24-
+vefe793` -- the last 5 were NOT individually diagnosed beyond confirming
+they were blocked ONLY by mechanism 1's exact 3 attributes, consistent
+with `borderBoxStyle` being shared chrome-block code many fixtures'
+`<style>`/skinparam-overridden legend/header/footer/title rects depend
+on). Mechanism 2: 2 new (`cifeta-62-xodi576`, `medexe-08-ledo064`).
+
+Class census: **251/718 -> 260/718** (1-3:39->31, 4-10:115 unchanged,
+11-30:35->34, 31+:278 unchanged). All 9 new fixtures added to
+`oracle/goldens/svg-class/ratchet.json` (`golden.svg`+`in.puml` copied
+from `test-results/dot-cache/class/<slug>/`, `source: "dot-cache"`,
+`addedAt: "2026-07-18"`) -- all 9 confirmed `dotEqual: true` in
+`parity-class.json` (class DOT is 708/708 in sync). Ratchet: 251 -> 260
+fixtures / 262 tests (was 253).
+
+### DOT gate (frozen, verified unchanged)
+
+`component: 262/262 -- usecase: 90/90 -- class: 708/708 -- object: 78/80
+-- state: 267/267` -- all five counts EXACT, no movement.
+
+### Description SVG gate (frozen, verified unchanged)
+
+`component`+`usecase` census: `48/355` zero-diff (deterministic pass), set
+unchanged. Every file touched this iteration (`blocks.ts`, `style.ts`) IS
+shared chrome code used by description too -- verified deliberately, not
+assumed: `borderBoxStyle`'s rx/ry/stroke fix and `lineThickness`'s new
+field are both STRICTLY ADDITIVE (new always-correct emission + a new
+field defaulting to the value every caller already implicitly used, `1`)
+with no description-specific corpus fixture exercising a DIFFERENT
+default -- the 48/355 zero-diff set is identical (same 48 slugs,
+`comm`-verified).
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9604 tests, all passing** (net
++22 over N49's 9587: +9 new ratchet AC1 tests (260-251), +13 new unit
+tests -- 3 in `annotations-blocks.test.ts` (rx/ry/stroke-width pairing) +
+1 (`lineThickness` override), 6 in `annotations-style.test.ts`
+(`BorderThickness` skinparam wiring x3, mainframe's own 1.5 default x1,
+2 pre-existing `toEqual` shapes updated in place for the new field, not
+new tests). `npm run typecheck`: clean (both configs; 2 additional test
+files needed a `lineThickness: 1` field added to their own hand-built
+`AnnotationBoxStyle` literals to stay assignable under the new required
+field, zero behavior change). `npm run lint`: clean. `npm run build`:
+clean (555 modules, dts generation succeeded).
+
+### Named, NOT attempted this iteration (README items, current queue)
+
+1. `mumefa-23-xoxe715`'s `fill="none"` StyleStorage-iteration-order
+   mystery (re-named this iteration, see above) -- needs jar
+   instrumentation, not a static-read guess.
+2. `classDiagram.class.header` nested style cascade (`fumalu-64-vude116`)
+   -- assessed this iteration, confirmed multi-layer (layout + render),
+   still 1 reach, not attempted.
+3. `skinparam classBorderThickness<<stereo>>` (`ragona-89-fadi984`,
+   NEWLY NAMED) -- classifier-BODY border-thickness tag cascade, sibling
+   of this iteration's chrome `LineThickness` work but a DIFFERENT
+   selector/module.
+4. `skinparam classHeaderBackgroundColor`/`classBorderColor` divider-line
+   stroke color (`cunavo-77-filo788`, NEWLY NAMED) -- classifier-box
+   mechanism, not chrome.
+5. Edge/arrow `thickness` (`jezepa-12-padu194`/`vufuko-05-lapu034`,
+   already implicitly in scope via `arrowThickness`/`-[thickness=N]->`
+   grammar but not previously named as a near-zero item) -- SVG-channel
+   standing-rule adjacent territory (edge geometry), needs its own survey.
+6. Dark-theme document-chrome overrides (`zirori-93-jefo337` confirms real
+   corpus reach for the ALREADY-documented `style.ts` file-doc-comment
+   gap, `plantuml.skin:561-576`) -- still not wired, still flagged for a
+   dedicated iteration.
+7. Every item carried forward unchanged from N49's own queue not
+   mentioned above (dotted-namespace nesting, multi-line generic-tag box,
+   `skinparam genericDisplay old`, legend-block `fill`/`ry`/`stroke-width`
+   -- WAIT: superseded, see below -- `<style> class { MaximumWidth N } }`,
+   note-of-member, enhanced-body-member, hidden-bracket, lollipop-socket,
+   class-font-role-residual, note-creole-markup, item 20, item 24's
+   remaining 2 sub-cases, item 28) -- none surveyed this iteration.
+
+**Superseded this iteration**: N49's items 4 ("chrome-block `rx`/`stroke`
+omission-vs-`none` gap") and 5 ("legend-block `fill`/`ry`/`stroke-width`
+gap") are BOTH now landed (mechanism 1 above) -- drop from future queues
+under those names. `mumefa`'s remaining `fill` diff is re-queued under
+item 1 above (a DIFFERENT, unconfirmed mechanism, not the rx/ry/stroke-
+width gap that WAS `mumefa`'s other 2 diffs).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n50-diff.ts` (single-fixture diff dumper), `scripts/_tmp-
+n50-census.ts` (1-3-bucket full enumerator) -- both deleted before
+finishing (confirmed via `ls scripts/ | grep n50`, empty). No `git
+worktree` needed this iteration -- the git-tracked `ratchet.json`
+manifest itself served as the "before" snapshot for regression
+verification (`comm` against the fresh census's zero-diff list), avoiding
+worktree setup/teardown entirely for a comparison this cheap. No git
+mutations (no stash/checkout/reset/clean) run this iteration. Nothing
+committed (orchestrator owns commits per mission rule).

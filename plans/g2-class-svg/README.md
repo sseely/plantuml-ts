@@ -144,6 +144,7 @@ class pipeline) is:
 
 | N48 | Periodic full-corpus reclassification (last was N33, 14 iterations prior) via a disposable puml-source tagger against the current named-mechanism queue (477 non-conformant fixtures, table + accounting rows in ledger.md). Drilled the largest TRACTABLE cluster (not the largest raw tag count -- `generic-tag` at 54 was too broad/incoherent to be one mechanism): 3 mechanisms LANDED. (1) document-background `<rect>` moved from `renderClass`'s PRE-chrome body into a new `RenderFragment.documentBackgroundRect` field, drawn by `assembleClassShell` at the FINAL post-chrome/post-margin canvas size -- jar draws it spanning the WHOLE canvas (including the title strip) as the outer `<g>`'s FIRST child; this port drew a body-local partial rect that chrome then shifted down without resizing. (2) item 24 NARROWED: `class-geo-builders.ts#degenerateSingleClassifier` (single-classifier, no-DOT-graph fast path) never set `ClassGeometry.rawWidth`/`rawHeight` (the N46 raw/final chrome-centering split) -- reused `applyClassDocumentMargin` directly (provably value-preserving for `totalWidth`/`totalHeight`'s own numeric output) to expose them; this is what item 27 ("multi-line title block grammar residual") turned out to actually be -- `xalaco-64-vuzu312`'s identical multi-line title grammar showed ZERO residual because it has an edge and so doesn't hit the degenerate path, falsifying the old "block grammar" framing. (3) **item 29 FULLY RESOLVED**: `#?light:dark[:transparent]` (`HColorScheme#getAppropriateColor`) ported as `resolveConditionalColor`/`parseConditionalColor` (`core/klimt/color/HColorSet.ts`, previously explicitly out-of-scope per its own module doc comment) and wired into the 2 call sites with real corpus reach: classifier/header FontColor (`style-cascade-class.ts#cascadeFontColorHex`, local bg = the classifier's own resolved background) and chrome FontColor (`core/annotations/style.ts`, local bg = `theme.colors.background` -- this ALSO required wiring the previously-entirely-missing bare `root` `<style>` selector into chrome's cascade, a pre-existing gap the D7 doc comment already flagged but nothing had implemented). Full-corpus regression scan (before/after diffCount snapshot, no worktree needed): **21 improved / 0 regressed / 0 lost zero-diff** across all 718. 2 PRE-fix-encoded unit tests corrected in place (`style-cascade-class.test.ts`, per diagnosis.md). Items 25/26/27/29 all now resolved or reclassified; item 24 narrowed to its remaining 2 sub-cases (empty-diagram sentinel, `layoutMultiPage` combiner). | **9 new zero-diff** (`dipune-93-sare489`, `duraci-96-rugu254`, `farinu-74-fuco238`, `lelabe-72-zate295`, `miliju-79-moti992`, `takeze-87-zuge906`, `tucesi-19-xato263`, `vekime-22-buru589`, `xalaco-64-vuzu312`); census 250/718 (was 241) · 1-3:40 (was 38) · 4-10:115 (was 117) · 11-30:35 (was 36) · 31+:278 (was 286) | done |
 | N49 | Generic-tag (54, per N48) sub-classified by GROUND TRUTH (`Classifier.typeParams.length>0` on the real post-parse AST, not the N48 regex heuristic) -- real reach is 19, not 54 (the regex over-matched creole `<b>`/`<u>` markup, doubled `<<stereotype>>` brackets, and non-generic quoted names). 2 mechanisms LANDED: (1) `Classifier.typeParamsRawText` -- the generic clause's VERBATIM source text (e.g. "K,V"), used instead of `typeParams.join(', ')` -- jar never re-splits/rejoins the captured clause (`CommandCreateClass.java:139`'s `generic` is a single raw regex group), so a no-space source renders literally, not with an inserted space (jar-verified `camuna-58-veca254`: `<Long,Customer>` -> tag text "Long,Customer"). (2) generic tag box `fill` is now a FIXED white default (`GENERIC_TAG_BACKGROUND`), not `theme.colors.background` -- jar-verified `remulu-24-zadi546` (`skinparam backgroundcolor transparent` still draws the tag white, proving the two are independent; the pre-existing doc comment's citation couldn't disambiguate since the DEFAULT theme's background is ALSO white). The 5-diff cluster behind the shared `svg/@height`+`g[childCount]` symptom turned out to be THREE unrelated root causes (namespace + generic = the ALREADY-NAMED dotted-namespace gap, not a generic-tag bug; a multi-line generic clause with embedded `\n` = a genuinely unbuilt multi-line tag-box feature; `genericDisplay old` = a 3-part compound gap) -- none attempted (1 reach each, or frozen-gate DOT risk). `style-cascade-classifier-bg` (22, per N48) sub-classified with a narrower ground-truth filter (13 non-zero remain): the 2 smallest turned out to be 2 DIFFERENT, off-topic `core/annotations/blocks.ts` chrome-block bugs (document-header rect `rx`/`stroke` gap; legend rect `fill`/`ry`/`stroke-width` gap), SHARED with description -- deferred pending a full-corpus verification pass, not attempted. A THIRD candidate surfaced a real, newly-named `classDiagram.class.header` nested style cascade (BackgroundColor + FontSize, new header-region rect primitives) -- 1 reach, not attempted. The classifier body BackgroundColor cascade's OWN true remaining reach appears to be ZERO; recommend dropping "22" from future queues under this name. Full-corpus regression scan (disposable `git worktree` pinned at N48's commit, removed before finishing): **6 improved / 0 regressed / 0 lost zero-diff**. 3 PRE-fix-encoded/newly-added unit tests (`parser.test.ts` x2, `class-stereotype.test.ts` x2, `renderer.test.ts` x1, 1 corrected in place). | **1 new zero-diff** (`remulu-24-zadi546`); census 251/718 (was 250) · 1-3:39 (was 40) · 4-10:115 (unchanged) · 11-30:35 (unchanged) · 31+:278 (unchanged) | done |
+| N50 | Priority 1 (both N49-named chrome-block rect gaps) LANDED, plus a bonus mechanism they unmasked. Mechanism 1: `core/annotations/blocks.ts#borderBoxStyle` always omitted `stroke`/`stroke-width` when `lineColor` was `null` (jar always emits explicit `stroke:none`/an explicit width, never omits), always emitted a literal `rx="0"` (jar omits `rx`/`ry` ENTIRELY when roundCorner is 0 -- a `RoundRectangle2D` with zero radius degenerates to a plain rect upstream), and never paired `ry` with `rx` when roundCorner was non-zero -- jar-verified BOTH N49 fixtures directly (`bajula-59-puxi485` header, `mumefa-23-xoxe715` legend). Fixed additively (only `stroke`/`rx`/`ry` emission logic changed). Mechanism 2 (bonus, found while regression-scanning mechanism 1): chrome `LineThickness` (`skinparam Legend/title { BorderThickness N }`, `FromSkinparamToStyle.java:166,172`) was entirely unwired -- `AnnotationBoxStyle` gained a new required `lineThickness` field (root default 1, mainframe's own 1.5 per `plantuml.skin:85`), threaded through `style.ts#applyBoxSuffix`'s existing title/legend-only `BOX_KEY_ELEMENTS` plumbing into `borderBoxStyle`'s `strokeWidth`. Investigated but did NOT land `mumefa-23-xoxe715`'s remaining 1 diff (`legend rect fill="none"` vs the usual `#DDDDDD` default, triggered specifically by a `document`-LEVEL, non-legend-specific `<style>` BackgroundColor override) -- traced through `StyleSignatureBasic#matchAll`/`StyleStorage#computeMergedStyle`'s set-containment + insertion-order merge algorithm but could not confirm the iteration-order mechanism via static reading alone; needs jar instrumentation, not a guess (diagnosis.md). Item 2 (`classDiagram.class.header` nested cascade, `fumalu-64-vude116`) assessed: re-diffed to 5 (not N49's original 8), confirmed it needs BOTH a `layout.ts` row-height change (the header's `FontSize 20` override widens the canvas, not just a render-only addition) AND 3 new render primitives -- deferred, still 1 reach, not a good use of the remaining budget. Near-zero harvest (item 3) SCANNED (31 fixtures enumerated, disposable `scripts/_tmp-n50-census.ts`, deleted): triaged by diff shape into 6 distinct mechanisms (edge arrowThickness, classifier tag-cascade BorderThickness, classifier divider-line BorderColor, the already-documented dark-theme chrome gap, the fill mystery above, and a residual `[childCount]`/dimension cluster overlapping already-named note/member/uid items) -- none drilled, logged in `ledger.md` N50 for the next iteration. Full-corpus regression scan (no worktree -- the git-tracked `ratchet.json` itself served as the "before" snapshot): **9 improved / 0 regressed / 0 lost zero-diff**. 13 new unit tests (3+1 in `annotations-blocks.test.ts`, 6 in `annotations-style.test.ts`, TDD RED-then-GREEN), 4 pre-existing test files updated for the new required `lineThickness` field (2 full-shape `toEqual` assertions, 2 hand-built literals) -- zero behavior change, confirmed via typecheck. | **9 new zero-diff** (`bajula-59-puxi485`, `cifeta-62-xodi576`, `conara-44-fisa089`, `majoge-68-zuji574`, `medexe-08-ledo064`, `modube-37-jiru720`, `zegeso-35-xiko243`, `zofoji-16-mixu665`, `zudogo-24-vefe793`); census 260/718 (was 251) · 1-3:31 (was 39) · 4-10:115 (unchanged) · 11-30:34 (was 35) · 31+:278 (unchanged) | done |
 
 ## Standing rules
 
@@ -1787,34 +1788,20 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     instead of splitting a quoted multi-line display name into a real line
     break (independent, pre-existing gap, unmasked by this fixture); (c)
     both must land together to reach zero-diff on this specific fixture.
-32. **`core/annotations/blocks.ts#borderBoxStyle` `rx`/`stroke` shape gap**
-    (NEWLY NAMED N49, `bajula-59-puxi485`, reach unsurveyed beyond this one
-    fixture) — a chrome block (title/header/footer/legend/caption) with
-    `roundCorner: 0` emits a literal `rx="0"` (jar OMITS `rx` entirely when
-    the corner radius is 0 — a zero-radius `RoundRectangle2D` degenerates
-    to a plain rect upstream, never reaching the `rx`-emitting branch), and
-    OMITS `stroke`/`stroke-width` entirely when `lineColor` is `null` (jar
-    EXPLICITLY writes `stroke:none;stroke-width:1` for that case instead of
-    omitting the attribute). SHARED with description (`buildAnnotationBlock`
-    is used by every engine with chrome) — needs a full-corpus verification
-    pass (does any already-zero-diff chrome fixture depend on the CURRENT
-    "omit when null" behavior?) before touching, not a scoped class-only
-    fix.
-33. **Legend-block border rect gap** (NEWLY NAMED N49, `mumefa-23-
-    xoxe715`, reach unsurveyed) — the legend block's own border/background
-    rect is missing `ry`/`stroke-width` and has the wrong `fill` (`#DDDDDD`
-    vs jar's `fill="none"`). SHARED with description, same caution as item
-    32 — not attempted.
 34. **`classDiagram.class.header` nested style cascade** (NEWLY NAMED N49,
-    `fumalu-64-vude116`, 1 confirmed reach) — `<style> class { header {
-    BackgroundColor ...; FontSize N } } }` is entirely unwired: jar draws
-    the classifier's header ROW with its own background color as a
-    SEPARATE rect layered on top of the body (bounded to just the header
-    row), plus a matching divider-strip rect, plus an outline-only redraw
-    of the body border on top — and the header's `FontSize` override does
-    not cascade either (this port keeps the unchanged 14pt). Needs new
-    header-region rect primitives in the renderer PLUS a new nested
-    selector level in the style cascade — a real feature, not a quick fix.
+    `fumalu-64-vude116`, 1 confirmed reach; RE-ASSESSED N50) — `<style>
+    class { header { BackgroundColor ...; FontSize N } } }` is entirely
+    unwired: jar draws the classifier's header ROW with its own background
+    color as a SEPARATE rect layered on top of the body (bounded to just
+    the header row), plus a matching divider-strip rect, plus an
+    outline-only redraw of the body border on top — and the header's
+    `FontSize` override does not cascade either (this port keeps the
+    unchanged 14pt). N50 confirmed this is a MULTI-LAYER feature: the
+    `FontSize` override changes the classifier's own measured header-row
+    height, a `layout.ts` concern (canvas width shifts by 2px), not just a
+    render-only addition — needs new header-region rect primitives in the
+    renderer PLUS a new nested selector level in the style cascade PLUS a
+    layout-height change. Still 1 confirmed reach — not a quick fix.
 35. **`<style> class { MaximumWidth N } }` text-wrap cascade** (NEWLY
     NAMED N49, `nufini-44-jofo787`/`nucite-98-kuga991`, found opportunistically
     while surveying bare `class { ... }` selectors — reach beyond these 2
@@ -1824,6 +1811,19 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     extra wrapped text/line elements), this port keeps everything on one
     line. Unrelated to background cascade — a real text-wrapping feature
     gap.
+
+**RESOLVED N50, drop from future queues** — both chrome-block rect gaps
+named N49 (`core/annotations/blocks.ts#borderBoxStyle`'s `rx`/`stroke`
+omission-vs-literal-zero shape, and the legend-block's `ry`/`stroke-width`
+half of item 33) — landed as ONE mechanism (`rx`/`ry` paired and omitted
+together when `roundCorner` is 0, `stroke`/`stroke-width` always explicit).
+`mumefa-23-xoxe715`'s remaining `fill="none"` diff was NOT part of this
+mechanism (a different, unconfirmed StyleStorage-iteration-order question —
+see `ledger.md` N50, re-queued under a precise new name, do not conflate
+with the rx/stroke gap that IS resolved). A bonus mechanism (chrome
+`LineThickness`/`skinparam Legend|title { BorderThickness N }`, previously
+entirely unwired) was also landed in the same iteration — do not re-queue
+either name.
 
 **RESOLVED N49, drop from future queues** — `style-cascade-classifier-bg`
 (the 22-fixture N48 residue count, itself narrowed from N36's original

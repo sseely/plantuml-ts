@@ -90,6 +90,9 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
       backgroundColor: null,
       lineColor: null,
       roundCorner: 0,
+      // G2 N50: root{}'s LineThickness 1.0 default (title has no override
+      // of its own in plantuml.skin's document{} block).
+      lineThickness: 1,
       padding: { top: 5, right: 5, bottom: 5, left: 5 },
       margin: { top: 5, right: 5, bottom: 5, left: 5 },
       horizontalAlignment: HorizontalAlignment.CENTER,
@@ -106,6 +109,9 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
       backgroundColor: '#DDDDDD',
       lineColor: 'black',
       roundCorner: 15,
+      // G2 N50: root{}'s LineThickness 1.0 default (legend has no override
+      // of its own in plantuml.skin's document{} block).
+      lineThickness: 1,
       padding: { top: 5, right: 5, bottom: 5, left: 5 },
       margin: { top: 12, right: 12, bottom: 12, left: 12 },
       horizontalAlignment: HorizontalAlignment.LEFT,
@@ -150,6 +156,15 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
     expect(mainframe.backgroundColor).toBeNull();
     expect(mainframe.fontSize).toBe(14);
   });
+
+  // G2 N50: `plantuml.skin:85` -- mainframe is a `root{}` SIBLING (not a
+  // `document{}` child), and its own block sets `LineThickness 1.5`
+  // explicitly -- the ONE annotation element whose default differs from
+  // root's own `LineThickness 1.0`.
+  it('mainframe: lineThickness 1.5 (its own plantuml.skin override, not root\'s 1.0)', () => {
+    const { mainframe } = resolve();
+    expect(mainframe.lineThickness).toBe(1.5);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -191,6 +206,28 @@ describe('resolveAnnotationStyles — skinparam overrides', () => {
   it('LegendBorderRoundCorner overrides legend.roundCorner', () => {
     const styles = resolve(new Map([['LegendBorderRoundCorner', '3']]));
     expect(styles.legend.roundCorner).toBe(3);
+  });
+
+  // G2 N50: `titleBorderThickness`/`legendBorderThickness` ->
+  // `PName.LineThickness` (`FromSkinparamToStyle.java:166,172`) -- jar-
+  // verified `medexe-08-ledo064` (`skinparam title { BorderThickness 2
+  // ... }`) and `cifeta-62-xodi576` (`skinparam Legend { BorderThickness
+  // 5.0 ... }`); both fixtures' preprocessor already flattens the block
+  // form to `titleborderthickness`/`legendborderthickness` (`preprocessor
+  // .ts`'s `RE_SKINPARAM_SELECTOR_BLOCK_OPEN`).
+  it('LegendBorderThickness overrides legend.lineThickness', () => {
+    const styles = resolve(new Map([['LegendBorderThickness', '5.0']]));
+    expect(styles.legend.lineThickness).toBe(5);
+  });
+
+  it('TitleBorderThickness overrides title.lineThickness (title is a Box key element)', () => {
+    const styles = resolve(new Map([['TitleBorderThickness', '2']]));
+    expect(styles.title.lineThickness).toBe(2);
+  });
+
+  it('header/footer/caption do not expose BorderThickness skinparam keys', () => {
+    const styles = resolve(new Map([['HeaderBorderThickness', '9']]));
+    expect(styles.header.lineThickness).toBe(1);
   });
 
   it('TitleBackgroundColor overrides title.backgroundColor (title is a Box key element)', () => {

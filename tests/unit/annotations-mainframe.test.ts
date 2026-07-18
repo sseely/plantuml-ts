@@ -34,6 +34,7 @@ const PLAIN_STYLE: AnnotationBoxStyle = {
   backgroundColor: null,
   lineColor: null,
   roundCorner: 0,
+  lineThickness: 1, // G2 N50: root{}'s LineThickness 1.0 default
   padding: { top: 0, right: 0, bottom: 0, left: 0 },
   margin: { top: 0, right: 0, bottom: 0, left: 0 },
   horizontalAlignment: 'LEFT',

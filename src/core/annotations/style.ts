@@ -68,6 +68,15 @@ export interface AnnotationBoxStyle {
   backgroundColor: string | null;
   lineColor: string | null;
   roundCorner: number;
+  /** G2 N50: `PName.LineThickness` -- upstream's `root{}` default is `1.0`
+   *  (`plantuml.skin:15`); `mainframe{}` is the ONE annotation element with
+   *  its own override (`1.5`, `plantuml.skin:85`, a `root{}` SIBLING block,
+   *  not inherited through `document{}`). Only `title`/`legend` expose a
+   *  skinparam key for it (`titleBorderThickness`/`legendBorderThickness`,
+   *  {@link applyBoxSuffix}'s `borderthickness` case) -- see this file's own
+   *  module doc comment for the full title/legend-only `Box*` key list this
+   *  mirrors. */
+  lineThickness: number;
   padding: BoxSides;
   margin: BoxSides;
   /** D8: for `title`/`caption`, `DiagramChromeFactory.addTitle`/`addCaption`
@@ -185,6 +194,8 @@ const ROOT_FONT_COLOR = 'black';
 const ROOT_FONT_STYLE = 'plain' as const;
 const ROOT_ROUND_CORNER = 0;
 const ROOT_LINE_COLOR = '#181818';
+/** `plantuml.skin:15` (`root{}`'s own `LineThickness 1.0`). */
+const ROOT_LINE_THICKNESS = 1;
 
 const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
   // plantuml.skin:30-38
@@ -197,6 +208,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
+    lineThickness: ROOT_LINE_THICKNESS,
     padding: { top: 5, right: 5, bottom: 5, left: 5 },
     margin: { top: 5, right: 5, bottom: 5, left: 5 },
   },
@@ -210,6 +222,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
+    lineThickness: ROOT_LINE_THICKNESS,
     padding: ZERO_SIDES,
     margin: ZERO_SIDES,
   },
@@ -223,6 +236,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
+    lineThickness: ROOT_LINE_THICKNESS,
     padding: ZERO_SIDES,
     margin: ZERO_SIDES,
   },
@@ -236,6 +250,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
+    lineThickness: ROOT_LINE_THICKNESS,
     padding: ZERO_SIDES,
     margin: { top: 1, right: 1, bottom: 1, left: 1 },
   },
@@ -250,6 +265,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: expandGrayShorthand('#D'),
     lineColor: 'black',
     roundCorner: 15,
+    lineThickness: ROOT_LINE_THICKNESS,
     padding: { top: 5, right: 5, bottom: 5, left: 5 },
     margin: { top: 12, right: 12, bottom: 12, left: 12 },
   },
@@ -266,6 +282,9 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: ROOT_LINE_COLOR,
     roundCorner: ROOT_ROUND_CORNER,
+    // plantuml.skin:85 -- mainframe's OWN LineThickness override (1.5),
+    // not root's 1.0 -- see this field's doc comment on the interface.
+    lineThickness: 1.5,
     padding: { top: 1, right: 5, bottom: 1, left: 5 },
     margin: { top: 10, right: 5, bottom: 10, left: 5 },
   },
@@ -342,6 +361,15 @@ function applyBoxSuffix(style: AnnotationBoxStyle, suffix: string, value: string
     case 'borderroundcorner': {
       const n = Number.parseInt(value.trim(), 10);
       if (Number.isFinite(n)) style.roundCorner = n;
+      return true;
+    }
+    case 'borderthickness': {
+      // G2 N50: `titleBorderThickness`/`legendBorderThickness` ->
+      // `PName.LineThickness` (`FromSkinparamToStyle.java:166,172`) --
+      // `parseFloat` (not `parseInt`) since the jar accepts fractional
+      // values (`BorderThickness 5.0`, jar-verified `cifeta-62-xodi576`).
+      const n = Number.parseFloat(value.trim());
+      if (Number.isFinite(n)) style.lineThickness = n;
       return true;
     }
     default:
