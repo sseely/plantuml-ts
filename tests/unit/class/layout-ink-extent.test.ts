@@ -78,6 +78,57 @@ describe('computeClassDocumentDims', () => {
     expect(dims.height).toBe(134);
   });
 
+  it('item 42 (G2 N60): inkShape "polygon" (strictuml FOLDER) pads x by ' +
+    'HACK_X_FOR_POLYGON=10 on both sides, y unpadded -- jar-verified against ' +
+    'jinibe-02-tebi269\'s real LimitFinder walk (raw cluster bbox [16,64] -> ' +
+    'ink [6,74])', () => {
+    const namespaces: NamespaceGeo[] = [
+      {
+        id: 'a', x: 16, y: 16, width: 48, height: 89, label: 'a',
+        wtitle: 25, htitle: 10, baselineOffset: 12.8889, inkShape: 'polygon',
+      },
+    ];
+    const { inkShape: _polyInkShape, ...plainNsPoly } = namespaces[0]!;
+    const polygon = computeClassDocumentDims([], namespaces, [], []);
+    const plain = computeClassDocumentDims([], [plainNsPoly], [], []);
+    // Ink span with the hack: x in [6, 74] vs the plain-UPath rule's [16, 64]
+    // -- exactly 20px (2*HACK_X_FOR_POLYGON) wider, y unaffected.
+    expect(polygon.width).toBe(plain.width + 20);
+    expect(polygon.height).toBe(plain.height);
+  });
+
+  it('item 42 (G2 N60): inkShape "rect" (skinparam packageStyle rect) uses ' +
+    'the classic URectangle ink rule (-1 on BOTH corners: [x-1,x+w-1]) -- ' +
+    'the SAME width/height as the plain UPath rule ([x,x+w], since both are ' +
+    'w-wide), but SHIFTED 1px left/up -- jar-verified against mucuxi-36-' +
+    'beku683\'s real LimitFinder walk (raw cluster bbox [16,64] -> ink ' +
+    '[15,63])', () => {
+    const namespaces: NamespaceGeo[] = [
+      {
+        id: 'a', x: 16, y: 16, width: 48, height: 89, label: 'a',
+        wtitle: 25, htitle: 10, baselineOffset: 12.8889, inkShape: 'rect',
+      },
+    ];
+    const { inkShape: _rectInkShape, ...plainNs } = namespaces[0]!;
+    const rectDims = computeClassDocumentDims([], namespaces, [], []);
+    const plainDims = computeClassDocumentDims([], [plainNs], [], []);
+    // A namespace-only diagram: the ink SPAN width/height (max-min) is
+    // identical between the two rules (both exactly `width`/`height` wide),
+    // so the FINAL canvas dimension is unaffected in isolation -- the rule
+    // only matters once ANOTHER element's own ink could dominate a corner,
+    // or via the absolute ink-shift position (`computeClassInkShift` below).
+    expect(rectDims).toEqual(plainDims);
+
+    const rectShift = computeClassInkShift([], namespaces, [], []);
+    const plainShift = computeClassInkShift([], [plainNs], [], []);
+    // rect's ink-min corner is 1px further out (x-1,y-1 vs x,y), so the
+    // uniform shift needed to land it at JAR_INK_MARGIN is 1px smaller in
+    // magnitude on both axes -- jar-verified: mucuxi's real shift is -9
+    // (raw minX 15 -> 6), jinibe/plain's is -10 (raw minX 16 -> 6).
+    expect(rectShift.dx).toBe(plainShift.dx + 1);
+    expect(rectShift.dy).toBe(plainShift.dy + 1);
+  });
+
   it('edge points widen the box beyond the classifiers alone', () => {
     const classifiers = [makeClassifierGeo({ x: 0, y: 0, width: 40, height: 40 })];
     const edges: EdgeGeo[] = [

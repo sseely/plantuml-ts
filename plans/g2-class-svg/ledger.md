@@ -17300,3 +17300,270 @@ grep n59`, empty). `git worktree add /tmp/n59-baseline HEAD` (symlinked
 (confirmed via `git worktree list`, main tree only). No `git checkout`/
 `reset`/`stash`/`clean` used on any file, own edits included. Nothing
 committed (orchestrator owns commits per mission rule).
+
+
+## N60 -- item 42 (FOLDER-strictuml canvas mystery) DIAGNOSED and LANDED:
+## the `LimitFinder#drawUPolygon` `HACK_X_FOR_POLYGON=10` ink-walk quirk was
+## never modeled for namespace outlines; item 39 (fogexa note-connector)
+## re-diagnosed with the exact golden target, still declined -- needs the
+## uid dense-renumbering merge extended, high regression risk for 1/718
+## reach; near-zero harvest triaged, nothing landed (confirmed NOT cheap)
+
+### Item 42: root cause found via the N46 patched-jar technique (static
+### tracing had genuinely stalled after 3 ruled-out hypotheses)
+
+**Mechanism** (diagnosis.md artifact):
+- **Origin**: `src/diagrams/class/layout-ink-extent.ts`'s `buildInkBox`
+  (pre-fix: unconditional `addPlainInk(box, n.x, n.y, n.width, n.height)`
+  for every namespace, `layout-ink-extent.ts:279` pre-N60).
+- **Cause**: jar's `Cluster.java`/`ClusterDecoration#drawU` draws a
+  FOLDER-style package's outline as a `UPolygon` (`USymbolFolder.java
+  #drawFolder`'s `roundCorner==0` branch — the sharp-corner shape
+  `Cluster.java`'s own `strictUmlStyle()` check forces UNCONDITIONALLY,
+  confirmed by direct Java source read) whenever `skinparam style
+  strictuml` is set — NOT the default rounded-arc `UPath` this port's own
+  `addPlainInk` rule assumed universally for every namespace. Upstream's
+  own `LimitFinder#drawUPolygon` (`LimitFinder.java:171-177`) carries a
+  literal, upstream-named `HACK_X_FOR_POLYGON = 10` constant that pads the
+  ink-walk's `x` bounds by 10 on BOTH sides (`y` untouched) for ANY
+  `UPolygon` shape — a jar-side ink-EXTENT-only correction with no visible
+  drawn consequence (the polygon's own points are unaffected; only the
+  CANVAS size/position calculation sees the extra reservation). This
+  port's namespace ink rule never modeled the FOLDER-under-strictuml case
+  as a `UPolygon` at all, so it never applied this padding — undershooting
+  jar's real canvas width by exactly `2 * HACK_X_FOR_POLYGON = 20`px on
+  every strictuml-FOLDER-package fixture, plus a smaller universal
+  `URectangle` ink-rule gap for `skinparam packageStyle rect` (jar's
+  `LimitFinder#drawRectangle`: `[x-1, x+w-1]`, NOT the `[x, x+w]` plain-box
+  rule `addPlainInk` also applied there).
+- **Causal chain**: `SvekResult#calculateDimension`'s `LimitFinder` ink
+  walk (`svek/SvekResult.java:130-134`) computes the WHOLE diagram's ink
+  bounding box by literally drawing every element (clusters, nodes, edges)
+  through a bounds-only mock `UGraphic`. `LimitFinder#drawUPolygon`'s own
+  10px pad is a per-shape dispatch rule, keyed on the drawn shape's Java
+  TYPE (`UPolygon` vs `UPath` vs `URectangle`), not on any namespace-level
+  concept — this port's plain-geometry re-implementation
+  (`layout-ink-extent.ts`, no klimt `UGraphic` for class's pure-string
+  render path) needed the SAME per-shape dispatch, keyed on which SVG
+  element `class-namespace-shape.ts#renderNamespaceFolder`/
+  `renderNamespaceRect` actually draws (`<polygon>` under strictuml,
+  `<path>` otherwise, `<rect>`-equivalent info for `packageStyle rect`) --
+  a dispatch this module's own file-header doc comment had NEVER
+  correctly stated (it claimed "namespace cluster's rounded-corner
+  outline: plain bounding box, no inset" as a blanket rule, unqualified by
+  package style — an unverified assumption from before ANY FOLDER+
+  strictuml fixture had been jar-traced to this depth).
+- **Ruled out** (in order, each independently tested before the jar-patch
+  step): (1) `FrontierCalculator`/`Cluster#manageEntryExitPoint` --
+  read the Java source directly, confirmed this recompute path is GATED
+  on `entityPositionsExceptNormal().size() > 0` (real port/entry-exit
+  points only), which is `0` for both `jinibe-02-tebi269` (FOLDER) and
+  `mucuxi-36-beku683` (RECT) -- structurally impossible to be the cause,
+  no probe needed once the guard clause was read. (2)
+  `USymbol#suppWidthBecauseOfShape()`/`suppHeightBecauseOfShape()` --
+  read `USymbol.java` base (0) and confirmed `USymbolFolder` never
+  overrides either -- both styles get literal `0`, ruling out a
+  shape-specific title-reservation-width difference. (3) DOT-emission
+  divergence between FOLDER/RECT -- `jinibe`/`mucuxi`'s cached
+  `svek-1.dot` files are byte-IDENTICAL (confirmed via `diff`), and a
+  local `dot -Tsvg` run on that exact DOT (graphviz 15.1, close enough for
+  this trivial single-cluster/single-node topology -- margin defaults are
+  version-stable) reproduces jar's real `[16,64]` cluster bbox and
+  `[32.32,47.68]` node bbox EXACTLY, proving graphviz's raw layout is
+  identical for both styles and the divergence is 100% post-layout
+  DRAW-TIME, in jar's `Cluster`/`ClusterDecoration`/`LimitFinder` stack,
+  not in graphviz or this port's own DOT emission.
+
+**Instrumentation** (N46 patched-jar technique, applied after static
+tracing stalled): patched `SvekResult.java` (println `minMax` right after
+the `LimitFinder` walk, before `moveDelta`), `Cluster.java` (println
+`rectangleArea`/`packageStyle` right before `ClusterDecoration.drawU`),
+`DotStringFactory.java` (println the raw graphviz-extracted cluster
+min/max at `cluster.setPosition(min, max)`) -- `javac`-recompiled just
+those 3 classes against the pinned commit's `build/classes/java/main`
+classpath (no full gradle rebuild needed), `jar uf`'d into a **scratch
+copy** of `oracle/dist/plantuml-oracle.jar` (`oracle/dist/` itself never
+touched, per this mission's hard boundary), ran both fixtures. Real jar
+output:
+```
+jinibe (FOLDER): raw cluster bbox min=(16,24) max=(64,113)
+                  LimitFinder minMax minX=6.0 maxX=74.0   [16-10, 64+10]
+mucuxi (RECT):    raw cluster bbox min=(16,24) max=(64,113)  -- SAME DOT
+                  LimitFinder minMax minX=15.0 maxX=63.0  [16-1, 64-1]
+```
+Exact match to `HACK_X_FOR_POLYGON=10` (FOLDER) vs `LimitFinder
+#drawRectangle`'s `-1`/`+w-1` rule (RECT) against the IDENTICAL raw
+graphviz bbox both styles share. All 3 debug printlns reverted via `git
+checkout` in `~/git/plantuml` immediately after capturing the evidence
+(confirmed `git status --short` shows only the pre-existing, not-mine
+`.gitignore` diff); the scratch patched jar + its output dirs were
+removed from the scratchpad before finishing.
+
+**Fix**: `NamespaceGeo` gains a new `inkShape?: 'polygon' | 'rect'` field
+(`layout.ts`), computed ONCE per diagram in
+`class-geo-builders.ts#buildNamespaceGeos` via a new
+`resolveNamespaceInkShape(theme)` helper mirroring `renderer.ts
+#renderNamespace`'s OWN `packageStyle`/`strictUml` dispatch exactly
+(`'rect'` for `skinparam packageStyle rect`; `'polygon'` for the default
+FOLDER style under `skinparam style strictuml`; `undefined` -- unchanged
+`addPlainInk` behavior -- for the common default-FOLDER-non-strict case).
+`layout-ink-extent.ts#buildInkBox`'s namespace loop now dispatches through
+a new `addNamespaceInk` on this field: `addFolderPolygonInk` (new,
+`HACK_X_FOR_POLYGON`-padded x) for `'polygon'`, `addNamespaceRectInk`
+(new, `-1`/`w-1` inset) for `'rect'`, `addPlainInk` (unchanged) otherwise.
+Zero-blast-radius design: `inkShape` is an OPTIONAL field (no signature
+change to `computeClassDocumentDims`/`computeClassInkShift`/
+`computeClassRawInkDims`, no `theme` threading needed in `layout-ink-
+extent.ts` at all -- it stays klimt-free/theme-free per its own established
+convention, reading the pre-resolved field off each `NamespaceGeo` instead).
+
+**Full-corpus regression scan** (disposable `git worktree add --detach
+<scratchpad>/n60-baseline HEAD`, symlinked `node_modules`/`test-results`,
+per-fixture diffCount before/after, all 718 class fixtures): **0
+regressions, 3 fixtures improved, 0 new zero-diff** (the catastrophic
+mechanism is fully closed but a SEPARATE, already-named small residual
+-- `NAMESPACE_SIDE_PADDING=16` vs jar's real `~16.32`, N59's own "small
+universal residual," suspected graphviz-ts-vs-real-graphviz margin
+default and therefore out of this mission's declared scope -- blocks all
+3 from reaching zero-diff):
+- `jinibe-02-tebi269`: 18 -> 10 diffs (canvas width delta 21px -> 1px;
+  the catastrophic FOLDER-only ~20px gap fully closed, only the ~0.32-
+  0.64px universal residual remains).
+- `ditapa-46-bete946`: 20 -> 12 diffs (same mechanism, same closure).
+- `mucuxi-36-beku683`: 19 -> 10 diffs (RECT's own smaller `URectangle`
+  ink-rule gap fixed too, as a byproduct of the SAME `buildInkBox`
+  namespace-ink dispatch fix -- this ALSO resolved a previously-unnoticed
+  Y-axis position gap, not just the X-axis width gap N59's own note
+  focused on: `computeClassInkShift`'s uniform translate is 1px different
+  under the corrected rule, fixing every `rect`/`text`/`line` Y coordinate
+  in the diagram, not just the namespace box itself).
+
+**Tests**: `tests/unit/class/layout-ink-extent.test.ts` (+2 cases --
+`inkShape: 'polygon'` widens ink by `2*HACK_X_FOR_POLYGON` vs the plain
+rule, `inkShape: 'rect'` produces the SAME dims as plain in isolation but
+a 1px-different `computeClassInkShift`, both jar-verified against the real
+`minMax` values the patched-jar trace captured); `tests/unit/class/
+class-geo-builders.test.ts` (+4 cases -- `resolveNamespaceInkShape`'s 4
+branches: default/`strictUml`/`packageStyle rect` alone/`packageStyle rect`
++`strictUml` together). TDD: all 6 written RED against the pre-fix
+`buildInkBox`, GREEN after. Full suite: 9688/9688 passing (356 files, +6
+vs N59's 9682).
+
+### Item 39 (fogexa note-connector under strictuml): re-diagnosed with the
+### EXACT golden target, mechanism confirmed identical to N58's own
+### finding, still declined -- new information: the blocker is NOT the
+### draw-order/dasharray alone, it's the uid dense-renumbering merge
+
+Direct byte-for-byte read of `fogexa-30-zupo141`'s real golden SVG (not
+available to N58, which inferred the mechanism from source reading alone):
+jar draws the note as a normal wrapped entity (`<g class="entity"
+data-qualified-name="GMN2" id="ent0003">`, NO connector inside), then
+SEPARATELY, positioned AFTER the class group in DOM order, a real
+`<g class="link" data-entity-1="ent0003" data-entity-2="ent0001" id="lnk4"
+data-link-type="association">` with `stroke-dasharray:7,7` (not the note's
+own `4,4`) — confirming N58's mechanism exactly, but revealing the
+REMAINING blocker precisely: this port's uid dense-renumbering merge
+(`renderer-uid.ts#assignExact`) has no entry TYPE for "a note's own
+connector, promoted to a real edge" — `lnk4` needs its own `creationIndex`
+slot in the SAME merge that already handles classifiers/namespaces/edges/
+notes/phantoms, correctly interleaved with the note's OWN `ent0003` slot
+(which already works). Landing this correctly requires extending
+`assignExact`'s `Ranked` union with a new entry kind, sourced from
+whatever `creationIndex` jar's real synthetic `Link` carries for a `note
+top of X`/`note left of X`-with-connector relationship — NOT yet traced
+to a `ClassNote`/`ast.ts` field (this port may not track it at all yet).
+Declined: the uid dense-renumbering merge is shared, load-bearing
+machinery for EVERY note+edge class fixture in the corpus (a much wider
+blast radius than the single `fogexa` target), and getting a NEW entry
+kind's ordering wrong silently corrupts ids across unrelated fixtures --
+too high a regression risk to attempt without first tracing the
+`creationIndex` source, which is its own dedicated investigation. Named
+precisely for a future iteration (previous framing "small new subsystem,
+draw-order + edge-path-reuse" undersold the real blocker; the draw-order/
+dasharray/entity-wrapping parts are all ALREADY straightforward reuses of
+existing machinery -- the uid merge is the genuine unknown).
+
+### Near-zero harvest (27-fixture 1-3 bucket): triaged, nothing landed
+
+- `pofabe-33-kizo628` (`skinparam monochrome true`, 2 diffs, both a badge
+  ellipse `fill="#ADD1B2"` vs jar's `#C2C2C2`): traced to jar's REAL
+  mechanism -- `TitledDiagram.java:279-283` maps `skinparam monochrome
+  true|reverse` to `ColorMapper.MONOCHROME`/`MONOCHROME_REVERSE`
+  (`klimt/color/ColorMapper.java:80-91`), a uniform grayscale transform
+  (`ColorUtils.getGrayScaleColor`: `gray = floor((R*299+G*587+B*114) /
+  1000)`, verified algebraically against this exact fixture: `#ADD1B2`
+  (173,209,178) -> `floor(194702/1000)=194=0xC2` -- EXACT match) applied
+  at the LAST color-resolution step, uniformly, for EVERY color in the
+  diagram. This fixture's OTHER colors (`#181818`, `#F1F1F1`, `#000000`)
+  are all already-gray (R=G=B), so they're coincidentally invariant under
+  the transform -- which is WHY only the one non-gray badge color shows a
+  diff, not evidence the feature is narrowly scoped. Declined: implementing
+  it CORRECTLY (a real ColorMapper wrapping the shared `resolveColorToSvgHex`
+  chokepoint, `core/klimt/color/HColorSet.ts`, used by 16 files across
+  every cuca diagram type) is a genuine feature build, not a near-zero
+  fix -- matches this mission's own established precedent for
+  `classFontColor automatic` (N58, "a real, unbuilt feature, 1/718 reach,"
+  also declined for the identical reason: an accurate ROI/reach number
+  from ONE corpus sample undersells a chokepoint-level color feature's
+  true scope). Logged for a future iteration with the exact formula and
+  insertion point (`resolveColorToSvgHex`, additive optional parameter --
+  zero risk to its other 15 call sites) pre-derived.
+- `lenunu-95-bame774` (3 `@id` diffs, ALL a uniform "-1" from `ent0004`
+  onward): traced to a phantom-creationIndex-slot gap distinct from item
+  39's own uid-merge gap above -- a FREESTANDING `note left`/`note right`
+  (no `of X` target, no explicit connector keyword) with a plain `class A
+  *-- B` auto-creating `B` appears to consume ONE MORE creationIndex slot
+  in jar's real numbering than this port currently reserves, but the
+  EXACT jar mechanism generating that slot (a hidden anchor point for the
+  unattached note, mirroring N17/N18's `zaent-*` pattern for a package-as-
+  endpoint, or something else) is UNTRACED this iteration -- not chased
+  further; new information, not previously named in the queue.
+- The remaining 25 fixtures re-confirm N50/N51/N53/N54/N58's own repeated
+  finding: genuinely heterogeneous, no shared cheap mechanism across more
+  than 1-2 fixtures (crowfoot-decor, gradient-color needing a new
+  `<linearGradient>` primitive, the already-declined `remove`/`restore`+
+  note+tagged-classifier uid interaction, several individually-untriaged
+  `childCount`/canvas-dimension singles) -- not re-drilled this iteration,
+  budget went to items 42/39's own deeper investigation.
+
+### Class census: before -> after
+
+`285/718 -- 1-3:27 -- 4-10:108 -- 11-30:34 -- 31+:264 -- errors:0` ->
+`285/718 -- 1-3:27 -- 4-10:110 -- 11-30:32 -- 31+:264 -- errors:0`. **0 new
+zero-diff** (all 3 improved fixtures blocked by the separate, out-of-scope
+`NAMESPACE_SIDE_PADDING` residual named above) -- 2 fixtures crossed
+11-30 -> 4-10 (`jinibe`, `mucuxi`), 1 stayed within 11-30 but improved
+substantially (`ditapa`, 20->12). Ratchet unchanged at 285/287 tests (no
+new zero-diff to pin).
+
+### DOT gate + description gate (re-verified via `npx tsx scripts/dot-sync-
+### report.ts component usecase class object state`, both ratchet suites)
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged (this iteration's fix touches only
+class's own render-side ink-extent/namespace-geo modules, never DOT
+emission). Description SVG gate: 48/355 zero-diff (unchanged), 51/51
+ratchet tests green.
+
+### Tests + scratch hygiene
+
+New: 2 cases in `tests/unit/class/layout-ink-extent.test.ts`, 4 cases in
+`tests/unit/class/class-geo-builders.test.ts` (6 total, TDD -- RED before
+the fix, GREEN after). Full suite: 9688/9688 passing (356 test files).
+`npm run typecheck`/`npm run lint`/`npm run build` all clean. Disposable
+scripts (`scripts/_tmp-n60-*.ts`, 5 total: full-corpus scanner, single/
+multi-fixture diff dumpers, low-bucket triage, ink-rule arithmetic
+verifier) all deleted before finishing (confirmed via `ls scripts/ | grep
+n60`, empty). `git worktree add --detach <scratchpad>/n60-baseline HEAD`
+(symlinked `node_modules`/`test-results`) removed via `git worktree
+remove --force` (confirmed via `git worktree list`, main tree only). The
+N46-style patched-jar investigation used a SEPARATE `<scratchpad>/
+n60-jardebug/` directory (scratch copy of the oracle jar, `oracle/dist/`
+itself never touched) and 3 temporary `System.err.println` edits in
+`~/git/plantuml` (`SvekResult.java`/`Cluster.java`/`DotStringFactory.java`)
+-- all reverted via `git checkout` in that repo immediately after
+capturing the evidence (confirmed `git status --short` in `~/git/plantuml`
+shows only the pre-existing, not-mine `.gitignore` diff), scratch jar/
+output dirs removed. No `git checkout`/`reset`/`stash`/`clean` used on any
+file in the plantuml-ts working tree, own edits included. Nothing
+committed (orchestrator owns commits per mission rule).

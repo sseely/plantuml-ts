@@ -80,6 +80,34 @@ describe('buildNamespaceGeos — anchor-in-cluster footprint (G2 N18)', () => {
   });
 });
 
+describe('buildNamespaceGeos — inkShape resolution (G2 N60, item 42)', () => {
+  const ast = makeAST();
+  const posMap = new Map([['c', { id: 'c', x: 100, y: 100, width: 50, height: 50 }]]);
+
+  it('leaves inkShape undefined for the default (non-strict, non-rect) FOLDER style', () => {
+    const [geo] = buildNamespaceGeos(ast, posMap, defaultTheme, measurer, new Map());
+    expect(geo?.inkShape).toBeUndefined();
+  });
+
+  it('resolves "polygon" for FOLDER style under skinparam style strictuml', () => {
+    const strictTheme = { ...defaultTheme, strictUml: true };
+    const [geo] = buildNamespaceGeos(ast, posMap, strictTheme, measurer, new Map());
+    expect(geo?.inkShape).toBe('polygon');
+  });
+
+  it('resolves "rect" for skinparam packageStyle rect, even under strictuml', () => {
+    const rectTheme = { ...defaultTheme, strictUml: true, packageStyle: 'rect' as const };
+    const [geo] = buildNamespaceGeos(ast, posMap, rectTheme, measurer, new Map());
+    expect(geo?.inkShape).toBe('rect');
+  });
+
+  it('resolves "rect" for skinparam packageStyle rect without strictuml too', () => {
+    const rectTheme = { ...defaultTheme, packageStyle: 'rect' as const };
+    const [geo] = buildNamespaceGeos(ast, posMap, rectTheme, measurer, new Map());
+    expect(geo?.inkShape).toBe('rect');
+  });
+});
+
 /**
  * G2 N35: `buildEdgeGeos#attachPortLabels`/`portLabelAnchor`'s tail/head
  * multiplicity-label width was the raw `measurer.measure(...).width` float,

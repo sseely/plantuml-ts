@@ -154,6 +154,7 @@ class pipeline) is:
 | N57 | Item 38 LANDED (space-width data gap): full-table provenance audit (all 255 `SANS_SERIF_BLOCKS` entries vs upstream `UnicodeFontWidthSansSerif.java`, `(byte)`-cast + `&0xFF` semantics replicated) -- 0 mismatches, the table is byte-exact; `SANS_SERIF_BLOCKS[0][32]===0` is CORRECT, not a generation bug -- documented-correct-untouched. Real mechanism: `DriverTextSvg.java`'s RENDER-time-only whitespace-run -> NBSP (U+00A0) substitution (`text.matches("^\\s*$")`) was already correctly ported in `driver-text-svg.ts` (description's klimt path) but MISSING from class's separate hand-rolled creole-atom path (`class-member-creole.ts#resolveOneAtom` -> `renderer-note.ts`/`renderer-classifier-box.ts`). New `MemberRenderAtom.renderText`/`renderWidth` (set ONLY for an entirely-whitespace run) feed the DRAWN `<text>`/`textLength`; the LAYOUT `width` (x-advance, line/box sums) stays the RAW 0, matching jar's own `AtomText#drawU` x-advance path -- jar-verified against `vicuro-37-tese143`'s real golden SVG (`textLength="0"->"3.575"`). Item 37 LANDED (Opale-vs-plain dispatch): derived `GraphvizImageBuilder.java#isOpalisable`'s full condition set -- `fogexa-30-zupo141`'s `in.puml` carries `skinparam style strictuml`, which `isOpalisable`'s FIRST guard clause (`strictUmlStyle()`) unconditionally disables the Opale merge for; this port's `mapGroupNoteGeos` singleton-group branch never checked it. New `strictUml` param (`theme.strictUml`) gates the `buildOpaleNoteGeo` attempt off, falling straight to `plainNoteGeo` -- confirmed via direct SVG inspection: `fogexa`'s note now draws the plain folded-corner outline + corner paths (matching jar's shape), not the merged notch. `fogexa` itself stays non-zero-diff (3->3 diffs, unmasking not regression, jar-verified byte-for-byte): 2 NEW, out-of-scope blockers surfaced (connector drawn inline in the note's own group vs jar's separate top-level `<g class="link">`; `strictuml` also suppresses the class-icon ellipse/badge upstream, unported -- both named for the next iteration's queue, not attempted, per diagnosis.md). Full-corpus regression scan (718/718, worktree baseline vs post-fix): 0 regressions, 1 newly zero-diff (`vicuro-37-tese143`, ratchet-added). DOT gate + description gate (51 tests) re-verified EXACTLY unchanged. 5 new/updated unit tests (`class-member-creole.test.ts` x4 new, `note-layout.test.ts` x1 updated -- jar-verified exact values). | 1 new zero-diff (`vicuro-37-tese143`); census 273/718 (was 272) · 1-3:26 (was 27) · 4-10:109 (unchanged) · 11-30:33 (unchanged) · 31+:277 (unchanged); ratchet 273 fixtures / 275 tests (was 272/274) | done |
 | N58 | Ground-truth probed the 32-tagged `enhanced-body-member` population (disposable classify script + live diffCount, not the N56 regex tag): confirmed real item-20 reach is STILL exactly the 2 fixtures N44 named (`gojofu-46-xaci340`/`paroxa-83-lofa387`) -- the rest resolve to unrelated mechanisms (literal `::`-named classifiers, `allow_mixing`, `openiconic-glyph`, namespace-qualified-port variants dominated by a separate bug, already-named tree-row/note gaps). Then FULLY DERIVED item 20's jar mechanism from source (`MethodsOrFieldsArea#getPorts`/`BodyEnhanced1#getPorts`/`TextBlockVertical#getPorts`/`EntityImageClass#getPorts`/`SvekNode#appendLabelHtmlSpecialForLink` -- a per-member-row stacked HTML port table, fuzzy-matched via `getElected`/`getScore`), byte-verified against `gojofu-46-xaci340`'s own cached `svek-1.dot` (36/14/26 and 58/14/18 row heights, both classifiers, exact). Discovered the REAL blocker: `graph-layout.ts#addNodes` unconditionally emits `shape:'box'` -- `DotInputNode.shape`/`isPort` (`class-dot-graph.ts`'s shielded-node machinery) is DEAD CODE in the real render pipeline, consumed only by the disconnected `svek-dot-emit.ts` oracle-comparison shadow emitter. Landing item 20 for real means wiring an ENTIRELY NEW HTML-like-port-table node shape + `tailport`/`headport` edge attributes into the real pipeline for the FIRST time (confirmed graphviz-ts's own bundled engine supports both via `initEdgePorts`/`portfnOf`, but this port never wired it) -- a materially larger, DOT-topology-awaiting-maintainer-shaped undertaking than the mission's "land it, verify the gate" framing anticipated for 2 fixtures; NOT landed, full derivation logged in `ledger.md` N58 for reuse. Priority 2: item 40 (`skinparam style strictuml` class-icon/badge suppression) LANDED -- `CucaDiagram#showPortion`'s unconditional `CIRCLED_CHARACTER` guard, threaded as `!strictUml` alongside the existing `hideCircle` gate at both `measureGenericClassifier` and `buildHeaderPrimitive` (mirrors item 37's `theme.strictUml` precedent); jar-verified byte-exact against `fogexa-30-zupo141` (183x153 -> 175x153 canvas, exact match). Item 39 (note-connector placement under `strictuml`) inspected and DECLINED -- needs a new synthetic-edge draw path + NoteGeo dispatch flag + `renderer.ts` draw-order change + a dasharray fix (`4,4`->`7,7`), not "cheap after inspection." Priority 3: near-zero harvest (26-fixture 1-3 bucket) triaged, genuinely fragmented (crowfoot-decor gap, gradient-color, classFontColor automatic, mode-dark, remove/restore+note uid interaction) -- none landed, matching every prior pass's identical finding. Full-corpus regression scan (item 40, disposable worktree): 1 improved (`fogexa` 3->1), 3 non-zero diffCount increases (`ditapa-46-bete946`/`jinibe-02-tebi269`/`mucuxi-36-beku683`, all the ALREADY-NAMED unrelated "strictuml package-style" gap now exposed at finer granularity -- confirmed unmasking via direct inspection, `mucuxi`'s class box itself is now byte-exact), 0 zero-diff regressions. DOT gate + description gate re-verified EXACTLY unchanged (item 40 is render/measurement-only). 3 new unit tests (`layout.test.ts` x1, `renderer.test.ts` x2, TDD). | 0 new zero-diff; census 273/718 unchanged · 1-3:26 (unchanged) · 4-10:108 (was 109) · 11-30:34 (was 33) · 31+:277 (unchanged); ratchet 273 fixtures / 275 tests (unchanged) | done |
 | N59 | Investigated mission priority 1 (strictuml package-style gap) first: LANDED `skinparam packageStyle rect|rectangle` (new `theme.packageStyle`, `class-namespace-shape.ts#renderNamespaceRect` -- plain `<rect>`, centered title, no tab notch, jar-verified byte-exact against `mucuxi-36-beku683`) + package-outline "no paint" fill now emits jar's real `fill="none"` (was two INCONSISTENT behaviors: raw `"transparent"` leaking through the strictuml `<polygon>` path, `#00000000` hex on the non-strict `<path>` path -- new `packageFillValue` helper). `jinibe-02-tebi269`/`ditapa-46-bete946`'s much larger FOLDER-style catastrophic ~20px canvas-width/position gap extensively instrumented (blanked the DOT cluster label -- zero effect, ruling out graphviz-ts label-centering; confirmed jar's own cached `svek-1.dot` is STRUCTURALLY IDENTICAL between FOLDER and RECT styles, so the divergence is a jar POST-LAYOUT draw-time `Cluster.java#rectangleArea` difference, not a DOT-emission difference) but root cause NOT identified -- new item 42, ledgered with full ruled-out list. Pivoted to priority 3 (`::`-named classifier gap): ground-truth probe of `bicabi-42-coto932` found the REAL defect was NOT item 20's port-table gap (entity/link counts and qualified-names byte-identical to jar) but relationship-endpoint AUTO-CREATION ORDER -- `class-commands.ts`'s `ensureClassifier` calls used `rel.from`/`rel.to` (already reordered by `ArrowInfo.swapDirection` for hierarchical/single-arrowhead edges) instead of jar's REAL left-to-right SOURCE TEXT order (`CommandLinkClass.executeArg:295-333`, unconditional, independent of arrow semantics). New `Relationship.swapDirection` field threaded through so `class-commands.ts` ensures endpoints in TEXTUAL order. Full-corpus regression scan: **12 fixtures newly reach zero-diff**, 0 zero-diff regressions, 23 others shifted (mix of improved/worsened, all `31+`-bucket unmasking, none crossing the zero boundary) -- the mission's largest single-mechanism win since N17's folder-tab shape. `nadono-22-gidu983`/`garizu-98-nixo496`/`rocere-18-faza042` (the OTHER 3 of the mission's named 4) confirmed UNAFFECTED (endpoints pre-declared before reference) -- real blocker undiagnosed, named remainder. DOT gate + description gate re-verified EXACTLY unchanged both BEFORE (risk-checked immediately, given the structural nature of the order fix) and after. 6 new/updated unit tests (`class-relationship-creation-order.test.ts` x5 new TDD, `parser.test.ts` x1 corrected -- the old assertion encoded the pre-fix bug). Priorities 2 (item 39) and 4 (near-zero harvest) NOT attempted -- budget went entirely to priorities 1 and 3. | **12 new zero-diff**; census 285/718 (was 273) · 1-3:27 (was 26) · 4-10:108 (unchanged) · 11-30:34 (unchanged) · 31+:264 (was 277); ratchet 285 fixtures / 287 tests (was 273/275) | done |
+| N60 | Item 42 (FOLDER-strictuml canvas mystery) DIAGNOSED and LANDED via the N46 patched-jar technique after static tracing exhausted 3 ruled-out hypotheses (`FrontierCalculator`, `suppWidthBecauseOfShape`, DOT-emission divergence): jar's `USymbolFolder#asBig` draws a strictuml FOLDER outline as a `UPolygon` (sharp corners), and `LimitFinder#drawUPolygon` carries a literal `HACK_X_FOR_POLYGON=10` ink-walk-only x-padding quirk this port never modeled for namespace outlines (it assumed every namespace draws a `UPath`). Patched 3 classes in a SCRATCH copy of the oracle jar (`oracle/dist/` never touched, debug printlns reverted immediately after), confirmed jar's real `LimitFinder` minMax exactly: `jinibe` (FOLDER) `[6,74]` = raw cluster bbox `[16,64]` ± `HACK_X_FOR_POLYGON`; `mucuxi` (RECT) `[15,63]` = the SAME raw bbox via `LimitFinder#drawRectangle`'s `-1`/`w-1` rule -- both against BYTE-IDENTICAL DOT input, proving the divergence is 100% jar draw-time ink-extent, not graphviz or DOT emission. New `NamespaceGeo.inkShape` field (`'polygon'`\|`'rect'`\|`undefined`), resolved once per diagram from `theme.packageStyle`/`theme.strictUml` (`class-geo-builders.ts#resolveNamespaceInkShape`), dispatched in `layout-ink-extent.ts#addNamespaceInk` (new `addFolderPolygonInk`/`addNamespaceRectInk` ink rules) -- zero signature changes to `computeClassDocumentDims`/`computeClassInkShift` (the field lives on the pre-resolved `NamespaceGeo`, keeping the module theme-free per its own established convention). Full-corpus regression scan: 0 regressions, 3 fixtures dramatically improved (`jinibe` 18->10, `ditapa` 20->12, `mucuxi` 19->10 diffs -- RECT's fix was a byproduct of the SAME dispatch, also correcting a previously-unnoticed Y-axis ink-shift gap). 0 new zero-diff -- all 3 blocked only by the SEPARATE, already-named `NAMESPACE_SIDE_PADDING=16` vs jar's real `~16.32` residual (suspected graphviz-ts-vs-real-graphviz margin divergence, out of this mission's declared scope). Item 39 (fogexa note-connector) re-diagnosed against the EXACT golden SVG (not available to N58) -- confirms N58's mechanism precisely but reveals the REAL remaining blocker is `renderer-uid.ts#assignExact`'s dense-renumbering merge needing a new entry TYPE for a note-connector-promoted-to-edge, sourced from an untraced `creationIndex` -- declined again, too high a regression risk (shared uid machinery) for 1/718 reach without its own dedicated trace. Near-zero harvest (27-fixture 1-3 bucket) triaged: `pofabe-33-kizo628`'s `skinparam monochrome true` gap traced to jar's exact mechanism (`ColorMapper.MONOCHROME`, `gray=floor((R*299+G*587+B*114)/1000)`, verified algebraically to the exact hex) but declined as a genuine chokepoint-level color feature (16 call sites), not a near-zero fix -- matches N58's identical `classFontColor automatic` precedent; `lenunu-95-bame774`'s uniform "-1" id gap traced to a phantom-creationIndex-slot mechanism distinct from item 39's, untraced this iteration. 6 new unit tests (`layout-ink-extent.test.ts` x2, `class-geo-builders.test.ts` x4, TDD -- jar-verified against the patched-jar trace values). DOT gate + description gate re-verified EXACTLY unchanged (render/ink-extent-only change). | 0 new zero-diff (all 3 improved targets blocked by the separate, out-of-scope padding residual); census 285/718 unchanged · 1-3:27 (unchanged) · 4-10:110 (was 108) · 11-30:32 (was 34) · 31+:264 (unchanged); ratchet 285 fixtures / 287 tests (unchanged) | done |
 
 ## Standing rules
 
@@ -2137,6 +2138,21 @@ necessarily incomplete for internal-mechanism bugs.
   succeeds, or unconditionally? — `note-layout.ts#groupEdge`'s "`noArrow:
   true` always" doc comment suggests unconditional exclusion today, which
   would need to become CONDITIONAL on `strictUml`/Opale-eligibility).
+  **N60: re-diagnosed against the EXACT golden SVG byte-for-byte** (N58
+  inferred the mechanism from source reading alone) — confirms N58's
+  mechanism exactly (separate top-level `<g class="link">`, `stroke-
+  dasharray:7,7`, positioned after the class group) but reveals the REAL
+  remaining blocker: `renderer-uid.ts#assignExact`'s dense-renumbering
+  merge has no entry TYPE for "a note's connector promoted to a real
+  edge" — jar's real `lnk4` needs its own `creationIndex` slot, correctly
+  interleaved with the note's own `ent0003` slot (which already works
+  today). The `creationIndex` SOURCE for this synthetic slot is untraced
+  (may not exist on `ast.ts#ClassNote` at all yet). Declined again: the
+  uid merge is shared, load-bearing machinery for EVERY note+edge class
+  fixture — getting a new entry kind's ordering wrong silently corrupts
+  ids diagram-wide, too high a regression risk for a 1/718-reach target
+  without first tracing the `creationIndex` source as its OWN dedicated
+  investigation. Full re-diagnosis in `ledger.md` N60.
 - **item 40** (`strictuml` class-icon suppression): **LANDED N58** —
   `CucaDiagram#showPortion`'s unconditional `EntityPortion
   .CIRCLED_CHARACTER` guard (`if (strictUmlStyle() && portion ==
@@ -2169,8 +2185,9 @@ iteration's own jar-verification pass, not attempted here (out of item
 verified need" applies to production fixes, not just to writing this
 note).
 
-### item 42 (N59, formalized from N58's own candidate) — strictuml
-### package-style gap: RECT sub-case LANDED, FOLDER sub-case still open
+### item 42 (N59 formalized, N60 LANDED) — strictuml package-style
+### canvas gap: BOTH RECT and FOLDER sub-cases now resolved at the
+### ink-extent layer; only the small universal residual remains
 
 `skinparam packageStyle rect|rectangle` splits into TWO independent
 sub-mechanisms, confirmed via `mucuxi-36-beku683` (RECT) vs `jinibe-02-
@@ -2183,30 +2200,35 @@ tebi269`/`ditapa-46-bete946` (default FOLDER, both under `strictuml`):
   DISTINCT from the shared `resolveColorToSvgHex`'s `#00000000` convention
   most other shapes use). `mucuxi-36-beku683`'s childCount/shape mismatch is
   gone; a small ~0.32px/side residual remains (see below).
-- **FOLDER-style position/margin — NOT LANDED, root cause unidentified**:
-  once a classifier inside a FOLDER-style `strictuml` package is narrower
-  than its title tab (post item-40 badge suppression), jar's real canvas
-  reserves ~20px MORE horizontal margin than this port computes; the
-  package box's own WIDTH matches (48px both), only its ABSOLUTE POSITION is
-  wrong (~9-11px too far left AND the canvas ~9-11px too narrow on the
-  right too — both margins grow, height is untouched). N59 ruled out: (1)
-  graphviz-ts's own cluster-label centering (blanking `class-dot-graph.ts
-  #buildDotClusters`'s `cluster.label` entirely — zero effect, reverted);
-  (2) a RECT-specific issue (`mucuxi` shows only the SAME ~1px/0.32px
-  residual every package fixture carries, not this ~10-11px gap); (3) a
-  DOT-emission difference (jar's own cached `svek-1.dot` is byte-identical
-  in structure — `WIDTH="7" HEIGHT="9"` placeholder table, same triple-
-  nested `clusterNp0/clusterN/clusterNp1` wrapper — for BOTH `jinibe` and
-  `mucuxi`). The divergence is therefore in jar's POST-LAYOUT draw-time
-  `Cluster.java`/`ClusterDecoration#rectangleArea` computation specifically
-  for the FOLDER shape, not in graphviz layout itself — needs either a
-  direct `Cluster.java` source read of that computation or an N5-style
-  debug-jar rebuild to trace the real draw-time translate. Full derivation
-  in `ledger.md` N59, reusable without re-deriving.
-- **Small universal residual** (both RECT and FOLDER): jar's real
-  classifier-to-package-edge padding is `~16.32`, not this port's flat
-  `NAMESPACE_SIDE_PADDING=16` — a SEPARATE, much smaller (~0.32-1px),
-  not-yet-chased mechanism, distinct from the two above.
+- **FOLDER-style position/margin — LANDED N60**: root cause found via the
+  N46 patched-jar technique (static tracing had ruled out `FrontierCalculator`,
+  `suppWidthBecauseOfShape`, and DOT-emission divergence — all 3 exhausted
+  without a positive hit). The REAL mechanism: `USymbolFolder#asBig` draws
+  a FOLDER-style outline as a `UPolygon` (sharp corners) whenever
+  `strictUmlStyle()` forces `roundCorner=0` — and jar's `LimitFinder
+  #drawUPolygon` carries a literal `HACK_X_FOR_POLYGON = 10` ink-walk-only
+  padding quirk for ANY `UPolygon` (x padded 10 on both sides, y untouched)
+  that this port's `layout-ink-extent.ts` never modeled for namespace
+  outlines (it assumed every namespace draws a `UPath`, true only for the
+  non-strict default). New `NamespaceGeo.inkShape` field (`'polygon'` |
+  `'rect'` | `undefined`), resolved once per diagram from `theme.packageStyle`/
+  `theme.strictUml`, dispatched in `layout-ink-extent.ts#addNamespaceInk`.
+  Full mechanism + jar-instrumented evidence in `ledger.md` N60. Both
+  `jinibe`/`ditapa`'s ~20-21px canatvas-width gap and RECT's own smaller
+  `URectangle` ink-rule gap (a byproduct fix, same root `buildInkBox`
+  dispatch) are closed; full-corpus regression scan: 0 regressions, 3
+  fixtures improved (18→10, 20→12, 19→10 diffs), 0 new zero-diff (all 3
+  blocked only by the separate small residual below).
+- **Small universal residual** (both RECT and FOLDER, NOT chased N60):
+  jar's real classifier-to-package-edge padding is `~16.32`, not this
+  port's flat `NAMESPACE_SIDE_PADDING=16` — a SEPARATE, much smaller
+  (~0.32-1px) mechanism. N60 traced this specifically to the CLASSIFIER's
+  own dot-assigned X position (not the namespace box's own padding
+  constant, which only affects the namespace box's OWN bounds, not
+  classifier placement inside it) — suspected graphviz-ts-vs-real-graphviz
+  margin/nodesep default divergence, which per this mission's CLAUDE.md is
+  OUT OF SCOPE (graphviz-ts internals). Blocks all 3 named fixtures from
+  reaching zero-diff despite the catastrophic mechanism's full closure.
 
 ## Standing rule (maintainer, 2026-07-17): SVG-channel extraction until parity
 

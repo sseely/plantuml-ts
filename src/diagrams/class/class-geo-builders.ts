@@ -104,6 +104,7 @@ export function buildNamespaceGeos(
   anchors: ReadonlyMap<string, string>,
 ): NamespaceGeo[] {
   const namespaces: NamespaceGeo[] = [];
+  const inkShape = resolveNamespaceInkShape(theme);
   for (const ns of ast.namespaces) {
     const memberPositions = ns.classifiers
       .map((id) => posMap.get(id))
@@ -145,9 +146,27 @@ export function buildNamespaceGeos(
       htitle,
       baselineOffset,
       ...(ns.creationIndex !== undefined ? { creationIndex: ns.creationIndex } : {}),
+      ...(inkShape !== undefined ? { inkShape } : {}),
     });
   }
   return namespaces;
+}
+
+/**
+ * G2 N60 (item 42): mirrors `renderer.ts#renderNamespace`'s own
+ * `theme.packageStyle === 'rect' ? renderNamespaceRect : renderNamespaceFolder`
+ * dispatch, and `renderNamespaceFolder`'s own `theme.strictUml === true ?
+ * <polygon> : <path>` branch inside that -- see `NamespaceGeo.inkShape`'s
+ * own doc comment (`layout.ts`) for the jar-verified `LimitFinder` ink-rule
+ * consequence of each shape. Resolved ONCE per diagram (every namespace in
+ * a class diagram shares the SAME theme-level `packageStyle`/`strictUml` --
+ * this port has no per-group `PackageStyle` override yet, matching
+ * `renderer.ts`'s own established scope note) rather than per-namespace.
+ */
+function resolveNamespaceInkShape(theme: Theme): 'polygon' | 'rect' | undefined {
+  if (theme.packageStyle === 'rect') return 'rect';
+  if (theme.strictUml === true) return 'polygon';
+  return undefined;
 }
 
 /** Attach the edge label (geometric midpoint, offset right-perpendicular) if present. */

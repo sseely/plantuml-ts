@@ -26,16 +26,24 @@
  *         (`LimitFinder#drawEmpty` — plain bbox, no inset) that strictly
  *         dominates the rect's own max corner by 1px. See `addRectInk`'s
  *         own doc comment below for the jar-verified net rule.
- *       - `UPath` (namespace cluster's rounded-corner outline; edge
- *         splines): plain bounding box, no inset.
- *       - `UPolygon` (edge arrowhead extremities ONLY -- NOT note shapes,
+ *       - `UPath` (namespace cluster's DEFAULT rounded-corner outline,
+ *         `roundCorner!=0`; edge splines): plain bounding box, no inset.
+ *       - `UPolygon` (namespace cluster outline under `skinparam style
+ *         strictuml`, `USymbolFolder#asBig`'s `roundCorner=0` branch --
+ *         G2 N60, item 42; edge arrowhead extremities -- NOT note shapes,
  *         see G2/N14 correction below): `x` padded by `HACK_X_FOR_POLYGON =
- *         10` on both sides, `y` unpadded. G2 N54: modeled via
- *         `renderer-arrowhead.ts#edgeExtremityInk` -- a REAL `LimitFinder`
- *         walk over each edge's placed `Extremity#drawU`, so every decor's
- *         OWN shape (`UPolygon`/`UEllipse`/`URectangle`/`UPath`/`ULine`)
- *         gets its correct jar rule automatically, not just the polygon
- *         case.
+ *         10` on both sides, `y` unpadded. G2 N54: arrowhead extremities are
+ *         modeled via `renderer-arrowhead.ts#edgeExtremityInk` -- a REAL
+ *         `LimitFinder` walk over each edge's placed `Extremity#drawU`, so
+ *         every decor's OWN shape (`UPolygon`/`UEllipse`/`URectangle`/
+ *         `UPath`/`ULine`) gets its correct jar rule automatically, not just
+ *         the polygon case. Namespace clusters instead dispatch on the
+ *         precomputed `NamespaceGeo.inkShape` (`addNamespaceInk` below) --
+ *         no klimt shape to walk, since class's namespace outline is a plain
+ *         SVG string, not a `UGraphic` draw.
+ *       - `URectangle` (namespace cluster outline under `skinparam
+ *         packageStyle rect`, `USymbolRectangle#asBig` -- G2 N60, item 42):
+ *         `addPoint(x-1,y-1)`, `addPoint(x+w-1, y+h-1)` (no shadow modeled).
  *  2. `TextBlockExporter#calculateFinalDimension` adds the diagram's outer
  *     margin: `CucaDiagram#getDefaultMargins()` = `topRightBottomLeft(0, 5,
  *     5, 0)` (top=0, right=5, bottom=5, left=0) — same recipe already
@@ -130,6 +138,13 @@ const INK_DELTA = 15;
  *  doc comment). */
 const JAR_INK_MARGIN = 6;
 
+/** `LimitFinder#drawUPolygon`'s own `x`-only padding quirk
+ *  (`HACK_X_FOR_POLYGON = 10` upstream, `LimitFinder.java:169`) --
+ *  duplicated here rather than imported (`core/klimt/drawing/LimitFinder.ts`
+ *  keeps the SAME constant private), per this module's own klimt-free-module
+ *  convention (see `JAR_INK_MARGIN`'s doc comment above). */
+const HACK_X_FOR_POLYGON = 10;
+
 interface InkBox {
   minX: number;
   minY: number;
@@ -175,6 +190,47 @@ function addRectInk(box: InkBox, x: number, y: number, w: number, h: number): vo
 function addPlainInk(box: InkBox, x: number, y: number, w: number, h: number): void {
   addPoint(box, x, y);
   addPoint(box, x + w, y + h);
+}
+
+/**
+ * G2 N60 (item 42): `LimitFinder#drawUPolygon` -- `x` padded by
+ * `HACK_X_FOR_POLYGON` on BOTH sides, `y` unpadded. `USymbolFolder#asBig`
+ * draws its outline as a `UPolygon` (not the default rounded-arc `UPath`)
+ * whenever `roundCorner=0`, which `Cluster.java`'s own `strictUmlStyle()`
+ * check forces unconditionally (`class-namespace-shape.ts#renderNamespaceFolder`'s
+ * own `theme.strictUml === true` branch -- the `<polygon>` vs `<path>`
+ * dispatch this ink rule must mirror). Jar-verified via a debug-instrumented
+ * local oracle build (`SvekResult#calculateDimension`/`LimitFinder
+ * #drawUPolygon` traced directly, `plans/g2-class-svg/ledger.md` N60):
+ * `jinibe-02-tebi269`'s real `LimitFinder` ink walk gave `minX=6` (`16 -
+ * HACK_X_FOR_POLYGON`), `maxX=74` (`64 + HACK_X_FOR_POLYGON`) against the
+ * package cluster's own raw graphviz bbox `[16,64]` -- the SAME `[16,64]`
+ * this port already computes correctly (this rule is a pure ink-EXTENT
+ * correction; the namespace's own drawn `<polygon>` points are unaffected).
+ */
+function addFolderPolygonInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x - HACK_X_FOR_POLYGON, y);
+  addPoint(box, x + w + HACK_X_FOR_POLYGON, y + h);
+}
+
+/**
+ * G2 N60 (item 42): `LimitFinder#drawRectangle` -- `addPoint(x-1,y-1)`,
+ * `addPoint(x+w-1+2*shadow, y+h-1+2*shadow)` (no shadow modeled for
+ * namespaces, matching every OTHER package-style corpus sample). NOT the
+ * classic symmetric `-1`/`+1` inset (`addClassicRectInk`) -- the max corner
+ * is `w-1`, not `w+1`. `USymbolRectangle#asBig` (`skinparam packageStyle
+ * rect`) draws its outline as a plain `URectangle`, unlike FOLDER's
+ * `UPolygon`/`UPath`. Jar-verified against `mucuxi-36-beku683`'s real
+ * `LimitFinder` walk: `minX=15` (`16-1`), `maxX=63` (`16+48-1`) against the
+ * SAME raw graphviz cluster bbox `[16,64]` jinibe's FOLDER variant shares
+ * (`plans/g2-class-svg/ledger.md` N60) -- this is the "small universal
+ * residual" N59 named and left unchased, now resolved as part of the SAME
+ * `buildInkBox` namespace-ink gap this function's `addFolderPolygonInk`
+ * sibling closes.
+ */
+function addNamespaceRectInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x - 1, y - 1);
+  addPoint(box, x + w - 1, y + h - 1);
 }
 
 /**
@@ -255,6 +311,25 @@ function addClassifierInk(box: InkBox, c: ClassifierGeo): void {
 }
 
 /**
+ * G2 N60 (item 42): dispatches a namespace's own ink contribution on
+ * `NamespaceGeo.inkShape` (see that field's own doc comment in `layout.ts`
+ * for the full jar-verified mechanism) -- `undefined` keeps the PRE-N60
+ * `addPlainInk` (`UPath`) behavior unchanged for the common default-FOLDER,
+ * non-`strictuml` case.
+ */
+function addNamespaceInk(box: InkBox, n: NamespaceGeo): void {
+  if (n.inkShape === 'polygon') {
+    addFolderPolygonInk(box, n.x, n.y, n.width, n.height);
+    return;
+  }
+  if (n.inkShape === 'rect') {
+    addNamespaceRectInk(box, n.x, n.y, n.width, n.height);
+    return;
+  }
+  addPlainInk(box, n.x, n.y, n.width, n.height);
+}
+
+/**
  * The shared ink-point accumulation walk both `computeClassDocumentDims`
  * (dimension) and `computeClassInkShift` (N11, position) consume — one
  * `LimitFinder`-shaped pass over clusters/nodes/edges (`SvekResult#drawU`'s
@@ -269,7 +344,7 @@ function buildInkBox(
 ): InkBox {
   const box = newInkBox();
   for (const c of classifiers) addClassifierInk(box, c);
-  for (const n of namespaces) addPlainInk(box, n.x, n.y, n.width, n.height);
+  for (const n of namespaces) addNamespaceInk(box, n);
   // G2/N13: a dropped member-tip note (unresolved `::member`) draws
   // NOTHING at all -- jar's own ink extent excludes it (`fupope-12-zoku847`'s
   // canvas dims match a plain single-classifier render with no note space
