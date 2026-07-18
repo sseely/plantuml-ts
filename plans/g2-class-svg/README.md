@@ -2424,3 +2424,52 @@ graph/layout data mid-mission; a structured graphviz-ts API cutover
 happens as its own post-parity task. Extraction call sites:
 `src/core/graph-layout.ts#extractPortLabelPositions`,
 `src/diagrams/class/frontier-shadow-layout.ts`.
+
+## Mission-closing summary (2026-07-18, N0–N67)
+
+**Exit bar (100% minus known divergences) MET**: every one of the 426
+non-conformant fixtures carries a named mechanism (ledger § N67's
+strategic breakdown + the standing accounting rows).
+
+**Trajectory.** Corrected baseline 0/718 (N0 exposed the census
+pipeline bug; the oracle cache was re-captured at N3 with the frozen
+DOT gate as go/no-go) → **292/718 byte-conformant (40.7%)**, ratchet
+0 → **292 pinned** (294 tests). 67 iterations, one mechanism-family
+each, every commit orchestrator-verified against: tests / typecheck /
+lint / build / frozen DOT gate (262/262 · 90/90 · 708/708 · 78/80 ·
+267/267 — never moved) / description-census 48-set (never moved).
+
+**Landed subsystems** (each jar-cited in the ledger): shared document
+shell + inline-polygon extremities; entity/cluster/link wrappers with
+the shared-counter uid scheme incl. phantom burns (notes, couples,
+lollipops, tips, suppressed links); classifier box chrome (badges with
+per-size/per-variant glyphs, compartments, headers with the real
+HeaderLayout centering, stereotype rows, generic tags); the full note
+subsystem (Opale tips/plain/freestanding, draw-order interleaving,
+colors, fonts, creole, wrap); creole in member rows/notes/headers-
+partial + OpenIconic glyphs; URL wrapping (classifier/member/icon-run);
+folder/rect namespaces with ink-shape dispatch; edge machinery
+(bracket modifiers, stroke defaults, path ids + codeLine, multiplicity
++ plain + multi-line labels, magic arrows, decor trim, distance-based
+reversal, manualArrowheads); style cascades (StyleSignature matching,
+.tagname, sequential-block snapshots, conditional colors, monochrome);
+MaximumWidth wrap (header/member/note); hide/show family incl.
+entity-scoped + visibility + stereotype forms.
+
+**Remaining, all named (ledger § N67)**:
+1. gvts-blocked ~288 (67.6%) — five verified graphviz-ts items
+   (getLayout-vs-render splines [dominant]; integer-vs-fractional
+   cluster positioning; splines attr setter; anchor rank;
+   addSubgraph label width), each with a repro. Library fixes reopen
+   the drill cheaply: the ratchet + census re-measure instantly.
+2. Awaiting-maintainer scoping: groupInheritance (9), dotted-namespace
+   nesting (13-43, methodology spread stated), item 20 port-tables (2).
+3. mode-dark ColorMapper subsystem (1 census fixture; discrete
+   ~20-selector cascade table, design pass needed).
+4. The in-repo singleton tail (~85-128): items 28/37/39/48,
+   gradient-color, crowfoot residual, scale-N, uid interactions, five
+   N67 leads — each 1-3 fixtures, individually named.
+5. The canvas-dims render-omission-vs-gvts split audit (N67 caveat).
+
+**Reopeners.** A graphviz-ts release addressing item 1's first two
+findings is the single largest census unlock available anywhere.
