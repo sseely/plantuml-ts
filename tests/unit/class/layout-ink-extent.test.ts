@@ -11,7 +11,11 @@
  * rect's own max corner by 1px (see `addRectInk`'s own doc comment).
  */
 import { describe, it, expect } from 'vitest';
-import { computeClassDocumentDims, computeClassInkShift } from '../../../src/diagrams/class/layout-ink-extent.js';
+import {
+  computeClassDocumentDims,
+  computeClassInkShift,
+  computeClassBorderRectDims,
+} from '../../../src/diagrams/class/layout-ink-extent.js';
 import type { ClassifierGeo, EdgeGeo, NamespaceGeo } from '../../../src/diagrams/class/layout.js';
 import type { NoteGeo } from '../../../src/diagrams/class/note-layout.js';
 
@@ -375,5 +379,25 @@ describe('computeClassInkShift', () => {
       { x: 7, y: 7 },
       { x: 101, y: 7 },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N66 (near-zero harvest, `vinujo-78-kapo329`): `skinparam
+// diagramBorderColor` border-rect dims -- jar's `TextBlockExporter
+// #maybeDrawBorder` uses the PRE-floor margined dims, not the final
+// truncated canvas size.
+// ---------------------------------------------------------------------------
+describe('computeClassBorderRectDims (G2 N66)', () => {
+  it('vinujo-78-kapo329: jar-verified byte-exact (rawWidth=109.7875, ' +
+     'rawHeight=62, thickness=1 -> rect 113.7875 x 66)', () => {
+    const dims = computeClassBorderRectDims({ width: 109.7875, height: 62 }, 1);
+    expect(dims.width).toBeCloseTo(113.7875, 4);
+    expect(dims.height).toBe(66);
+  });
+
+  it('a thickness of 0 leaves the full margined dims untouched', () => {
+    const dims = computeClassBorderRectDims({ width: 100, height: 50 }, 0);
+    expect(dims).toEqual({ width: 105, height: 55 });
   });
 });

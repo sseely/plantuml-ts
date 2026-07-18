@@ -684,6 +684,13 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     // `assembleClassShell` at the FINAL (post-chrome) canvas size, not
     // here.
     ...(documentBackgroundRect !== undefined ? { documentBackgroundRect } : {}),
+    // G2 N66: `skinparam diagramBorderColor` -- resolved to an SVG-ready
+    // hex HERE (mirrors `canonicalBackground`'s own resolution), drawn by
+    // `assembleClassShell` (`RenderFragment.diagramBorderColor`'s own doc
+    // comment for the chrome-scope guard).
+    ...(theme.colors.graph.diagramBorderColor !== undefined
+      ? { diagramBorderColor: resolveColorToSvgHex(theme.colors.graph.diagramBorderColor) }
+      : {}),
     classShell: true,
   };
 }

@@ -33,6 +33,8 @@ import {
   buildMemberAtoms,
   resolveMemberAtoms,
   memberBaseFont,
+  buildWrappedMemberRows,
+  atomsToPlainText,
   type MemberRenderAtom,
 } from './class-member-creole.js';
 
@@ -282,10 +284,11 @@ function measureNote(
   // resolved BEFORE measuring/splitting -- shared with description's
   // identical AtomText-derived mechanism (`core/text-escapes.ts`),
   // jar-verified against `pacuve-18-gaso238`'s `<U+005C>` (a literal `\`).
-  const lines = resolveTextEscapes(text).split('\n');
+  const rawLines = resolveTextEscapes(text).split('\n');
   // G2 N39: `<style> note { FontSize N }` / `skinparam noteFontSize N`
   // override -- see `NOTE_FONT_SIZE`'s own doc comment above.
   const fontSize = theme.colors.elements?.['note']?.fontSize ?? NOTE_FONT_SIZE;
+  const fontSpec = { family: theme.fontFamily, size: fontSize };
   // G2 N55: each line routes through the SAME shared creole atom engine
   // `class-member-creole.ts` wires for classifier member rows (`buildMember
   // Atoms`/`resolveMemberAtoms`, N22's own `classifyStripeLine` -> `build
@@ -302,10 +305,38 @@ function measureNote(
   // as the removed direct `measurer.measure(ln, fontSpec).width` line this
   // replaces (see `class-member-creole.test.ts`'s identical proof for
   // member rows, N22's own precedent).
-  const font = memberBaseFont({ family: theme.fontFamily, size: fontSize }, {});
-  const built = lines.map((ln) => resolveMemberAtoms(buildMemberAtoms(ln, font), font, measurer));
-  const lineWidths = built.map((b) => javaRound4(b.width));
-  const lineAtoms = built.map((b) => b.atoms);
+  const font = memberBaseFont(fontSpec, {});
+  // G2 N66 (item 35's own named remainder, N65): `<style> note { MaximumWidth
+  // N } }` / `element { MaximumWidth N } }` word-wrap -- `EntityImageNote`'s
+  // OWN style signature (`theme.ts#noteCascadeMaximumWidth`'s own doc
+  // comment). Reuses item 35's `buildWrappedMemberRows` (Fission) PER
+  // already-`\n`-split source line -- each stripe wraps INDEPENDENTLY (a
+  // hard break from the source text never merges across the wrap, matching
+  // `wrapPlainTextLine`'s identical "flatMap over already-split lines"
+  // shape for the classifier header, N65) -- `maxWidth<=0` (the
+  // overwhelming majority of notes) short-circuits every line to the SAME
+  // single-build result the pre-N66 direct call produced, byte-identical.
+  const maxWidth = theme.colors.graph.noteCascadeMaximumWidth ?? 0;
+  const lines: string[] = [];
+  const lineWidths: number[] = [];
+  const lineAtoms: (readonly MemberRenderAtom[])[] = [];
+  for (const ln of rawLines) {
+    const builds = maxWidth > 0
+      ? buildWrappedMemberRows(ln, {}, fontSpec, measurer, maxWidth)
+      : [resolveMemberAtoms(buildMemberAtoms(ln, font), font, measurer)];
+    // G2 N66: mirrors `buildWrappedSectionRowBuilds`'s own convention --
+    // the SINGLE-row case (the overwhelming majority) keeps the source
+    // line's ORIGINAL text verbatim; only a GENUINELY wrapped (2+ row)
+    // line rebuilds each row's own text from its wrapped atoms
+    // (`atomsToPlainText`, `class-member-rows.ts#buildWrappedSectionRowBuilds`'s
+    // own doc comment for why `row.text` is otherwise unconsumed whenever
+    // `row.atoms`/`lineAtoms` is set).
+    for (const build of builds) {
+      lines.push(builds.length === 1 ? ln : atomsToPlainText(build.atoms));
+      lineWidths.push(javaRound4(build.width));
+      lineAtoms.push(build.atoms);
+    }
+  }
   // G2 N56: per-line height, see `NoteGeo.lineHeights`'s own doc comment.
   const lineHeights = lineAtoms.map((atoms) => noteLineHeight(atoms, fontSize));
   const maxW = Math.max(...lineWidths);

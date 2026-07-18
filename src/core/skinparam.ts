@@ -373,6 +373,11 @@ export function resolveSkinparam(
   // G2 N40: `pathHoverColor` -- global `<defs><style>path:hover{...}</style>
   // </defs>` CSS rule (`theme.ts#pathHoverColor`'s own doc comment).
   let pathHoverColor: string | undefined;
+  // G2 N66: `diagramBorderColor` -- jar's `TextBlockExporter#maybeDrawBorder`
+  // whole-canvas border rect (`theme.ts#diagramBorderColor`'s own doc
+  // comment). Stored RAW (not pre-resolved to hex), matching `classBackground`/
+  // `noteBackground`'s own convention -- resolved at the render site.
+  let diagramBorderColor: string | undefined;
   // G2 N54: `icon<Kind>Color`/`icon<Kind>BackgroundColor` -- the member-row
   // visibility icon's LineColor/BackgroundColor overrides (see
   // `theme.ts#iconPrivateColor`'s doc comment for the full upstream
@@ -448,6 +453,9 @@ export function resolveSkinparam(
         break;
       case 'pathhovercolor':
         pathHoverColor = color;
+        break;
+      case 'diagrambordercolor':
+        diagramBorderColor = color;
         break;
       case 'iconprivatecolor':
         iconPrivateColor = color;
@@ -765,6 +773,7 @@ export function resolveSkinparam(
     circledCharacterFontBold !== undefined ||
     circledCharacterFontItalic !== undefined ||
     pathHoverColor !== undefined ||
+    diagramBorderColor !== undefined ||
     iconPrivateColor !== undefined ||
     iconPrivateBackgroundColor !== undefined ||
     iconPackageColor !== undefined ||
@@ -854,6 +863,7 @@ export function resolveSkinparam(
     if (circledCharacterFontItalic !== undefined)
       graphOverride.circledCharacterFontItalic = circledCharacterFontItalic;
     if (pathHoverColor !== undefined) graphOverride.pathHoverColor = pathHoverColor;
+    if (diagramBorderColor !== undefined) graphOverride.diagramBorderColor = diagramBorderColor;
     if (iconPrivateColor !== undefined) graphOverride.iconPrivateColor = iconPrivateColor;
     if (iconPrivateBackgroundColor !== undefined)
       graphOverride.iconPrivateBackgroundColor = iconPrivateBackgroundColor;

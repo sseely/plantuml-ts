@@ -32,6 +32,16 @@ const ARROW_SNAMES = ['root', 'element', 'classdiagram', 'arrow'] as const;
  *  `classDiagram`; kept general rather than hardcoding "root only" so a
  *  future bare `spot {}`/`spotClass {}` cascade slots in for free). */
 const SPOT_SNAMES = ['root', 'element', 'spot', 'spotclass'] as const;
+/** G2 N66: `EntityImageNote.getStyleSignature()`: `{root,element,
+ *  classDiagram,note}` -- `getStyleName()` resolves to `SName.classDiagram`
+ *  for a class-diagram note (`AbstractEntityImage.java:96`,
+ *  `entity.getDiagramType().getStyleName()`), so this differs from
+ *  `CLASS_SNAMES` ONLY in its last token (`note` vs `class_`) -- a bare
+ *  `element {}`/`note {}`/`classDiagram {}` selector reaches BOTH a
+ *  classifier box and a note body via the SAME `element`/`classdiagram`
+ *  ancestor tokens, jar-verified `rubecu-40-cixu870` (`element { MaximumWidth
+ *  100 }` wraps both). */
+const NOTE_SNAMES = ['root', 'element', 'classdiagram', 'note'] as const;
 
 type GraphCascadeOverride = Pick<
   Theme['colors']['graph'],
@@ -46,6 +56,7 @@ type GraphCascadeOverride = Pick<
   | 'classCascadeRoundCorner'
   | 'classCascadeMaximumWidth'
   | 'classCascadeHeaderMaximumWidth'
+  | 'noteCascadeMaximumWidth'
   | 'classTagCascade'
 >;
 
@@ -199,6 +210,14 @@ export function computeClassStyleCascadeOverrides(
   if (headerMaxWidthRaw !== undefined) {
     const n = Number(headerMaxWidthRaw);
     if (Number.isFinite(n)) override.classCascadeHeaderMaximumWidth = n;
+  }
+  // G2 N66: `EntityImageNote`'s OWN MaximumWidth word-wrap cascade -- see
+  // `theme.ts#noteCascadeMaximumWidth`'s own doc comment (`NOTE_SNAMES`,
+  // distinct from CLASS_SNAMES/HEADER_SNAMES only in its trailing token).
+  const noteMaxWidthRaw = resolveStyleCascade(styleMap, NOTE_SNAMES, 'maximumwidth');
+  if (noteMaxWidthRaw !== undefined) {
+    const n = Number(noteMaxWidthRaw);
+    if (Number.isFinite(n)) override.noteCascadeMaximumWidth = n;
   }
   // G2 N37: per-tag `.tagname` cascade -- see `theme.ts#classTagCascade`'s
   // own doc comment.

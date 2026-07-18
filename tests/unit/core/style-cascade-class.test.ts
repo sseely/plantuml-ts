@@ -162,6 +162,49 @@ describe('computeClassStyleCascadeOverrides -- MaximumWidth word-wrap (G2 N65 it
   });
 });
 
+// ---------------------------------------------------------------------------
+// noteCascadeMaximumWidth (G2 N66, item 35's own named remainder) --
+// `EntityImageNote`'s OWN style signature (`{root,element,classDiagram,
+// note}`, `NOTE_SNAMES`) is DISTINCT from `CLASS_SNAMES`/`HEADER_SNAMES`
+// (trailing token `note` vs `class_`) -- a bare `class { MaximumWidth N } }`
+// selector must NOT reach it, but a shared ancestor token (`element`/
+// `classDiagram`/`root`) must.
+// ---------------------------------------------------------------------------
+describe('computeClassStyleCascadeOverrides -- noteCascadeMaximumWidth (G2 N66)', () => {
+  it('a bare element { MaximumWidth N } reaches BOTH the note AND class/header fields (rubecu-40-cixu870 shape)', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ element: { maximumwidth: '100' } }));
+    expect(override.noteCascadeMaximumWidth).toBe(100);
+    expect(override.classCascadeMaximumWidth).toBe(100);
+    expect(override.classCascadeHeaderMaximumWidth).toBe(100);
+  });
+
+  it('a bare class { MaximumWidth N } does NOT reach noteCascadeMaximumWidth (nufini-44-jofo787 shape)', () => {
+    const override = computeClassStyleCascadeOverrides(
+      styleMap({ note: { maximumwidth: '100' }, class: { maximumwidth: '150' } }),
+    );
+    expect(override.noteCascadeMaximumWidth).toBe(100);
+    expect(override.classCascadeMaximumWidth).toBe(150);
+    expect(override.classCascadeHeaderMaximumWidth).toBe(150);
+  });
+
+  it('an explicit note { MaximumWidth N } sets ONLY the note field, not class/header', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ note: { maximumwidth: '100' } }));
+    expect(override.noteCascadeMaximumWidth).toBe(100);
+    expect(override.classCascadeMaximumWidth).toBeUndefined();
+    expect(override.classCascadeHeaderMaximumWidth).toBeUndefined();
+  });
+
+  it('ignores a non-numeric MaximumWidth value', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ note: { maximumwidth: 'nope' } }));
+    expect(override.noteCascadeMaximumWidth).toBeUndefined();
+  });
+
+  it('absent when no MaximumWidth declaration exists anywhere', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ note: { backgroundcolor: 'red' } }));
+    expect(override.noteCascadeMaximumWidth).toBeUndefined();
+  });
+});
+
 describe('computeClassStyleCascadeOverrides -- classTagCascade (G2 N37)', () => {
   it('resolves BackgroundColor/RoundCorner/FontColor/FontStyle for a nested .tagname (dozude shape)', () => {
     const override = computeClassStyleCascadeOverrides(

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildNoteGraphParts, mapNoteGeos } from '../../../src/diagrams/class/note-layout.js';
 import { javaRound4 } from '../../../src/core/number-format.js';
-import { defaultTheme } from '../../../src/core/theme.js';
+import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { DeterministicMeasurer } from '../../../src/core/measurer-deterministic.js';
 import type { ClassNote, NotePosition } from '../../../src/diagrams/class/ast.js';
 import type { MemberRenderAtom } from '../../../src/diagrams/class/class-member-creole.js';
 import { FontStyle } from '../../../src/core/klimt/shape/UText.js';
@@ -358,5 +359,99 @@ describe('buildNoteGraphParts — per-line height (G2 N56, jar: fogexa-30-zupo14
     const m = measurements.get('__note_0')!;
     expect(m.lineHeights).toEqual([13, 13, 13]);
     expect(m.height).toBe(3 * 13 + 5 * 2);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// G2 N66 (item 35's own named remainder, N65): `<style> note { MaximumWidth
+// N } }` / `element { MaximumWidth N } }` word-wrap -- reuses item 35's own
+// `buildWrappedMemberRows` (Fission) per already-`\n`-split note line, the
+// SAME "one wrap-per-split-line, then flatten" shape N65's header path
+// (`wrapPlainTextLine`) established. See `note-layout.ts#measureNote`'s own
+// doc comment and `theme.ts#noteCascadeMaximumWidth`.
+// ---------------------------------------------------------------------------
+describe('buildNoteGraphParts — item 35-note, MaximumWidth word-wrap (G2 N66)', () => {
+  it('noteCascadeMaximumWidth unset (0) leaves a long line on one row (zero behavior change)', () => {
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'left',
+      text: 'this is a very long long long long long description for note',
+    };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toHaveLength(1);
+    expect(m.lines[0]).toBe(n.text);
+  });
+
+  it('a long line wraps into multiple rows, each within maxWidth, once noteCascadeMaximumWidth is set', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 100 } } });
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'left',
+      text: 'this is a very long long long long long description for note',
+    };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines.length).toBeGreaterThan(1);
+    for (const w of m.lineWidths) expect(w).toBeLessThanOrEqual(100);
+  });
+
+  it('each already-split source line wraps INDEPENDENTLY -- an explicit hard ' +
+     'line break is preserved, not merged across the wrap', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 40 } } });
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'left',
+      text: 'alpha beta gamma delta\nepsilon',
+    };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    // "epsilon" alone never merges onto the SAME row as any "alpha beta..."
+    // word, even though it would easily fit within 40 -- the source '\n'
+    // is a hard break the wrap engine must never cross.
+    const epsilonRow = m.lines.findIndex((ln) => ln.includes('epsilon'));
+    expect(epsilonRow).toBeGreaterThan(-1);
+    expect(m.lines[epsilonRow]).toBe('epsilon');
+  });
+
+  it('every wrapped row concatenates back to the original words (nothing lost)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 60 } } });
+    const text = 'alpha beta gamma delta epsilon zeta eta theta';
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'left', text };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines.join(' ').replace(/\s+/g, ' ')).toBe(text);
+  });
+
+  it('a bold run (**word**) survives the wrap as a DISTINCT styled atom, not flattened to plain text', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 150 } } });
+    const text = 'Long Long Long Long Long Long Long Long Long **Method**';
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'left', text };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    const lastLineAtoms = m.lineAtoms[m.lineAtoms.length - 1]!;
+    const boldAtom = lastLineAtoms.find(
+      (a): a is Extract<MemberRenderAtom, { kind: 'text' }> => a.kind === 'text' && a.text === 'Method',
+    );
+    expect(boldAtom).toBeDefined();
+    expect(boldAtom!.font.styles.has(FontStyle.BOLD)).toBe(true);
+  });
+
+  // Jar-verified BYTE-EXACT against `rubecu-40-cixu870`'s real cached DOT
+  // (`test-results/dot-cache/class/rubecu-40-cixu870/svek-1.dot`): the note
+  // node (`sh0007`) is `width=1.659375in height=0.861111in` -- 119.475 x
+  // 62.0 px (`* 72`, `core/graph-layout.ts#PX_PER_INCH`) -- via `element {
+  // MaximumWidth 100 } }` (ancestor cascade, NOT a `note {}` block).
+  it('rubecu-40-cixu870: wraps to 4 lines, node dims BYTE-EXACT against the ' +
+     'jar\'s real cached DOT (119.475 x 62.0 px)', () => {
+    const det = new DeterministicMeasurer();
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 100 } } });
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'left',
+      text: 'this is a very long long long long long description for note',
+    };
+    const { measurements } = buildNoteGraphParts([n], theme, det, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toHaveLength(4);
+    expect(m.width).toBeCloseTo(119.475, 4);
+    expect(m.height).toBe(62);
   });
 });

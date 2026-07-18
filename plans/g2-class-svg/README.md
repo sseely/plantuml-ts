@@ -161,6 +161,8 @@ class pipeline) is:
 | N64 | Item 46 (plain-label quote-stripping gap) LANDED: `class-relationship-parser.ts:384`'s `label = m[10]?.trim()` never called `stripQuotes` on the fallthrough (non-embedded-multiplicity) case -- mirrors `Labels#init`'s (Labels.java:78-102) unconditional final-line `eventuallyRemoveStartingAndEndingDoubleQuote` call, jar-verified against BOTH sub-cases (`begico-70-guva302`'s no-quantifier case; `pucazu-91-paxe635`'s explicit-endpoint-quantifier case, captured fresh via `oracle/capture.sh` since no existing golden covered it -- outer quote pair only stripped, `a" is "b`). Item 45 (classifier display-name `\n`/`\l`/`\r` line-wrapping) LANDED: reuses `splitEdgeLabelLines` verbatim (item 43/N63's own state machine, `CommandCreateClass.java:191`'s `Display.getWithNewlines` is the SAME call) -- new `class-stereotype.ts#buildHeaderRows` (plural, generalizes `buildHeaderRow`, algebraically identical at `lines.length===1`) + new `ClassifierGeo.nameRowCount` (generalizes N24's `headerRowCount` to N trailing name-line rows, not just one) -- jar-verified BYTE-EXACT against `dofima-22-kofe334`'s `user` classifier (box, both lines' x/y/textLength, divider offset, ALL exact) and `jireze-84-loti743` (zero diffs in that classifier's own subtree). Corollary bug found+fixed same iteration: a trailing `\n` left after `extractGenericFromDisplay` strips a `<Generic>` suffix (`class "Name\n<Generic>" as x`) produces a genuinely BLANK split line -- jar's `DriverTextSvg.java` NBSP (U+00A0) RENDER-time substitution (`^\s*$`, N57 item 38's mechanism, generalized here to the EMPTY-string case that port's own `MemberRenderAtom` deliberately excluded) draws a lone NBSP glyph, LAYOUT-positioned at its RAW (zero) width -- jar-verified byte-exact against `julixi-10-jide878`'s `csprob2dtd` (`x`-delta AND `textLength=3.85`). Item 35 (`MaximumWidth` text-wrap) INVESTIGATED and DEFERRED: jar mechanism (`Style.java:292-295` -> `Fission#getSplitted`, `klimt/creole/Fission.java:63-101`) confirmed to be a genuine word-boundary greedy-wrap algorithm requiring NEW `Neutron`/`NeutronType` primitives (zero-hit grep, do not exist in this codebase) wired through BOTH the header AND a separate, untraced member-row call site, PLUS the mission's own flagged `dot-sync-report.ts` empirical-check protocol (a wrapped classifier's DOT node dims genuinely change, unlike items 43/44's presence-only `labelOk` safety) -- full derivation left in `ledger.md` N64 for reuse, matches item 20/39/monochrome's own declining precedent for newly-ground-truthed multi-subsystem scope. Full-corpus regression scan (disposable worktree): 6 improved, 0 zero-diff regressions, 0 new errors, 7 worsened -- EACH individually diagnosed (not blanket-accepted): items 45/46's own byte-exact targets unmasking the SAME gvts-genuine graphviz-ts-vs-real-graphviz layout residual N25/N61/N62/N63 already named (re-confirmed via a direct `dot-sync-report.ts --slug` DOT-input-identity check, `maxSizeDeltaIn: 0.0000`), plus 3 NEWLY-NAMED, genuinely separate pre-existing gaps unmasked by the now-correct childCount (item 47, top-level `skinparam RoundCorner` not tag-scoped; item 48, creole/icon markup inside a classifier's quoted display name never interpreted; `scale N` directive, entirely unimplemented). 8 new unit tests (`class-singles2.test.ts` +3/1-corrected, `class-stereotype.test.ts` +5), TDD, jar-verified where a golden exists. DOT gate + description gate re-verified EXACTLY unchanged (item 45 via the mission's own explicit empirical protocol, not presence-only reasoning). | 0 new zero-diff (both mechanisms structurally/byte-exact correct at their own target classifier's subtree, blocked by 3 newly-named SEPARATE pre-existing gaps + the established gvts-genuine layout residual); census 288/718 unchanged · 1-3:28 (was 27) · 4-10:105 (was 108) · 11-30:30 (was 29) · 31+:267 (was 266) -- net +1/-3/+1/+1 across non-zero buckets, ALL individually confirmed non-regressions in `ledger.md` N64; ratchet 288 fixtures / 290 tests (unchanged, no new zero-diff to pin) | done |
 | N65 | Item 47 (bare `skinparam RoundCorner N`) LANDED: added a `roundcorner` case to `skinparam.ts#resolveSkinparam` (mirrors `wrapwidth`'s shape) reusing the EXISTING `theme.colors.graph.classCascadeRoundCorner` field (not a new one) -- jar's own `FromSkinparamToStyle.java:164` converts a bare skinparam into a `SName.root`-scoped style declaration, the SAME mechanism a `<style> root { RoundCorner N }` block already resolves via, so reuse gives correct `<style>`-wins-over-skinparam precedence for free via `Object.assign`'s own semantics. Jar-verified BYTE-EXACT against `dofima-22-kofe334` (`rect/@rx`/`@ry` == 10, was hardcoded 2.5). Item 35 (`MaximumWidth` word-wrap) LANDED for the header + member-row call sites: **corrected N64's own "Fission/Neutron do not exist" claim** -- E2r/L3 already built `src/core/klimt/creole/Fission.ts` (full word-boundary greedy-wrap engine) for description word-wrap, N64's grep missed it under the `klimt/creole/` path. New `class-layout-helpers.ts#wrapPlainTextLine` (header, synthetic single-text-atom) + `class-member-creole.ts#buildWrappedMemberRows` (member row, the REAL multi-atom `CreoleAtom[]` sequence, `measureAtomWidth` reusing the existing private `resolveOneAtom`) + new `class-member-rows.ts#buildWrappedSectionRowBuilds` (flattens each member's 1+ wrapped rows into 3 lockstep arrays, `sectionWidth`/`sectionHeight` needed zero signature changes) -- new theme fields `classCascadeMaximumWidth`/`classCascadeHeaderMaximumWidth` mirror the pre-existing FontColor pair's CLASS_SNAMES/HEADER_SNAMES split exactly. Jar-verified BYTE-EXACT against `nucite-98-kuga991`'s `C1`/`C2` (box dims, per-atom `<text>` decomposition for the member row including the bold `Method()` trailing line) and via the mission's own explicit empirical DOT protocol (`dot-sync-report.ts --slug`, `maxSizeDeltaIn: 0.0000`). Full-corpus regression scan (disposable worktree): 0 zero-diff regressions, 1 NEW zero-diff (`zukice-84-tedu426`, item 47's own target, RATCHET-PINNED), 3 improved, 1 worsened (`rubecu-40-cixu870` 6->57) -- individually diagnosed and confirmed a non-regression (its OWN classifier DOT node is byte-exact against oracle; the divergence is a SEPARATE, newly-named note-text `MaximumWidth` wrap gap, `note-layout.ts` never wired to any `MaximumWidth` cascade, out of this item's declared scope). Item 48 (creole markup in header names) NOT attempted (budget) -- newly confirmed to ALSO cover `**bold**` markdown, not just `<color:>`/OpenIconic tags. 26 new unit tests across 6 files, TDD, jar-verified where a golden exists. DOT gate + description gate re-verified EXACTLY unchanged. | **1 new zero-diff** (`zukice-84-tedu426`); census 289/718 (was 288) · 1-3:28 (unchanged) · 4-10:104 (was 105) · 11-30:30 (unchanged) · 31+:267 (unchanged); ratchet 289 fixtures / 291 tests (was 288/290) | done |
 
+| N66 | Note-text `MaximumWidth` word-wrap LANDED (N65's own named remainder, item 35's family) -- new `theme.colors.graph.noteCascadeMaximumWidth` field (`NOTE_SNAMES = {root,element,classdiagram,note}`, `EntityImageNote.getStyleSignature()`, distinct from `CLASS_SNAMES` only in its trailing token) + `note-layout.ts#measureNote` rewritten to wrap each already-`\n`-split source line via item 35's own `buildWrappedMemberRows` (Fission, reused verbatim). Jar-verified BYTE-EXACT against `rubecu-40-cixu870` (`dot-sync-report.ts --slug`: `maxSizeDeltaIn` 2.6293 -> 0.0000, note node now byte-matches oracle's real DOT) and `nufini-44-jofo787` (both classifier boxes byte-exact, confirming an EXPLICIT `note {}` block resolves correctly too, not just the ancestor `element {}` path). Near-zero harvest (28-fixture 1-3 bucket): LANDED `skinparam diagramBorderColor` (`vinujo-78-kapo329`) -- jar's universal `TextBlockExporter#maybeDrawBorder` export-layer border rect, requiring a newly-derived PRE-FLOOR margined-dims formula (`layout-ink-extent.ts#computeClassBorderRectDims`, jar's border rect uses the raw float dims, not the final truncated canvas size -- confirmed via a direct `ClassGeometry.rawWidth`/`rawHeight` probe against the golden's exact fractional rect dims) + `renderer-shell.ts#withDiagramBorderRect` (mirrors N48's `withDocumentBackgroundRect` splice technique). Deliberately scoped to SKIP drawing whenever chrome inflated the canvas beyond the class body's own raw dims (zero corpus evidence for that combination, avoiding a silently-wrong-sized rect). Investigated and DECLINED: item 48 (re-ground-truthed BOTH named fixtures' REAL golden SVGs, not re-derived from speculation -- confirms a genuinely new `<plain>` creole tag is needed, zero-hit grep across the ENTIRE shared creole engine, PLUS a THIRD distinct icon-reference syntax `<:name:>` on `lecelo-92-loma110`, confirmed NOT the already-ported `<&name>` OpenIconic grammar); the `-0)-` middle-circle-marker mechanism (`cenubi-27-xova754`, found during near-zero triage, traced FULLY to `SvekEdge.java:982-987`/`DotPath#getMiddle()` -- a genuinely new bezier-midpoint cost-search primitive, NOT the already-ported endpoint `ExtremityCircleConnect` it superficially resembles -- 1/718 reach, declined at this mission's own established bar). NEW item 49 surfaced via mechanism 1's own regression scan: class-diagram notes have NO `<style> note { FontColor N } }` cascade at all (`renderer-note.ts` hardcodes `fill="#000000"` unconditionally, its own doc comment already documents this) -- `nufini-44-jofo787`'s 11->30 diffCount rise is ENTIRELY this pre-existing, separately-scoped gap unmasked at word-level granularity by the now-structurally-correct wrap, confirmed a non-regression. 21 new unit tests across 5 files, TDD, jar-verified where a golden exists. DOT gate + description gate re-verified EXACTLY unchanged. | **2 new zero-diff** (`rubecu-40-cixu870`, `vinujo-78-kapo329`); census 291/718 (was 289) · 1-3:27 (was 28) · 4-10:104 (unchanged) · 11-30:30 (unchanged) · 31+:266 (was 267); ratchet 291 fixtures / 293 tests (was 289/291) | done |
+
 ## Standing rules
 
 Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
@@ -2356,19 +2358,61 @@ tebi269`/`ditapa-46-bete946` (default FOLDER, both under `strictuml`):
   fixture. Not attempted (out of N64's declared scope).
 
 ### New items surfaced N65 (found via item 35's own full-corpus regression
-### scan, per-fixture diagnosed — not landed this iteration, genuinely
-### separate from item 35's own header/member-row scope)
+### scan, per-fixture diagnosed — genuinely separate from item 35's own
+### header/member-row scope)
 
-- **note-text `MaximumWidth` wrap** (`note-layout.ts`/`renderer-note.ts`,
-  the class-diagram engine's OWN note pipeline, distinct from
-  description's E2r `theme.wrapWidth` mechanism): a class-diagram note's
-  body text is never wrapped by ANY `MaximumWidth` cascade (`element {}`/
-  `note {}` selector) — reach ≥ 2/718 (`rubecu-40-cixu870`, `nufini-44-
-  jofo787`), found via N65's own regression scan (`rubecu`'s own diffCount
-  worsened 6->57, individually diagnosed and confirmed a non-regression —
-  its classifier box is byte-exact against oracle, `ledger.md` N65). Not
-  attempted (explicitly out of item 35's own declared "header + member-row
-  call sites" scope this iteration).
+- **note-text `MaximumWidth` wrap — RESOLVED N66, drop from future
+  queues** (`note-layout.ts`/`renderer-note.ts`, the class-diagram
+  engine's OWN note pipeline, distinct from description's E2r `theme
+  .wrapWidth` mechanism): LANDED — new `theme.colors.graph
+  .noteCascadeMaximumWidth` field (`NOTE_SNAMES`, `EntityImageNote`'s own
+  style signature) + `measureNote` reusing item 35's `buildWrappedMemberRows`
+  per already-split source line, jar-verified byte-exact against
+  `rubecu-40-cixu870` (`dot-sync-report.ts --slug`: `maxSizeDeltaIn`
+  2.6293 → 0.0000) and `nufini-44-jofo787` (both classifier boxes byte-
+  exact). Full derivation in `ledger.md` N66.
+
+### New items surfaced N66 (found via near-zero harvest + mechanism 1's
+### own full-corpus regression scan — neither landed, both precisely
+### traced to a file:line mechanism, not guessed)
+
+- **item 48** (creole/markdown markup in classifier header names) — RE-
+  GROUND-TRUTHED against BOTH named fixtures' REAL golden SVGs (N65 only
+  speculated from source markup). `diseka-11-gozu390` needs a genuinely
+  NEW `<plain>` creole tag (zero-hit grep across the ENTIRE shared creole
+  engine — `StripeSimple.ts`/`CreoleStripeSimpleParser.ts`/`Fission.ts`/
+  `Atom.ts`/`CommandCreoleBuilder.ts` — the string "plain" appears only in
+  unrelated doc-comment prose, no actual tag recognition anywhere).
+  `lecelo-92-loma110` needs a THIRD, distinct icon-reference syntax
+  (`<:label:>`, confirmed NOT the already-ported OpenIconic `<&name>`
+  grammar) on top of N65's own header-atom-decomposition + wrap-upgrade
+  scope. Not attempted, matches item 20/39-original/monochrome/gradient-
+  color's own declining precedent — now with file:line precision instead
+  of speculation. Full derivation in `ledger.md` N66.
+- **middle-circle marker** (`-0)-`/`-(0-`/`0)--`/`--(0`, crow's-foot
+  "connect" notation, `cenubi-27-xova754`, found via near-zero triage):
+  traced FULLY to `SvekEdge.java:982-987`/`DotPath#getMiddle()` — a
+  genuinely NEW bezier-midpoint cost-search geometric primitive,
+  distinct from the ALREADY-PORTED endpoint `ExtremityCircleConnect` it
+  superficially resembles (`link-decor.ts`'s `'0)': 'CIRCLE_CONNECT'`
+  token map entry is a DIFFERENT upstream mechanism, `LinkDecor
+  .CIRCLE_CONNECT`, not the `INSIDE`-group middle marker this fixture
+  actually uses, `LinkMiddleDecor`/`MiddleCircleCircled`).
+  `class-relationship-parser.ts:70-78`'s own pre-existing doc comment
+  already documented this marker as parsed-then-discarded (a past,
+  deliberate DOT-parity-first scoping decision). Reach 1/718 (grep-
+  confirmed across the entire corpus). Declined at this mission's own
+  established "genuinely new subsystem at low reach" bar. Full derivation
+  in `ledger.md` N66.
+- **item 49 (NEW)** — class-diagram note `<style> note { FontColor N } }`
+  cascade: `renderer-note.ts#resolveNoteBackground`/`renderNoteLineAtoms`
+  hardcode `fill="#000000"` for a note's plain text UNCONDITIONALLY (that
+  file's own doc comment already documents this as a known, un-cascaded
+  gap) — reach ≥ 1/718 confirmed (`nufini-44-jofo787`'s `<style> note {
+  Fontcolor red } }`), unsurveyed beyond this one fixture. Found via
+  mechanism 1's own regression scan (its 11→30 diffCount rise is entirely
+  this pre-existing gap, unmasked at word-level granularity by the now-
+  correct wrap — confirmed a non-regression, `ledger.md` N66).
 
 ## Standing rule (maintainer, 2026-07-17): SVG-channel extraction until parity
 

@@ -1274,6 +1274,53 @@ describe('renderClass — non-default background (G2 N4)', () => {
 // AC5 & AC6: classPlugin.accepts()
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// G2 N66 (near-zero harvest, `vinujo-78-kapo329`): `skinparam
+// diagramBorderColor` -- see `renderer-shell.ts#withDiagramBorderRect`'s
+// own doc comment for the full mechanism + chrome-scope guard.
+// ---------------------------------------------------------------------------
+describe('renderClass — diagramBorderColor (G2 N66)', () => {
+  it('draws a whole-canvas <rect fill="none"> border, jar-verified BYTE-EXACT ' +
+     'against vinujo-78-kapo329 (rawWidth=109.7875, rawHeight=62 -> rect ' +
+     '113.7875 x 66)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { diagramBorderColor: 'black' } } });
+    const geo = makeMinimalGeo({ totalWidth: 115, totalHeight: 68, rawWidth: 109.7875, rawHeight: 62 });
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).toContain('<rect x="0" y="0" width="113.7875" height="66" fill="none" stroke="#000000" stroke-width="1"/>');
+  });
+
+  it('resolves a named CSS color to its canonical hex (not the raw keyword)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { diagramBorderColor: 'red' } } });
+    const geo = makeMinimalGeo({ totalWidth: 115, totalHeight: 68, rawWidth: 109.7875, rawHeight: 62 });
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).toContain('stroke="#FF0000"');
+  });
+
+  it('does NOT draw the border when diagramBorderColor is unset (zero behavior change)', () => {
+    const geo = makeMinimalGeo({ totalWidth: 115, totalHeight: 68, rawWidth: 109.7875, rawHeight: 62 });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('fill="none" stroke=');
+  });
+
+  it('does NOT draw the border when rawWidth/rawHeight are unset (chrome-scope guard, no signal to verify against)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { diagramBorderColor: 'black' } } });
+    const geo = makeMinimalGeo({ totalWidth: 115, totalHeight: 68 });
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).not.toContain('fill="none" stroke=');
+  });
+
+  it('does NOT draw the border when totalWidth/Height diverge from the raw-derived expectation ' +
+     '(simulated chrome inflation -- declared out of this item\'s verified scope)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { diagramBorderColor: 'black' } } });
+    // rawWidth/rawHeight say the class body alone would margin/floor to
+    // 115x68, but totalWidth/Height claim a LARGER canvas (as chrome
+    // inflating the canvas would) -- the guard must decline to draw.
+    const geo = makeMinimalGeo({ totalWidth: 200, totalHeight: 150, rawWidth: 109.7875, rawHeight: 62 });
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).not.toContain('fill="none" stroke=');
+  });
+});
+
 describe('classPlugin.accepts()', () => {
   it('returns true for ["class Foo"]', () => {
     expect(classPlugin.accepts(['class Foo'])).toBe(true);

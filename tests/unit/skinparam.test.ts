@@ -1236,3 +1236,28 @@ describe('resolveSkinparam — roundCorner', () => {
     expect(defaultTheme.colors.graph.classCascadeRoundCorner).toBeUndefined();
   });
 });
+
+// G2 N66 (near-zero harvest, vinujo-78-kapo329): `skinparam
+// diagramBorderColor <color>` -- jar's `TextBlockExporter#maybeDrawBorder`
+// (java: ColorParam.diagramBorder, a universal export-layer border, NOT
+// scoped to any one diagram type) draws a `<rect>` spanning the whole
+// canvas. `theme.colors.graph.diagramBorderColor` stores the RAW color
+// (mirrors `classBackground`/`noteBackground`'s own raw-storage, resolve-
+// at-render-site convention -- NOT `classCascadeBackground`'s N36 eager-hex
+// convention, which only applies to the `<style>`-cascade machinery).
+describe('resolveSkinparam — diagramBorderColor (G2 N66)', () => {
+  it('maps skinparam diagramBorderColor to theme.colors.graph.diagramBorderColor', () => {
+    const { theme, unknown } = resolveSkinparam(new Map([['diagramBorderColor', 'black']]), defaultTheme);
+    expect(theme.colors.graph.diagramBorderColor).toBe('black');
+    expect(unknown).toEqual([]);
+  });
+
+  it('is case/key-normalisation insensitive', () => {
+    const { theme } = resolveSkinparam(new Map([['DiagramBorderColor', 'red']]), defaultTheme);
+    expect(theme.colors.graph.diagramBorderColor).toBe('red');
+  });
+
+  it('absent by default -- defaultTheme carries no diagramBorderColor override', () => {
+    expect(defaultTheme.colors.graph.diagramBorderColor).toBeUndefined();
+  });
+});

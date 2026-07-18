@@ -349,6 +349,24 @@ export interface Theme {
        *  scoped out deliberately rather than guessed. */
       classCascadeMaximumWidth?: number;
       classCascadeHeaderMaximumWidth?: number;
+      /** G2 N66: `EntityImageNote`'s OWN `Style#wrapWidth` cascade -- a
+       *  class-diagram NOTE's body text has a SEPARATE style signature from
+       *  a classifier's (`EntityImageNote.getStyleSignature()`, `{root,
+       *  element,classDiagram,note}` -- `NOTE_SNAMES` in `style-cascade-
+       *  class.ts`, identical to `CLASS_SNAMES` except its trailing token is
+       *  `note` not `class_`), so a bare `class { MaximumWidth N } }`
+       *  selector does NOT reach a note (`class_` != `note`), but the SHARED
+       *  ancestor tokens (`element`/`classDiagram`/`root`) do -- jar-verified
+       *  `rubecu-40-cixu870` (`element { MaximumWidth 100 } }` wraps BOTH the
+       *  classifier box, via `classCascadeMaximumWidth`, AND the note body,
+       *  via this field) and `nufini-44-jofo787` (an EXPLICIT `note {
+       *  MaximumWidth 100 } }` block, distinct from its own sibling `class {
+       *  MaximumWidth 150 } }` block -- the two fields diverge). Consumed by
+       *  `note-layout.ts#measureNote`. Absent = 0 = no wrap, matching
+       *  `classCascadeMaximumWidth`'s own "no built-in default" contract. NOT
+       *  `.tagname`-cascaded (zero corpus reach for a stereotype-scoped
+       *  note MaximumWidth, matching the class-side field's own scoping). */
+      noteCascadeMaximumWidth?: number;
       /** G2 N36: `<style> classDiagram { LineColor }`/`root { LineColor
        *  }`/nested `classDiagram { arrow { LineColor } } }` -- the SAME
        *  ancestor cascade applied to an EDGE's own style signature
@@ -520,6 +538,25 @@ export interface Theme {
        *  #getHoverPathColor() != null`). Jar-verified `dasagu-52-
        *  vani172`. */
       pathHoverColor?: string;
+      /** G2 N66: `skinparam diagramBorderColor <color>` -- jar's
+       *  `TextBlockExporter#maybeDrawBorder` (`core/TextBlockExporter.java:
+       *  215-232`) draws a whole-canvas `<rect fill="none">` border, one
+       *  layer OUTSIDE the diagram's own content -- a universal, diagram-
+       *  type-agnostic export-layer mechanism (`ColorParam.diagramBorder`),
+       *  not scoped to class specifically, though this mission only found
+       *  class-diagram corpus reach (`vinujo-78-kapo329`). Stored RAW (not
+       *  pre-resolved to hex) -- mirrors `classBackground`/`noteBackground`'s
+       *  own "resolve at the render site" convention, NOT `classCascade
+       *  Background`'s N36 eager-hex convention (which only applies to the
+       *  `<style>`-cascade machinery). `undefined` means jar draws no
+       *  border at all (`stroke = skinParam.getThickness(...) == null &&
+       *  color == null` short-circuits `maybeDrawBorder`'s own early
+       *  return) -- zero behavior change for every fixture with no such
+       *  skinparam. Border THICKNESS/ROUNDCORNER (`LineParam.diagramBorder`/
+       *  `CornerParam.diagramBorder`) are NOT modeled -- zero corpus reach
+       *  for either, jar's own default (`UStroke.simple()`, thickness 1,
+       *  square corners) is what `renderer-shell.ts` hardcodes instead. */
+      diagramBorderColor?: string;
       /** G2 N54: `skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor`
        *  (`Kind` in Private/Package/Protected/Public) -- the member-row
        *  visibility icon's own LineColor/BackgroundColor overrides

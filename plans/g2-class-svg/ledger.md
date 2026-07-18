@@ -19111,3 +19111,383 @@ file, per this mission's own hard boundary.
   `renderer-note.ts`, a class-diagram-local engine distinct from
   description's E2r `theme.wrapWidth`) -- reach >= 2/718
   (`rubecu-40-cixu870`, `nufini-44-jofo787`), unsurveyed beyond these 2.
+
+## N66 -- note-text `MaximumWidth` wrap LANDED (N65's own named remainder);
+## `diagramBorderColor` LANDED (near-zero harvest, new mechanism); item 48
+## + the `-0)-` middle-circle-marker mechanism ground-truthed and DECLINED
+## (both newly precise, neither newly guessed)
+
+### Baseline confirmed exact against the brief
+
+`289/718 -- 1-3:28 -- 4-10:104 -- 11-30:30 -- 31+:267 -- errors:0`. Ratchet:
+289 fixtures / 291 tests. DOT gate confirmed frozen: `component 262/262 --
+usecase 90/90 -- class 708/708 -- object 78/80 -- state 267/267`.
+Description SVG gate confirmed: 51/51 ratchet tests green.
+
+### Mechanism 1 (LANDED): note-text `MaximumWidth` wrap
+
+**Origin**: `note-layout.ts#measureNote` split note text into lines
+(`\n`/`\l`/`\r`, `resolveTextEscapes(text).split('\n')`) and built each
+line's creole atoms directly (`resolveMemberAtoms(buildMemberAtoms(ln,
+font), font, measurer)`) -- never consulting ANY `MaximumWidth` cascade,
+even though the header (`class-layout-helpers.ts#wrapPlainTextLine`) and
+member rows (`class-member-creole.ts#buildWrappedMemberRows`) both gained
+`Fission`-based word-wrap in N65.
+
+**Jar mechanism**: `EntityImageNote.getStyleSignature()`
+(`svek/image/EntityImageNote.java:188-191`) is `StyleSignatureBasic.of
+(SName.root, SName.element, getStyleName(), SName.note)` --
+`getStyleName()` resolves to `SName.classDiagram` for a class diagram
+(`AbstractEntityImage.java:95-96`, `entity.getDiagramType()
+.getStyleName()`) -- so the FULL signature is `{root,element,classDiagram,
+note}`, identical to `CLASS_SNAMES` (`style-cascade-class.ts`) except its
+trailing token is `note`, not `class_`. `EntityImageNote`'s constructor
+(java:117-118) feeds `style.wrapWidth()` into the SAME `BodyFactory.create3`
+call the note's own text block already goes through -- structurally the
+identical mechanism item 35 (N65) already ported for the header/member-row
+call sites, just a THIRD, previously-unbuilt call site with its OWN style
+signature.
+
+**Fix**: new `theme.colors.graph.noteCascadeMaximumWidth` field (mirrors
+`classCascadeMaximumWidth`/`classCascadeHeaderMaximumWidth`'s exact shape)
++ new `NOTE_SNAMES = ['root','element','classdiagram','note']` constant in
+`style-cascade-class.ts`, resolved via the SAME `resolveStyleCascade`
+subset-match algorithm the other two fields already use --
+`computeClassStyleCascadeOverrides` gained one more `resolveStyleCascade`
+call, zero new resolution logic. `note-layout.ts#measureNote` rewritten:
+for each already-split source line, calls `buildWrappedMemberRows(ln, {},
+fontSpec, measurer, maxWidth)` (item 35's own Fission-wrapped member-row
+function, REUSED VERBATIM -- a note line is "always one physical line" the
+SAME way a member row is, per `class-member-creole.ts`'s own file doc
+comment) when `maxWidth > 0`, else the SAME single-atom-array call the
+pre-N66 code made (byte-identical zero-behavior-change fallback,
+`maxWidth<=0` covers the overwhelming majority of notes). Each source
+line's 1+ wrapped output rows flatten into the SAME `lines`/`lineWidths`/
+`lineAtoms` arrays `NoteMeasurement` always carried -- `lineHeights`
+(N56) needed ZERO changes, it already operates on the flat `lineAtoms`
+array agnostic to which source line an entry came from. Mirrors
+`class-member-rows.ts#buildWrappedSectionRowBuilds`'s own "single-row case
+keeps the ORIGINAL text verbatim; a genuinely 2+-row source line rebuilds
+each row's text from its own wrapped atoms via `atomsToPlainText`"
+convention exactly.
+
+**Jar-verified BYTE-EXACT** against `rubecu-40-cixu870`'s note (`<style>
+element { MaximumWidth 100 } }`, text "this is a very long long long long
+long description for note"): oracle's real cached DOT (`test-results/
+dot-cache/class/rubecu-40-cixu870/svek-1.dot`) note node `sh0007
+[width=1.659375,height=0.861111]` = `119.475 x 62.0` px (`* 72`,
+`PX_PER_INCH`) -- BEFORE this fix, the candidate DOT emitted
+`width=4.288715,height=0.319444` (308.87 x 23.0 px, completely unwrapped,
+single line) for the SAME node; AFTER, `dot-sync-report.ts --slug
+rubecu-40-cixu870 class` reports `maxSizeDeltaIn: 0.0000` (was `2.6293`) --
+BYTE-EXACT to the oracle's real DOT, confirmed via direct `[our svek DOT]`
+vs `[oracle svek DOT]` diff (`width=1.659375,height=0.861111` on BOTH
+sides). 4 wrapped lines, jar-verified via a NEW `DeterministicMeasurer`
+integration test (`note-layout.test.ts`): `m.lines` has length 4,
+`m.width` closeTo `119.475` (4dp), `m.height === 62`.
+
+**DOT dims before/after** (the mission's own explicitly-requested empirical
+protocol, `dot-sync-report.ts --slug`):
+```
+rubecu-40-cixu870 note node (sh0007 in oracle, sh0003 in candidate pre-fix):
+  BEFORE: width=4.288715 height=0.319444 (candidate)  vs  width=1.659375 height=0.861111 (oracle)  -- maxSizeDeltaIn: 2.6293
+  AFTER:  width=1.659375 height=0.861111 (candidate)  vs  width=1.659375 height=0.861111 (oracle)  -- maxSizeDeltaIn: 0.0000
+```
+This CLOSES the divergence the brief flagged as a risk, exactly as
+predicted (the note-wrap fix makes OUR note node match the oracle's,
+improving DOT-gate byte-parity on this fixture rather than opening a new
+divergence). The overall class DOT gate count is unaffected either way
+(708/708 unchanged both before and after -- this was never a
+structural/childCount mismatch, purely a numeric one, confirmed
+`structurallyEqual=true` on both runs).
+
+Second reach fixture `nufini-44-jofo787` (`<style> note { MaximumWidth 100;
+Fontcolor red } class { MaximumWidth 150; Fontcolor green } }`) ALSO
+jar-verified: both classifier boxes (`156.6x68`/`136.6x90`) are now
+BYTE-EXACT against oracle (confirmed via direct render comparison,
+`dot-sync-report.ts --slug nufini-44-jofo787 class` -> `maxSizeDeltaIn:
+0.0000`, `structurallyEqual=true`) -- the note wrap ALSO applies correctly
+here (a separate, explicit `note {}` block, not just the ancestor `element
+{}` case rubecu exercises), confirming `NOTE_SNAMES` resolves an EXPLICIT
+`note {}` selector correctly, not just the ancestor-cascade path.
+
+**New unit tests** (TDD, jar-verified where a golden exists):
+`tests/unit/class/note-layout.test.ts` (+6 cases: unset-is-noop regression
+guard, multi-row wrap within maxWidth, hard-break-preserved-across-source-
+lines, nothing-lost-in-rewrap, bold-run-survives-wrap, and the
+`rubecu-40-cixu870` jar-verified byte-exact integration test using
+`DeterministicMeasurer`), `tests/unit/core/style-cascade-class.test.ts`
+(+5 cases: `element {}` ancestor reaches BOTH note+class/header fields,
+`class {}` does NOT reach `noteCascadeMaximumWidth` -- the negative case
+proving the two style signatures are genuinely distinct -- explicit `note
+{}` isolation, non-numeric guard, absent-is-undefined guard).
+
+### Mechanism 2 (LANDED): `skinparam diagramBorderColor` (near-zero
+### harvest, `vinujo-78-kapo329`, 1-diff bucket)
+
+**Origin**: near-zero triage of the 28-fixture 1-3-diff bucket (7 at
+diffCount 1). Two of the 7 (`fogexa-30-zupo141`, `foxiki-17-kosa114`) are
+item 39/28's own already-declined remainders, unchanged. The other 5
+(`cenubi-27-xova754`, `danozo-79-nunu375`, `nisune-86-faji869`,
+`vinujo-78-kapo329`, `vudepo-27-cuvo793`) were triaged fresh --
+`vinujo-78-kapo329`'s single diff (`svg/g[1][childCount]` actual=1
+expected=2) traced to a MISSING full-canvas `<rect fill="none"
+stroke="#000000" stroke-width="1"/>`, present in jar's golden as the outer
+`<g>`'s FIRST child, absent entirely from this port's output.
+`skinparam diagramBorderColor black` is the ONLY relevant skinparam in the
+fixture (`page 2x2`, the fixture's OTHER directive, has zero visible
+effect here -- a single classifier fits on one page, confirmed by direct
+comparison: the golden shows no page-tiling artifact at all).
+
+**Jar mechanism**: `TextBlockExporter#maybeDrawBorder`
+(`core/TextBlockExporter.java:215-232`) -- a UNIVERSAL, diagram-type-
+agnostic export-layer mechanism (NOT scoped to class specifically, though
+this mission found only class-diagram corpus reach): `ColorParam
+.diagramBorder` resolves the color, `LineParam.diagramBorder` the
+thickness (defaults to `UStroke.simple()`, thickness 1, whenever a color
+is set but no explicit thickness skinparam exists -- zero corpus reach for
+an explicit `DiagramBorderThickness` override, confirmed via corpus grep).
+Draws `URectangle.build(dim.width - stroke.getThickness(), dim.height -
+stroke.getThickness())` at `(0,0)` -- critically, `dim` here is
+`calculateFinalDimension()`'s OWN raw (PRE-floor) result
+(`TextBlockExporter.java:199-203`, `textBlock.calculateDimension(...) +
+margins`), NOT the FINAL truncated canvas size `SvgGraphics#ensureVisible`
+produces later. This is a genuinely separate, EARLIER computation than
+this port's own `computeClassDocumentDims`'s internal `(int)(v+1)` floor
+(`layout-ink-extent.ts`, N46's own finding) -- confirmed empirically
+(`vinujo`'s golden rect: `width="113.7875" height="66"`, NEITHER of which
+is `115-1` or `68-1` -- the TRUNCATED canvas is 115x68 -- but EXACTLY
+`rawWidth(109.7875) + margins(0,5) - thickness(1) = 113.7875` and
+`rawHeight(62) + margins(0,5) - thickness(1) = 66`, verified via a direct
+probe of `ClassGeometry.rawWidth`/`rawHeight` -- the ALREADY-EXPOSED N46
+field -- against the golden's exact rect dims).
+
+**Fix**: `skinparam.ts` gained a `diagrambordercolor` case (mirrors
+`pathhovercolor`'s exact shape) storing the RAW color string (NOT
+pre-resolved to hex -- mirrors `classBackground`/`noteBackground`'s
+"resolve at the render site" convention, distinct from `classCascade
+Background`'s N36 eager-hex convention which only applies to the
+`<style>`-cascade machinery) into a NEW `theme.colors.graph
+.diagramBorderColor` field. New pure function `layout-ink-extent.ts
+#computeClassBorderRectDims(rawDims, thickness)` computes the EXACT
+PRE-floor-margined-minus-thickness rect dims (unit-tested directly,
+jar-verified against vinujo's exact numbers). `renderer.ts#renderClass`
+resolves the color to hex (`resolveColorToSvgHex`, mirrors
+`canonicalBackground`'s own resolution) and sets a NEW
+`RenderFragment.diagramBorderColor` field. `renderer-shell.ts
+#assembleClassShell` gained a new `withDiagramBorderRect` helper (mirrors
+`withDocumentBackgroundRect`'s exact "splice right after the fixed
+3-character `<g>` marker" technique, N48's own precedent) -- called
+AFTER `withDocumentBackgroundRect` so the border rect ends up spliced
+CLOSEST to `<g>` (i.e. drawn FIRST), matching jar's `TextBlockExporter`
+wrapping the ENTIRE diagram export -- including the diagram's OWN
+`documentBackgroundRect`, a separate, class-diagram-local N48 mechanism.
+
+**Deliberate scope guard (chrome interaction, zero corpus evidence)**:
+`withDiagramBorderRect` only draws when `fragment.preChromeWidth`/
+`preChromeHeight` (= `geo.rawWidth`/`rawHeight`, the class body's OWN raw
+ink dims, N46) are set AND `applyClassDocumentMargin` applied to them
+EXACTLY reproduces `fragment.width`/`height` (i.e. chrome did NOT inflate
+the canvas beyond the class body's own bounds). A title/legend/header/
+footer-bearing fixture combined with `diagramBorderColor` would need the
+CHROME-INCLUSIVE raw dims (not currently threaded anywhere in the
+pipeline) to compute jar's exact pre-floor formula correctly -- zero
+corpus fixture combines both, so rather than guess a formula that could
+silently draw the WRONG-sized rect, this guard no-ops for that case. Also
+NOT monochrome-aware (`class-monochrome.ts#applyMonochromeToFragment`
+already ran, over `fragment.body`, before `assembleClassShell` even
+receives the fragment -- the border rect's color is added AFTER that pass)
+-- zero corpus reach for a `skinparam monochrome` + `diagramBorderColor`
+combination either. Both gaps are named explicitly in `renderer-shell.ts`'s
+own doc comment for whoever hits a combining fixture next.
+
+**Jar-verified BYTE-EXACT** against `vinujo-78-kapo329`: full render diff
+`diffCount: 0` (was 1); direct string match `<rect x="0" y="0"
+width="113.7875" height="66" fill="none" stroke="#000000"
+stroke-width="1"/>` against the golden's own `<rect x="0" y="0"
+width="113.7875" height="66" fill="none" style="stroke:#000000;stroke-
+width:1;"/>` (semantically identical attribute set, `stroke`/`stroke-width`
+as plain attrs vs jar's combined `style=` shorthand -- the SAME format
+divergence every OTHER already-zero-diff rect in this port's output
+already has, reconciled by `normalizeSvg`, not a new gap).
+
+**New unit tests** (TDD): `tests/unit/skinparam.test.ts` (+3, raw-storage
+mapping + case-insensitivity + absent-by-default), `tests/unit/class/
+layout-ink-extent.test.ts` (+2, jar-verified `computeClassBorderRectDims`
+byte-exact + a `thickness=0` edge case), `tests/unit/class/renderer.test.ts`
+(+5: jar-verified byte-exact rect string, hex-color-resolution, unset-is-
+noop, rawWidth/rawHeight-unset-is-noop, and the chrome-mismatch guard
+declining to draw when `totalWidth`/`totalHeight` diverge from the raw-
+derived expectation).
+
+### Investigated and DECLINED (both newly ground-truthed to a precise
+### file:line mechanism, neither re-derived from a prior iteration's
+### speculation)
+
+**Item 48** (creole/markdown markup in classifier header names) --
+ground-truthed BOTH named fixtures' REAL golden SVGs directly (N65 only
+speculated from the source markup, never looked at the golden):
+- `diseka-11-gozu390` (`enum BookCategory as "<color:#888888><plain>
+  Enumeration</plain></color>\nBookCategory"`, `skinparam classFontStyle
+  bold`): golden shows 2 per-line `<text>` runs, BOTH `font-weight="700"`
+  (from the `classFontStyle bold` UNION, which `memberBaseFont`'s existing
+  ambient-bold parameter would supply for free if the header routed
+  through the shared creole engine) -- `<plain>Enumeration</plain>` has
+  ZERO visible styling effect distinguishable from its sibling line, which
+  means `<plain>` is a genuine, UNPORTED creole tag (confirmed via a
+  direct `grep -rln plain src/core/klimt/creole/` -- present only in
+  UNRELATED doc-comment prose across `Fission.ts`/`Atom.ts`/
+  `CommandCreoleBuilder.ts`/`CreoleStripeSimpleParser.ts`/`StripeSimple
+  .ts`, zero actual `<plain>` tag RECOGNITION anywhere in the shared
+  engine) -- landing item 48 for this fixture alone requires a NEW tag
+  added to the SHARED creole parser (`StripeSimple.ts`), not a header-only
+  wiring gap.
+- `lecelo-92-loma110` (`class "<:label:> label\n<:wrench:> wrench\n
+  <:hammer_and_wrench:> hammer_and_wrench"` + 2 sibling classifiers using
+  `<U+XXXX>`/`&#NNN;` unicode escapes instead): the `<:name:>` icon syntax
+  is CONFIRMED NOT the already-ported OpenIconic `<&name>` grammar
+  (`creole-atoms.ts`'s own doc comment cites `Splitter.openiconPattern`,
+  `<&name>`/`<&name{scale=N,color=X}>`/`<#RRGGBB&name>` -- none matches
+  `<:name:>`) -- a THIRD, distinct icon-reference syntax, unresearched
+  upstream source, genuinely new scope.
+
+Both findings CONFIRM (not merely repeat) N65's own "genuinely new
+subsystem, not a wiring gap" assessment, now with file:line precision
+instead of speculation -- not attempted, logged for whichever future
+iteration lands item 48 with this sharper starting point.
+
+**Middle-circle marker** (`-0)-`/`-(0-`/`0)--`/`--(0`, `LinkDecor
+.CIRCLE_CONNECT`'s regex-adjacent-but-DISTINCT `LinkMiddleDecor` cousin --
+found via near-zero triage of `cenubi-27-xova754`, diffCount 1): initially
+mis-hypothesized as the ALREADY-PORTED `ExtremityCircleConnect`
+(`core/svek/extremity/ExtremityCircleConnect.ts`, confirmed fully ported
+-- `link-decor.ts`'s own `'0)': 'CIRCLE_CONNECT'` token map entry already
+resolves it) -- re-traced via direct jar source read
+(`CommandLinkClass.java:498-506`) and found the `0)`/`(0`/`(0)` INSIDE-
+group marker actually maps to a COMPLETELY SEPARATE mechanism,
+`LinkType#withMiddleCircleCircled1/2`/`LinkMiddleDecor`
+(`decoration/LinkMiddleDecor.java`), drawn via `MiddleCircleCircled.java`
+(circle+arc shape, VISUALLY similar to `ExtremityCircleConnect` but a
+DIFFERENT class, positioned at the spline's MIDPOINT via `SvekEdge
+.java:982-987`'s `dotPath.getMiddle()` call, not either endpoint).
+`DotPath#getMiddle()` (`klimt/shape/DotPath.java:154-180`) is a genuinely
+NEW geometric primitive this port has never ported -- a cost-based
+recursive bezier-subdivision search for the point closest to the curve's
+own "center of mass," paired with an angle interpolation -- structurally
+comparable to `DotPath#simulateCompound` (CLAUDE.md's own cited example of
+"looks replaceable, but the jar's exact numeric granularity is load-
+bearing"), not a cheap reuse of existing extremity machinery.
+`class-relationship-parser.ts:70-78`'s OWN pre-existing doc comment
+already documented this marker as "matched and discarded... rendering-only
+middle marker" -- a PAST, deliberate DOT-parity-first scoping decision
+(the marker never affects relationship TYPE/DOT emission) that was never
+revisited once G2's SVG-conformance phase began. Corpus reach: exactly
+1/718 (`cenubi-27-xova754`, confirmed via `grep -rlE` across every cached
+`in.puml`). Declined: a genuinely new geometric primitive at 1/718 reach
+does not clear this mission's own "declined at similar or higher reach"
+bar (items 20/39-original/monochrome/gradient-color) -- named precisely
+(file:line for both the parser's existing discard point and jar's real
+draw mechanism) for a future dedicated iteration, not guessed at.
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD` at pre-N66 commit `1e363d2`, symlinked `node_modules`/
+### `test-results`/`assets/stdlib`, all 718 class fixtures, per-fixture
+### diffCount JSON before/after)
+
+**0 zero-diff regressions** (mission hard invariant, verified via JSON
+before/after diff, not eyeballed). **2 NEW zero-diff**
+(`rubecu-40-cixu870`, mechanism 1's own target; `vinujo-78-kapo329`,
+mechanism 2's own target -- BOTH RATCHET-PINNED this iteration,
+`oracle/goldens/svg-class/` + `ratchet.json` entries added, source
+`dot-cache`, verbatim copy per the established convention, verified
+byte-identical via `diff` before use). **1 worsened** (`nufini-44-jofo787`
+11->30) -- individually diagnosed per diagnosis.md BEFORE accepting: this
+is the SAME fixture N65's OWN regression scan already flagged as a
+"documented wash" (its classifier boxes are now byte-exact, but its
+aggregate diffCount stayed flat because of the SEPARATE note-wrap gap this
+iteration was explicitly built to close) -- confirmed via a direct
+before/after diff dump (`svg/g[1]/g[4][childCount]` mismatch, 4 vs 26
+expected, GONE after this fix -- replaced by 24 individual `text/@fill`
+diffs, `#000000` actual vs `#FF0000` expected) that the note-wrap fix IS
+structurally correct (childCount now matches jar exactly) and the
+INCREASE is entirely attributable to a THIRD, NEWLY-UNMASKED,
+already-separately-scoped gap: a class-diagram note's OWN `<style> note {
+FontColor red } }` cascade has NO mechanism at all (`renderer-note.ts
+#renderNoteLineAtoms`'s own doc comment already documents notes as having
+"no per-tag/theme cascade fallback tier," hardcoded `fill="#000000"`
+unconditionally) -- exactly this mission's own repeated "landing a
+structural fix increases diffCount by revealing MORE instances of an
+ALREADY-PRESENT, unrelated bug" pattern (N2, N5, N7-N12, N30, N59,
+N61-N65). NEWLY NAMED as **item 49** below, not attempted (out of this
+iteration's scope, a genuinely separate style-cascade mechanism).
+
+### Class census: before -> after
+
+`289/718 -- 1-3:28 -- 4-10:104 -- 11-30:30 -- 31+:267 -- errors:0` ->
+`291/718 -- 1-3:27 -- 4-10:104 -- 11-30:30 -- 31+:266 -- errors:0`
+(official `svg-conformance-census.ts class` run, DeterministicMeasurer).
+**+2 new zero-diff** (`rubecu-40-cixu870`, `vinujo-78-kapo329`). Net -1 in
+1-3 (vinujo leaving it for 0-diff), -1 in 31+ (rubecu leaving it for
+0-diff). `nufini-44-jofo787`'s diffCount rose 11->30 but its BUCKET
+membership is unchanged (`11-30` both before and after, 30 <= 30) --
+confirmed non-regression above -- so `4-10`/`11-30` both stay flat at
+104/30 in the aggregate bucket counts, consistent with the raw
+before/after JSON dump. Ratchet: **291 fixtures / 293 tests** (was
+289/291).
+
+### DOT gate + description gate
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged, re-verified via `dot-sync-report.ts`
+(no `--rebuild`) AFTER both mechanisms landed. `rubecu-40-cixu870`
+specifically re-verified via the mission's own explicit empirical protocol
+(`dot-sync-report.ts --slug`): `maxSizeDeltaIn: 0.0000` (was `2.6293`
+pre-fix) -- the note-wrap fix CLOSED a real numeric divergence rather than
+opening one, exactly as the brief's own risk framing anticipated.
+`vinujo-78-kapo329` is a pure render-layer change (no DOT-emission touch
+at all -- `diagramBorderColor` never reaches `buildDotGraph`), re-verified
+`structurallyEqual=true`/DOT-gate-count-unchanged by construction.
+Description SVG gate: 51/51 ratchet tests green (re-run explicitly after
+both mechanisms landed).
+
+### Tests + gates
+
+New/extended: `tests/unit/class/note-layout.test.ts` (+6, mechanism 1),
+`tests/unit/core/style-cascade-class.test.ts` (+5, mechanism 1),
+`tests/unit/skinparam.test.ts` (+3, mechanism 2),
+`tests/unit/class/layout-ink-extent.test.ts` (+2, mechanism 2),
+`tests/unit/class/renderer.test.ts` (+5, mechanism 2). Full suite:
+9805/9805 passing (359 test files, +23 vs N65's 9782, includes the +2
+ratchet-pin tests). `npm run typecheck`/`npm run lint`/`npm run build` all
+clean. Disposable scripts (`scripts/_tmp-n66-diag.ts`/
+`_tmp-n66-diff-dump.ts`/`_tmp-n66-probe.ts`/`_tmp-n66-render.ts`) all
+deleted before finishing (confirmed via `ls scripts/ | grep n66`, empty).
+Regression scan used a disposable `git worktree add --detach HEAD` in the
+scratchpad directory (not `/tmp`, symlinked `node_modules`/`test-results`/
+`assets/stdlib`) -- removed via `git worktree remove --force` before
+finishing (confirmed via `git worktree list` showing only the main
+worktree) -- no `git stash`/`checkout`/`reset`/`clean` used on any file,
+per this mission's own hard boundary.
+
+### Not landed / new items surfaced
+
+- **item 48** (creole markup in header names) -- re-ground-truthed, NOT
+  attempted (see "Investigated and DECLINED" above). Now precisely scoped:
+  needs BOTH a new `<plain>` shared-creole-parser tag AND a THIRD icon-
+  reference syntax (`<:name:>`, distinct from the ported `<&name>`),
+  ON TOP of N65's own header-atom-decomposition + wrap-upgrade scope.
+- **middle-circle marker** (`-0)-` crow's-foot "connect" notation) --
+  NEWLY named and fully traced (see "Investigated and DECLINED" above),
+  1/718 reach. A genuinely new `DotPath#getMiddle()`-shaped geometric
+  primitive, not a cheap reuse of the already-ported endpoint extremity
+  machinery it superficially resembles.
+- **item 49** (NEW: class-diagram note `<style> note { FontColor N } }`
+  cascade) -- `renderer-note.ts#resolveNoteBackground`/
+  `renderNoteLineAtoms` hardcode `fill="#000000"` for a note's plain text
+  UNCONDITIONALLY (that function's own doc comment already documents this
+  as a known, un-cascaded gap) -- reach >= 1/718 confirmed this iteration
+  (`nufini-44-jofo787`'s `<style> note { Fontcolor red } }`), unsurveyed
+  beyond this one fixture. Found via mechanism 1's OWN regression scan,
+  genuinely separate from the wrap mechanism itself (the wrap fix is
+  BYTE-EXACT correct; this is a pre-existing, adjacent gap it unmasked at
+  finer granularity).

@@ -400,6 +400,34 @@ export interface ClassDocumentDims {
 }
 
 /**
+ * G2 N66 (near-zero harvest, `vinujo-78-kapo329`): `<rect>` dims for
+ * `skinparam diagramBorderColor` -- jar's `TextBlockExporter
+ * #maybeDrawBorder` (`core/TextBlockExporter.java:215-232`) draws the
+ * border rect at the PRE-floor margined dims (`calculateFinalDimension`'s
+ * OWN raw result), NOT the final truncated canvas size {@link
+ * applyClassDocumentMargin} returns -- minus the stroke thickness on each
+ * axis (`URectangle.build(dim.width - stroke.getThickness(), dim.height -
+ * stroke.getThickness())`). `x`/`y` are always `(0,0)` -- the border is the
+ * OUTERMOST draw, at no prior `UGraphic` translate. Jar-verified byte-exact
+ * against `vinujo-78-kapo329` (`rawWidth=109.7875` -> margined
+ * `114.7875` -> rect width `113.7875`; `rawHeight=62` -> margined `67` ->
+ * rect height `66`, jar's real golden `<rect x="0" y="0" width="113.7875"
+ * height="66" fill="none" style="stroke:#000000;stroke-width:1;"/>`).
+ * `thickness` defaults to jar's own `UStroke.simple()` (1) -- `LineParam
+ * .diagramBorder`/`CornerParam.diagramBorder` (explicit thickness/round-
+ * corner overrides) are NOT modeled, zero corpus reach for either
+ * (`theme.ts#diagramBorderColor`'s own doc comment).
+ */
+export function computeClassBorderRectDims(
+  rawDims: ClassDocumentDims,
+  thickness: number,
+): ClassDocumentDims {
+  const marginedWidth = rawDims.width + DOCUMENT_MARGIN_LEFT + DOCUMENT_MARGIN_RIGHT;
+  const marginedHeight = rawDims.height + DOCUMENT_MARGIN_TOP + DOCUMENT_MARGIN_BOTTOM;
+  return { width: marginedWidth - thickness, height: marginedHeight - thickness };
+}
+
+/**
  * G2 N46: the ink-walk HALF of {@link computeClassDocumentDims} only —
  * `SvekResult#calculateDimension`'s own `.delta(15, 15)` ink box, WITHOUT
  * `CucaDiagram#getDefaultMargins()`'s `(0, 5, 5, 0)` OR `SvgGraphics

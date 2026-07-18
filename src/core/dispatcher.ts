@@ -98,6 +98,22 @@ export interface RenderFragment {
    * harmless) and for class's own default-background diagrams.
    */
   documentBackgroundRect?: string;
+  /**
+   * G2 N66: set ONLY by `class/renderer.ts#renderClass` -- the resolved SVG
+   * hex for `skinparam diagramBorderColor` (`theme.ts#diagramBorderColor`'s
+   * own doc comment). `class/renderer-shell.ts#assembleClassShell` draws a
+   * whole-canvas `<rect fill="none">` border as the outer `<g>`'s FIRST
+   * child (OUTSIDE `documentBackgroundRect`, matching jar's `TextBlock
+   * Exporter#maybeDrawBorder` wrapping the ENTIRE diagram export, including
+   * its own background) -- ONLY when `preChromeWidth`/`preChromeHeight`
+   * are set AND chrome did not inflate the canvas beyond them (a chrome-
+   * present + diagramBorderColor combination has zero corpus reach and is
+   * declared out of this item's verified scope -- see `renderer-shell.ts
+   * #withDiagramBorderRect`'s own doc comment). `undefined` for every other
+   * engine (unread, harmless) and for class diagrams with no such
+   * skinparam.
+   */
+  diagramBorderColor?: string;
 }
 
 /**
