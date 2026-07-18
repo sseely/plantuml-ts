@@ -254,14 +254,21 @@ function attachPortLabels(
 function buildStrokeOverride(
   rel: Relationship,
   dashed: boolean,
+  defaultArrowThickness: number | undefined,
 ): Pick<EdgeGeo, 'strokeWidth' | 'strokeDasharray' | 'colorOverride'> {
+  // G2 N51: `skinparam arrowThickness N` -- a theme-level DEFAULT thickness
+  // every edge picks up when it carries no bracket override of its own,
+  // see `theme.ts#arrowThickness`'s doc comment for the exact upstream
+  // `LinkType#getStroke3(UStroke defaultThickness)` formula this reduces
+  // to (a per-edge bracket override always wins over this default).
   const hasOverride =
     rel.lineStyleOverride !== undefined ||
     rel.thicknessOverride !== undefined ||
-    rel.colorOverride !== undefined;
+    rel.colorOverride !== undefined ||
+    defaultArrowThickness !== undefined;
   if (!hasOverride) return {};
   const style = rel.lineStyleOverride ?? (dashed ? 'dashed' : 'solid');
-  const stroke = strokeForStyle(style, rel.thicknessOverride);
+  const stroke = strokeForStyle(style, rel.thicknessOverride ?? defaultArrowThickness);
   const dasharray = stroke.getDasharraySvg();
   return {
     strokeWidth: stroke.getThickness(),
@@ -368,6 +375,10 @@ export function buildEdgeGeos(
   fontFamily: string,
   posMap: Map<string, DotLayoutResult['nodes'][number]>,
   anchors: Map<string, string>,
+  // G2 N51: `theme.colors.graph.arrowThickness` (`skinparam arrowThickness
+  // N`) -- threaded through to `buildStrokeOverride` below; see that
+  // function's own doc comment.
+  defaultArrowThickness?: number,
 ): EdgeGeo[] {
   const edges: EdgeGeo[] = [];
   for (let i = 0; i < ast.relationships.length; i++) {
@@ -405,7 +416,7 @@ export function buildEdgeGeos(
       ...(rel.idEntity2Decor !== undefined ? { idEntity2Decor: rel.idEntity2Decor } : {}),
       ...(rel.sourceLine !== undefined ? { sourceLine: rel.sourceLine } : {}),
       ...(rel.phantomSlot === true ? { phantomSlot: true as const } : {}),
-      ...buildStrokeOverride(rel, dashed),
+      ...buildStrokeOverride(rel, dashed, defaultArrowThickness),
     };
 
     attachEdgeLabel(edgeGeo, rel, pts);

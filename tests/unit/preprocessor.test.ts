@@ -353,6 +353,25 @@ describe('preprocessor', () => {
     expect(skinparam.has('arrowcolor')).toBe(false);
   });
 
+  // G2 N51: `classBorderThickness<<stereo>>` has NO space before the
+  // guillemet suffix -- the ORIGINAL `(\w+)\s+` key group failed to match
+  // at all here (the char right after the key word is `<`, not
+  // whitespace), silently dropping the whole line. Diagnosed `ragona-89-
+  // fadi984`.
+  it('single-line skinparam key accepts a directly-appended <<stereotype>> suffix', () => {
+    const { skinparam } = preprocess(
+      'skinparam classBorderThickness<<stereo>> 5',
+    );
+    expect(skinparam.get('classborderthickness<<stereo>>')).toBe('5');
+  });
+
+  it('block-form skinparam entry accepts a directly-appended <<stereotype>> suffix', () => {
+    const { skinparam } = preprocess(
+      'skinparam {\n  classBorderThickness<<stereo>> 5\n}',
+    );
+    expect(skinparam.get('classborderthickness<<stereo>>')).toBe('5');
+  });
+
   it('block-form skinparam collects all entries', () => {
     const { skinparam, lines } = preprocess(
       'skinparam {\n  backgroundColor red\n  borderColor blue\n}',

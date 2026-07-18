@@ -82,13 +82,22 @@ export interface PreprocessOptions {
 
 const RE_STYLE_OPEN = /^<style>$/i;
 const RE_STYLE_CLOSE = /^<\/style>$/i;
-const RE_SKINPARAM_LINE = /^skinparam\s+(\w+)\s+(.+)$/;
+// G2 N51: the key group additionally accepts an optional, directly-
+// appended `<<stereotype>>` guillemet suffix with NO space before it
+// (`skinparam classBorderThickness<<stereo>> 5`) -- `SkinParam#getThickness
+// (LineParam, Stereotype)`'s own stereotype-qualified key lookup
+// (`param.name() + "thickness" + stereotype.getLabel(...)`, java:914-915)
+// has no space in that concatenation either. Without this, the ORIGINAL
+// `(\w+)\s+` alternative failed to match at all (the char right after
+// the key word is `<`, not whitespace), silently dropping the entire
+// line -- diagnosed G2 N51 (`ragona-89-fadi984`).
+const RE_SKINPARAM_LINE = /^skinparam\s+(\w+(?:<<[^<>]+>>)?)\s+(.+)$/;
 const RE_SKINPARAM_BLOCK_OPEN = /^skinparam\s*\{$/;
 /** Selector-scoped block, e.g. `skinparam component {` -- inner entries are
  *  keyed `<selector><name>` (upstream sugar: `component { Style X }` is
  *  `skinparam componentStyle X`). */
 const RE_SKINPARAM_SELECTOR_BLOCK_OPEN = /^skinparam\s+(\w+)\s*\{$/;
-const RE_SKINPARAM_BLOCK_ENTRY = /^\s*(\w+)\s+(.+)$/;
+const RE_SKINPARAM_BLOCK_ENTRY = /^\s*(\w+(?:<<[^<>]+>>)?)\s+(.+)$/;
 const RE_SKINPARAM_BLOCK_CLOSE = /^\s*\}\s*$/;
 
 /**

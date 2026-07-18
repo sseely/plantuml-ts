@@ -3,7 +3,7 @@ import { renderClass } from '../../../src/diagrams/class/renderer.js';
 import { assembleSvg } from '../../../src/index.js';
 import { classPlugin } from '../../../src/diagrams/class/index.js';
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from '../../../src/diagrams/class/layout.js';
-import { defaultTheme, darkTheme } from '../../../src/core/theme.js';
+import { defaultTheme, darkTheme, deepMergeTheme } from '../../../src/core/theme.js';
 
 // ---------------------------------------------------------------------------
 // Geometry factory helpers
@@ -405,6 +405,78 @@ describe('renderClass — member rows', () => {
 // ---------------------------------------------------------------------------
 // AC4: classifier fill color driven by kind field
 // ---------------------------------------------------------------------------
+
+/**
+ * G2 N51: `skinparam classBorderColor #X` / `skinparam classBorderThickness
+ * N` -- the classifier box outline's and every divider line's own bare
+ * (non-`<style>`, non-tag) LineColor/LineThickness overrides. See
+ * `theme.ts#classBorder`/`#classBorderThickness`/
+ * `#classBorderThicknessByStereo`'s own doc comments for the exact
+ * upstream mapping and fallback-tier order.
+ */
+describe('renderClass — classBorderColor / classBorderThickness (G2 N51)', () => {
+  it('uses classBorder for the box stroke when set, over the plain default', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { classBorder: '#FF00FF' } } });
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = assembleSvg(renderClass(geo, theme));
+    // The box rect + divider both pick up the override; the badge ellipse
+    // (a SEPARATE spot-color mechanism, G2 N32) legitimately keeps the
+    // plain default -- assert on the box rect specifically, not a global
+    // absence of the default color string.
+    expect(svg).toContain('fill="#F1F1F1" stroke="#FF00FF"');
+  });
+
+  it('falls back to theme.colors.border when classBorder is unset', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain(`stroke="${defaultTheme.colors.border}"`);
+  });
+
+  it('uses classBorderThickness for the box outline AND divider stroke-width', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { classBorderThickness: 3 } } });
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).toContain('stroke-width="3"');
+    expect(svg).not.toContain('stroke-width="0.5"');
+  });
+
+  it('defaults the box/divider stroke-width to 0.5 when unset', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('stroke-width="0.5"');
+  });
+
+  it('a matching classBorderThicknessByStereo entry wins over the plain classBorderThickness', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { classBorderThickness: 0.5, classBorderThicknessByStereo: { stereo: 5 } } },
+    });
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('A', 'A', { stereotypeLabels: ['stereo'] })],
+    });
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).toContain('stroke-width="5"');
+  });
+
+  it('a non-matching stereotype falls back to the plain classBorderThickness', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { classBorderThickness: 0.5, classBorderThicknessByStereo: { other: 5 } } },
+    });
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('A', 'A', { stereotypeLabels: ['stereo'] })],
+    });
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).not.toContain('stroke-width="5"');
+    expect(svg).toContain('stroke-width="0.5"');
+  });
+});
 
 describe('renderClass — classifier kind fill', () => {
   it('uses classBackground for interface kind (box fill, not badge)', () => {

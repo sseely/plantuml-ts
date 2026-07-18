@@ -562,7 +562,10 @@ function layoutSinglePage(
   const hiddenIds = computeHiddenIds(effAst);
   const classifiers = buildClassifierGeos(effAst, measuredMap, posMap, hiddenIds);
   const namespaces = buildNamespaceGeos(effAst, posMap, theme, measurer, anchors);
-  const edges = buildEdgeGeos(effAst, result, swappedEdges, measurer, theme.fontFamily, posMap, anchors);
+  const edges = buildEdgeGeos(
+    effAst, result, swappedEdges, measurer, theme.fontFamily, posMap, anchors,
+    theme.colors.graph.arrowThickness,
+  );
   // G2/N13: classifiers computed FIRST -- mapNoteGeos needs their positions
   // + row text to resolve member-tip (`::member`) note connectors. G2/N16
   // Kind B: a freestanding note's ONE real relationship connector (if any)

@@ -93,6 +93,7 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
       // G2 N50: root{}'s LineThickness 1.0 default (title has no override
       // of its own in plantuml.skin's document{} block).
       lineThickness: 1,
+      documentBackground: '#FFFFFF', // G2 N51: defaultTheme's own canvas background
       padding: { top: 5, right: 5, bottom: 5, left: 5 },
       margin: { top: 5, right: 5, bottom: 5, left: 5 },
       horizontalAlignment: HorizontalAlignment.CENTER,
@@ -112,6 +113,7 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
       // G2 N50: root{}'s LineThickness 1.0 default (legend has no override
       // of its own in plantuml.skin's document{} block).
       lineThickness: 1,
+      documentBackground: '#FFFFFF', // G2 N51: defaultTheme's own canvas background
       padding: { top: 5, right: 5, bottom: 5, left: 5 },
       margin: { top: 12, right: 12, bottom: 12, left: 12 },
       horizontalAlignment: HorizontalAlignment.LEFT,
@@ -309,6 +311,39 @@ describe('resolveAnnotationStyles — <style> overrides', () => {
     const styleMap = parseStyleBlock('sequenceDiagram { title { FontColor: green } }');
     const styles = resolve(EMPTY_SKINPARAM, styleMap);
     expect(styles.title.fontColor).toBe('black');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N51: a BARE `<style> document { ... } }` block (no nested element
+// selector) cascades to EVERY chrome element -- StyleStorage#matchAll is
+// pure set-containment, not ancestor-path specificity (jar-verified via
+// direct StyleStorage instrumentation, ledger.md N51).
+// ---------------------------------------------------------------------------
+describe('resolveAnnotationStyles — bare document {} cascade (G2 N51)', () => {
+  it('document { BackGroundColor X } sets the background for EVERY chrome element with no more specific override', () => {
+    const styleMap = parseStyleBlock('document { BackGroundColor yellow }');
+    const styles = resolve(EMPTY_SKINPARAM, styleMap);
+    expect(styles.title.backgroundColor).toBe('yellow');
+    expect(styles.header.backgroundColor).toBe('yellow');
+    expect(styles.footer.backgroundColor).toBe('yellow');
+    expect(styles.caption.backgroundColor).toBe('yellow');
+    expect(styles.legend.backgroundColor).toBe('yellow');
+  });
+
+  it('a nested document { legend { ... } } override wins over the enclosing bare document {} value', () => {
+    const styleMap = parseStyleBlock(
+      'document { BackGroundColor orange; legend { BackGroundColor green } }',
+    );
+    const styles = resolve(EMPTY_SKINPARAM, styleMap);
+    expect(styles.legend.backgroundColor).toBe('green');
+    expect(styles.title.backgroundColor).toBe('orange');
+  });
+
+  it('a bare element selector still wins over the document {} cascade', () => {
+    const styleMap = parseStyleBlock('document { BackGroundColor orange } legend { BackGroundColor green }');
+    const styles = resolve(EMPTY_SKINPARAM, styleMap);
+    expect(styles.legend.backgroundColor).toBe('green');
   });
 });
 

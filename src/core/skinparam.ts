@@ -258,6 +258,14 @@ function matchElementFontSizeKey(
   return undefined;
 }
 
+// G2 N51: `skinparam classBorderThickness<<X>>` -- the ONE stereotype-
+// qualified skinparam key this port models (see `resolveSkinparam`'s own
+// `<<` early-branch comment for why the rest stay in `unknown[]`). Built
+// via `new RegExp(string)` rather than a `/<<.../ ` literal per this
+// project's complexity-lint convention for `<`/`>`-bearing patterns
+// (see e.g. `renderer-group.ts#XML_UNSAFE_RE`).
+const CLASS_BORDER_THICKNESS_STEREO_RE = new RegExp('^classborderthickness<<(.+)>>$');
+
 export function resolveSkinparam(
   skinparams: ReadonlyMap<string, string>,
   base: Theme,
@@ -301,6 +309,19 @@ export function resolveSkinparam(
   // `renderNamespaceFolder`) rather than duplicating the mechanism into a
   // second, competing theme field.
   let packageBorderThickness: number | undefined;
+  // G2 N51: `classBorderColor`/`classBorderThickness` -- the classifier
+  // box's own bare LineColor/LineThickness overrides (see `theme.ts
+  // #classBorder`/`#classBorderThickness`'s doc comments for the exact
+  // upstream mapping and fallback-tier precedent).
+  let classBorder: string | undefined;
+  let classBorderThickness: number | undefined;
+  // G2 N51: `classBorderThickness<<X>>` -- accumulated OUTSIDE the main
+  // switch below (the `<<` early-branch), see `theme.ts
+  // #classBorderThicknessByStereo`'s doc comment.
+  let classBorderThicknessByStereo: Record<string, number> | undefined;
+  // G2 N51: `arrowThickness` -- the class-edge default stroke-width (see
+  // `theme.ts#arrowThickness`'s doc comment).
+  let arrowThickness: number | undefined;
   // G2 N23: `skinparam class { AttributeFontSize/AttributeFontName }` --
   // `FontParam.CLASS_ATTRIBUTE`'s member-row font override (see
   // `theme.ts#classAttributeFontSize`'s doc comment for the exact upstream
@@ -361,13 +382,31 @@ export function resolveSkinparam(
   let swimlaneBorder: string | undefined;
 
   for (const [rawKey, value] of skinparams) {
-    // Stereotype-qualified keys are unsupported — Theme has no stereotype concept.
-    if (rawKey.includes('<<')) {
-      unknown.push(normaliseKey(rawKey));
+    const key = normaliseKey(rawKey);
+    // Stereotype-qualified keys are unsupported for MOST properties -- Theme
+    // has no general stereotype concept -- EXCEPT `classBorderThickness
+    // <<X>>` (G2 N51), which mirrors upstream's own narrow `SkinParam
+    // #getThickness(LineParam, Stereotype)` stereotype-qualified-key lookup
+    // (`SkinParam.java:904-938`: a raw VALUE lookup keyed by
+    // `param.name() + "thickness" + stereotype.getLabel(...)`, NOT the
+    // `<style>`/StyleSignature cascade `.tagname` sub-selectors use) -- see
+    // `classBorderThicknessByStereo`'s own Theme field doc comment
+    // (theme.ts) for the full mechanism.
+    if (key.includes('<<')) {
+      const stereoMatch = CLASS_BORDER_THICKNESS_STEREO_RE.exec(key);
+      if (stereoMatch !== null) {
+        const v = Number.parseFloat(value.trim());
+        if (Number.isFinite(v)) {
+          const stereo = stereoMatch[1]!.trim();
+          classBorderThicknessByStereo ??= {};
+          classBorderThicknessByStereo[stereo] = v;
+        }
+      } else {
+        unknown.push(key);
+      }
       continue;
     }
 
-    const key = normaliseKey(rawKey);
     const color = resolveColor(value);
 
     switch (key) {
@@ -435,6 +474,19 @@ export function resolveSkinparam(
       case 'classbackgroundcolor':
         classBackground = color;
         break;
+      case 'classbordercolor':
+        classBorder = color;
+        break;
+      case 'classborderthickness': {
+        const v = Number.parseFloat(value.trim());
+        if (Number.isFinite(v)) classBorderThickness = v;
+        break;
+      }
+      case 'arrowthickness': {
+        const v = Number.parseFloat(value.trim());
+        if (Number.isFinite(v)) arrowThickness = v;
+        break;
+      }
       case 'interfacebackgroundcolor':
         interfaceBackground = color;
         break;
@@ -612,6 +664,10 @@ export function resolveSkinparam(
     packageBackground !== undefined ||
     packageBorder !== undefined ||
     packageBorderThickness !== undefined ||
+    classBorder !== undefined ||
+    classBorderThickness !== undefined ||
+    classBorderThicknessByStereo !== undefined ||
+    arrowThickness !== undefined ||
     classAttributeFontSize !== undefined ||
     classAttributeFontFamily !== undefined ||
     classAttributeFontBold !== undefined ||
@@ -668,6 +724,12 @@ export function resolveSkinparam(
     if (packageBorder !== undefined) graphOverride.packageBorder = packageBorder;
     if (packageBorderThickness !== undefined)
       graphOverride.packageBorderThickness = packageBorderThickness;
+    if (classBorder !== undefined) graphOverride.classBorder = classBorder;
+    if (classBorderThickness !== undefined)
+      graphOverride.classBorderThickness = classBorderThickness;
+    if (classBorderThicknessByStereo !== undefined)
+      graphOverride.classBorderThicknessByStereo = classBorderThicknessByStereo;
+    if (arrowThickness !== undefined) graphOverride.arrowThickness = arrowThickness;
     if (classAttributeFontSize !== undefined)
       graphOverride.classAttributeFontSize = classAttributeFontSize;
     if (classAttributeFontFamily !== undefined)

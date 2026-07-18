@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildNamespaceGeos } from '../../../src/diagrams/class/class-geo-builders.js';
 import type { ClassDiagramAST } from '../../../src/diagrams/class/ast.js';
-import { defaultTheme } from '../../../src/core/theme.js';
+import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 import { WidthTableMeasurer } from '../../../src/core/measurer.js';
 import { getHTitle } from '../../../src/diagrams/class/class-namespace-shape.js';
 import { layoutClass } from '../../../src/diagrams/class/layout.js';
@@ -110,5 +110,45 @@ describe('buildEdgeGeos — tail/head multiplicity-label width rounding (G2 N35)
     expect(edge.headLabel).toBeDefined();
     expect(edge.tailLabel!.width).toBe(javaRound4(edge.tailLabel!.width));
     expect(edge.headLabel!.width).toBe(javaRound4(edge.headLabel!.width));
+  });
+});
+
+/**
+ * G2 N51: `skinparam arrowThickness N` -- the class-edge DEFAULT stroke
+ * width every edge without its own `-[thickness=N]->`/`-[bold]->` bracket
+ * override picks up (`class-geo-builders.ts#buildStrokeOverride`,
+ * `theme.ts#arrowThickness`'s doc comment for the exact upstream formula).
+ */
+describe('buildEdgeGeos — skinparam arrowThickness default (G2 N51)', () => {
+  const twoClassAst: ClassDiagramAST = {
+    classifiers: [
+      { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+      { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+    ],
+    namespaces: [],
+    directives: [],
+    notes: [],
+    relationships: [{ from: 'A', to: 'B', type: 'association' }],
+  };
+
+  it('applies the theme-level default to an edge with no bracket override', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { arrowThickness: 0.4 } } });
+    const geo = layoutClass(twoClassAst, theme, new DeterministicMeasurer());
+    expect(geo.edges[0]!.strokeWidth).toBe(0.4);
+  });
+
+  it('leaves strokeWidth unset (renderer default of 1) when no skinparam default is set', () => {
+    const geo = layoutClass(twoClassAst, defaultTheme, new DeterministicMeasurer());
+    expect(geo.edges[0]!.strokeWidth).toBeUndefined();
+  });
+
+  it('a per-edge bracket thickness override wins over the theme-level default', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { arrowThickness: 0.4 } } });
+    const ast: ClassDiagramAST = {
+      ...twoClassAst,
+      relationships: [{ from: 'A', to: 'B', type: 'association', thicknessOverride: 5 }],
+    };
+    const geo = layoutClass(ast, theme, new DeterministicMeasurer());
+    expect(geo.edges[0]!.strokeWidth).toBe(5);
   });
 });

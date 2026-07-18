@@ -175,6 +175,59 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(unknown).toEqual([]);
   });
 
+  // G2 N51
+  it('maps classbordercolor to colors.graph.classBorder', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classbordercolor', '#FF00FF']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBorder).toBe('#FF00FF');
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51
+  it('maps classborderthickness to colors.graph.classBorderThickness', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classborderthickness', '.5']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBorderThickness).toBe(0.5);
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51: SkinParam#getThickness(LineParam, Stereotype) -- a direct
+  // stereotype-qualified value lookup, NOT the <<`.tagname`>> <style>
+  // cascade -- see theme.ts#classBorderThicknessByStereo's doc comment.
+  it('maps classborderthickness<<stereo>> to colors.graph.classBorderThicknessByStereo', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classborderthickness<<stereo>>', '5']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBorderThicknessByStereo).toEqual({ stereo: 5 });
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51: non-numeric value for the stereotype-qualified key is dropped,
+  // not thrown, mirroring every other numeric skinparam case.
+  it('drops a non-numeric classborderthickness<<stereo>> value silently', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classborderthickness<<stereo>>', 'not-a-number']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBorderThicknessByStereo).toBeUndefined();
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51
+  it('maps arrowthickness to colors.graph.arrowThickness', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['arrowthickness', '0.4']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.arrowThickness).toBe(0.4);
+    expect(unknown).toEqual([]);
+  });
+
   // G2 N23: `skinparam class { AttributeFontSize N }` / `skinparam
   // classAttributeFontSize N` -- both forms produce the SAME normalized
   // key ("class" block-context + "AttributeFontSize" inner key ==

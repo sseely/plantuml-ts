@@ -14569,3 +14569,451 @@ verification (`comm` against the fresh census's zero-diff list), avoiding
 worktree setup/teardown entirely for a comparison this cheap. No git
 mutations (no stash/checkout/reset/clean) run this iteration. Nothing
 committed (orchestrator owns commits per mission rule).
+## N51 -- worked N50's six triaged near-zero mechanisms largest-first: 5
+## LANDED (edge-thickness `arrowThickness`, classifier tag-cascade
+## thickness, classifier divider-color, the mumefa legend-fill mystery
+## FULLY jar-instrumented and resolved), dark-theme chrome DIAGNOSED-and-
+## deferred (N50's own triage undercounted its scope by an order of
+## magnitude), residual childCount cluster SCANNED and found genuinely
+## heterogeneous (no shared mechanism -- named per-fixture, not guessed).
+
+Baseline confirmed exact against the brief: `260/718 -- 1-3:31 -- 4-10:115
+-- 11-30:34 -- 31+:278 -- errors:0`. Ratchet: 260 fixtures / 262 tests.
+
+### Mechanism 1 -- LANDED: `skinparam arrowThickness N` (edge default
+### stroke-width) was entirely unwired for class diagrams
+
+Root cause: `core/svek/svek-edge-stroke.ts#strokeForStyle` already
+faithfully ports `LinkType#getStroke3(UStroke defaultThickness)`
+(`decoration/LinkType.java:245-256`) for the PER-EDGE bracket-override
+case (`-[thickness=N]->`), but `class-geo-builders.ts#buildStrokeOverride`
+never fed a THEME-LEVEL default thickness into it at all -- `skinparam
+arrowThickness`/`classArrowThickness` had no parsing case in
+`skinparam.ts` (grepped: zero hits outside `json/renderer.ts`'s unrelated
+per-diagram-type `arrowThickness` json field) and no consumer. Jar's real
+formula (`SvekEdge.java:895-901`, confirmed by direct read of
+`LinkType.getStroke3`/`LinkStyle.goThickness`): a per-edge bracket
+override always wins; absent one, `skinparam arrowThickness`'s value
+becomes `defaultThickness`, and `getStroke3(defaultThickness)` applies
+JUST the thickness number to the edge's OWN dash-pattern via
+`LinkStyle#goThickness` (dashed stays dashed at the new thickness, dotted
+stays dotted, BOLD still hardcodes 2 regardless per the pre-existing N26
+doc comment) -- i.e. `strokeForStyle(style, rel.thicknessOverride ??
+defaultArrowThickness)` is the EXACT correct formula, reusing the
+existing function verbatim.
+
+Fixed additively: new `theme.colors.graph.arrowThickness?: number` field;
+`skinparam.ts` gained an `'arrowthickness'` case (`Number.parseFloat`);
+`class-geo-builders.ts#buildStrokeOverride` gained a
+`defaultArrowThickness` parameter, widening its `hasOverride` gate and
+folding the default into `strokeForStyle`'s existing thickness argument;
+`buildEdgeGeos`/`layoutClass` thread `theme.colors.graph.arrowThickness`
+through. TDD: 1 new `skinparam.test.ts` case, 3 new
+`class-geo-builders.test.ts` cases (theme-level default applies / absent
+when unset / per-edge bracket still wins) written RED first, GREEN after
+the fix.
+
+**`jezepa-12-padu194` and `vufuko-05-lapu034` both reach 0/0 diffs.**
+
+### Mechanism 2 -- LANDED: `skinparam classBorderThickness[<<stereo>>]`
+### (classifier box + divider stroke-WIDTH) was entirely unwired, AND its
+### stereotype-suffixed form was silently dropped at the PREPROCESSOR
+### layer (a genuine parser bug, not just a missing consumer)
+
+Root cause, two layers: (1) `renderer-classifier-box.ts` hardcoded
+`strokeWidth: 0.5` at BOTH the box outline rect and every divider `<line>`
+-- `classBorderThickness` had no skinparam case, matching `classBorderColor`'s
+own gap (mechanism 3 below). (2) `skinparam classBorderThickness<<stereo>>
+5` (NO space before the guillemet) never even reached the skinparam map:
+`preprocessor.ts`'s `RE_SKINPARAM_LINE = /^skinparam\s+(\w+)\s+(.+)$/`
+requires whitespace immediately after the key word, but the char right
+after `classBorderThickness` here is `<`, not whitespace -- the regex
+failed to match at all, silently dropping the WHOLE LINE (verified by
+direct regex test before touching any consumer code, per diagnosis.md
+instrument-first discipline). Confirmed via `SkinParam.java:904-938`
+(`getThickness(LineParam, Stereotype)`) this is a DIRECT stereotype-
+qualified VALUE lookup (`param.name() + "thickness" +
+stereotype.getLabel(...)`), NOT the `<style>`/StyleSignature `.tagname`
+cascade `resolveClassTagCascadeEntry` already models for OTHER
+tag-scoped properties -- a genuinely separate, narrower mechanism that
+only happens to share the `<<stereotype>>` suffix syntax.
+
+Fixed additively: `RE_SKINPARAM_LINE`/`RE_SKINPARAM_BLOCK_ENTRY` now
+accept an optional, directly-appended `<<...>>` suffix on the key
+(`new RegExp` string-built, not a `/<<.../ ` literal, per this project's
+`<`/`>`-regex complexity-lint convention). `skinparam.ts`'s `<<`
+early-branch (previously: EVERY stereotype-qualified key -> `unknown[]`)
+now carves a narrow exception for `classborderthickness<<X>>` keys only
+(matched via `new RegExp('^classborderthickness<<(.+)>>$')`), accumulating
+into a new `Record<string,number>` bucket -- every OTHER `<<...>>` key
+still falls to `unknown[]` unchanged (pinned by the pre-existing
+`classBackgroundColor<<Foo>>` unknown-key test, still green). New Theme
+fields: `classBorder?: string`, `classBorderThickness?: number`,
+`classBorderThicknessByStereo?: Readonly<Record<string,number>>`. New
+`renderer-classifier-box.ts#classBorderStrokeWidth` resolves
+per-stereotype override (case-insensitive label match against
+`geo.stereotypeLabels`, matching `resolveClassTagCascadeEntry`'s own
+comparison convention) -> plain `classBorderThickness` -> the `0.5`
+default, replacing BOTH hardcoded-0.5 call sites. TDD: 4 new
+`skinparam.test.ts` cases, 2 new `preprocessor.test.ts` cases (single-line
++ block-form guillemet-suffix parsing), 6 new `renderer.test.ts` cases,
+all written RED first (confirmed failing against the un-fixed regex/
+switch/render functions), then GREEN.
+
+**`ragona-89-fadi984` reaches 0/0 diffs.**
+
+### Mechanism 3 -- LANDED: `skinparam classBorderColor #X` (classifier box
+### + divider stroke COLOR, the bare/non-tag form) was entirely unwired
+
+Same shape as mechanism 2's color half: `classifierFill`'s existing
+`classCascadeBackground ?? classBackground` two-tier fallback (tag-cascade
+`<style>` blocks vs. bare skinparam) had NO analog on the `classBorder`
+render function at all -- `tagBorder ?? theme.colors.graph.classCascadeBorder
+?? theme.colors.border` skipped straight from the `<style>`-cascade tier to
+the ROOT default, with no bare-skinparam tier in between. Root cause:
+`FromSkinparamToStyle.java:183` maps `classBorderColor` to the SAME
+`element.class_` LineColor StyleSignature `classCascadeBorder` already
+models for `<style>` blocks -- jar-verified via direct SVG diff on
+`cunavo-77-filo788` (`skinparam classBorderColor #F0F`, no `<style>`
+block, no stereotype match: box `stroke` AND both divider `stroke`s all
+render `#FF00FF`, confirming the SAME LineColor feeds box+dividers, not
+independent mechanisms, matching `classBorder`'s own pre-existing N36 doc
+comment for the `<style>` half).
+
+Fixed additively: `classbordercolor` skinparam case -> new
+`theme.colors.graph.classBorder` field; `classBorder()` gained the missing
+fallback tier (`tagBorder ?? classCascadeBorder ?? classBorder ??
+theme.colors.border`), mirroring `classifierFill`'s exact precedent.
+
+**`cunavo-77-filo788` reaches 0/0 diffs** (its only 3 diffs were exactly
+this mechanism's 3 stroke attributes). Full-corpus regression scan also
+surfaced `ziromu-57-mima164` (same `skinparam classBorderColor` pattern,
+NOT independently named by N50 -- confirms real corpus reach beyond the
+1 originally-cited fixture, same discovery pattern N50's own mechanism 1
+saw for `borderBoxStyle`).
+
+### Mechanism 4 -- DIAGNOSED, deferred: dark-theme chrome (`skinparam mode
+### dark`) -- N50's own triage assessed this as a narrow "2-diff, `svg/
+### @background` gap"; direct instrumentation shows the REAL scope is an
+### entire alternate color-resolution subsystem masked behind a childCount
+### short-circuit, NOT attempted this iteration
+
+`zirori-93-jefo337`'s (`skinparam mode dark`, a bare `class foo`) 2 named
+diffs (`svg/@background`, `svg/g[1][childCount]`) turn out to be a
+DIAGNOSTIC ARTIFACT of `tests/oracle/svg-conformance/compare.ts`'s own
+tree-walker: `compareNodes` STOPS RECURSING into a node's children the
+instant `actualChildren.length !== expectedChildren.length` ("structural
+mismatch -- stop recursing into children", `compare.ts:317-325`) --
+confirmed by rendering this port's own output directly (a plain LIGHT
+theme: `fill="#F1F1F1"`, `background:#FFFFFF`) against the oracle's
+CONFIRMED dark render (`fill="#313139"`, `background:#1B1B1B`) and
+observing the diff tool report ONLY 2 diffs despite every color attribute
+differing -- the single missing top-level background `<rect>` (jar draws
+an extra full-canvas `<rect fill="#1B1B1B">` when the canvas isn't the
+plain white default) misaligns EVERY subsequent sibling index by one,
+tripping the childCount short-circuit before any color attribute is ever
+compared. This port has NO `skinparam mode dark` handling at all (grepped
+`'mode'`/`ModeDark`: zero hits) -- the element colors only "looked right"
+in N50's own citation because that citation never actually confirmed a
+render, just read the 2 surfaced diff paths.
+
+Traced the REAL upstream mechanism to confirm scope before attempting
+anything (`TitledDiagram.java:277`, `SkinParam.isDark`,
+`klimt/color/ColorMapper.java:68-73`): `mode dark` selects
+`ColorMapper.DARK_MODE`, which calls `HColorSimple#darkSchemeTheme()` on
+EVERY color the renderer emits -- a per-instance "dark companion" field
+(`HColorSimple.dark`, set via `.withDark(...)` at each color's OWN
+construction site, e.g. `HColors.WHITE.withDark(HColors.BLACK)`) that is
+NOT a formula (confirmed non-formulaic: `#181818`->`#E7E7E7` IS a bitwise
+invert, but the badge spot green `#ADD1B2`->`#2E5233` is NOT -- ruling out
+a single lightness-inversion transform). Reproducing this faithfully
+requires EVERY hardcoded default color this port's class renderer uses
+(box fill/border, badge spot colors per LeafType, divider stroke, text
+fill, edge stroke, arrowhead fill -- at minimum `renderer-classifier-
+box.ts`, `class-badge.ts`, `theme.ts`'s `defaultTheme` literals) to carry
+an explicit dark companion, applied uniformly at draw time -- a genuine
+new subsystem, not a `theme.colors.background` swap. Deliberately NOT
+attempted this iteration (diagnosis.md: mechanism identified precisely,
+scope corrected UPWARD from N50's own estimate, not a guess-fix) --
+renamed for a future dedicated iteration: "dark-mode is a per-color
+draw-time companion-color substitution (`ColorMapper.DARK_MODE`/
+`HColorSimple#darkSchemeTheme`), not a Theme-field swap; needs its own
+subsystem spanning every class-renderer color call site" -- corpus reach
+still 1 confirmed near-zero fixture (`zirori-93-jefo337`), though the true
+per-attribute mismatch count is far higher than the masked 2-diff surface
+suggested.
+
+### Mechanism 5 -- LANDED (jar instrumentation sanctioned, N46 technique):
+### the mumefa legend-fill `fill="#DDDDDD"` vs `fill="none"` mystery --
+### FULLY resolved to TWO compounding mechanisms, neither previously
+### implemented
+
+Built a patched local `plantuml-oracle.jar` copy (single-class recompiles
+against `~/git/plantuml/build/classes/java/main`'s pre-built gradle
+classes, `jar uf`, entirely under `/tmp/n51-patch-build` -- NEVER touched
+`oracle/dist/plantuml-oracle.jar`) with `System.err.println`
+instrumentation in TWO places, per diagnosis.md's instrument-before-
+hypothesizing discipline:
+
+1. `StyleStorage#computeMergedStyle` (every matching style + the final
+   merged value) -- CONFIRMED N50's own suspicion exactly: for
+   `mumefa-23-xoxe715`'s `<style> document { BackGroundColor yellow } }`
+   (bare, no nested `legend` selector), the legend's `{classDiagram,
+   document,legend,root}` query matches THREE stored styles in insertion
+   order (`root` skin default, `document.legend` skin default `#D`, then
+   the USER's bare `document` entry -- inserted LAST since it is a
+   brand-new key, `StyleStorage#put`'s `LinkedHashMap` never reorders an
+   EXISTING key on overwrite) and merges with `OVERWRITE_EXISTING_VALUE`,
+   so the LAST-inserted (user's bare `document`) wins: FINAL
+   BackGroundColor = yellow, resolved to an opaque `#FFFF00` HColor --
+   `computeMergedStyle` was NEVER ambiguous; no further StyleStorage
+   investigation needed.
+2. `Style#createTextBlockBordered` (the resolved `backgroundColor` HColor
+   right before use) -- confirmed opaque yellow reaches this point too.
+   Yet the RENDERED legend rect is `fill="none"`, not yellow -- the
+   divergence is NEITHER a style-resolution bug NOR the `StyleStorage`
+   iteration-order question N50 flagged; it is a THIRD, later step.
+
+Read `TextBlockBordered#drawU` directly (`klimt/shape/TextBlockBordered
+.java:122-127`) and found the real mechanism: `if (backgroundColor ==
+null || backgroundColor.isTransparent() || backgroundColor.equals(ug
+.getDefaultBackground())) back = HColors.none();` -- a REDUNDANT-FILL
+SUPPRESSION that substitutes the literal "none" color whenever a chrome
+block's resolved background EQUALS the document canvas's own ambient
+background, regardless of whether that equality came from an explicit or
+cascaded override. Cross-verified against the counter-fixture `majoge-68-
+zuji574` (`document { BackGroundColor orange; legend { BackGroundColor
+green } }` -- DIFFERENT colors, canvas orange / legend green -- legend
+keeps its own explicit `#008000` fill, no suppression) -- confirms the
+mechanism is real and content-dependent, not coincidental.
+
+TWO compounding fixes, both genuinely missing subsystems (not
+narrow-scoped guesses):
+
+1. **Bare `<style> document { ... } }` cascade to every chrome element**
+   (`style.ts#applyStyleOverrides`): the port previously checked ONLY
+   `root`, the bare element selector, and `document.<element>` (nested) --
+   a BARE `document {}` block with no nested element selector was NEVER
+   consulted anywhere, so a plain `document { BackGroundColor X }` had NO
+   effect on title/header/footer/caption/legend at all before this fix.
+   Added `styleMap.get('document')`, applied AFTER `root` and BEFORE the
+   more-specific `bare`/`documentScoped`/type-scoped selectors -- their
+   PRE-EXISTING precedence already matches jar's real "last write wins
+   per-property" order (jar-verified `majoge-68-zuji574`: the nested
+   `document.legend` entry, applied via the EXISTING `documentScoped`
+   path, correctly wins over the new bare-`document` cascade).
+2. **Redundant-fill-to-`none` collapse** (`blocks.ts`): new
+   `AnnotationBoxStyle.documentBackground` field (populated once per
+   `resolveAnnotationStyles` call, same hex-normalized value for every
+   element) + new `resolveBoxFill` helper implementing the exact
+   `TextBlockBordered#drawU` equality check (`resolveColorToSvgHex` on
+   BOTH sides -- the stored `backgroundColor` may still be a raw
+   CSS/named-color token like `"yellow"`, `documentBackground` is
+   already hex). `borderBoxStyle`'s `fill` is now ALWAYS explicit (never
+   omitted), matching N50's OWN `stroke`-side precedent (`?? 'none'`) that
+   was never extended to `fill`.
+
+**Regression trap caught and fixed within the SAME iteration** (full-
+corpus scan after landing piece 1 alone): the bare-`document` cascade also
+reaches title/header/footer/caption (their OWN `lineColor: null`
+default), and the naive `buildBorderRect` suppression check
+(`style.backgroundColor === null && style.lineColor === null`) used the
+RAW pre-collapse `backgroundColor`, which is now non-null (`'yellow'`)
+even though it collapses to `'none'` -- this drew a SPURIOUS empty
+`fill="none" stroke="none"` rect for title/header/footer that jar never
+emits (jar's OWN suppression check operates on the POST-collapse `back`/
+`color` HColor objects, not the pre-collapse stored fields). Fixed by
+switching `buildBorderRect`'s condition to `resolveBoxFill(style) ===
+'none' && style.lineColor === null` (checks the RESOLVED fill, matching
+jar's real check) -- verified via direct render dump BEFORE moving on,
+not assumed correct from the diff-count alone.
+
+TDD: 3 new `annotations-style.test.ts` cases (bare cascade reaches every
+element / nested override wins over the enclosing bare block / bare
+element selector still wins over the cascade), 3 new
+`annotations-blocks.test.ts` cases (fill collapses to none when equal +
+lineColor keeps the rect alive / fill draws normally when colors differ /
+rect fully suppressed when both collapse) -- all written RED first
+(confirmed failing against the un-fixed `applyStyleOverrides`/
+`resolveBoxFill`/`buildBorderRect`), then GREEN. 2 pre-existing
+full-object-shape `toEqual` assertions (title/legend defaults, same
+pattern N50 already established) updated in place for the new
+`documentBackground` field. 3 other test files (`annotations-blocks
+.test.ts`, `annotations-chrome.test.ts`, `annotations-mainframe.test.ts`)
+construct `AnnotationBoxStyle` object literals directly and needed a
+`documentBackground: '#FFFFFF'` field added to stay assignable.
+
+**`mumefa-23-xoxe715` reaches 0/0 diffs.**
+
+### Item 6 -- residual childCount cluster (26-fixture 1-3 bucket after
+### mechanisms 1-5 landed) -- SCANNED and found GENUINELY HETEROGENEOUS,
+### not a single mechanism; NOT guess-fixed
+
+Re-harvested the 1-3-diff bucket post-mechanisms (disposable
+`scripts/_tmp-n51-census.ts`, deleted before finishing): 26 fixtures.
+Grouped by DIFF SHAPE (not root cause -- shape alone does not imply a
+shared mechanism, confirmed below):
+
+- "Group A" (`svg/@width`+`@viewBox[2]`[+childCount]): `cicovi-23-zipe215`,
+  `dorelu-66-lixu637`, `gatula-10-bifu561`, `lejoga-79-poji465`,
+  `pijiju-95-xexi872`, `temise-16-neco018` (6).
+- "Group B" (`svg/@height`+`@viewBox[3]`[+childCount]):
+  `gadufu-56-votu808`, `jubobo-22-fapu993`, `lazeju-60-boki114`,
+  `mefike-75-vova900`, `xifuza-00-paze682`, `xosiza-60-sobu480` (6).
+- Pure single-childCount diff: `cenubi-27-xova754`, `danozo-79-nunu375`,
+  `foxiki-17-kosa114`, `nisune-86-faji869`, `tenobo-24-liga464`,
+  `vinujo-78-kapo329`, `vudepo-27-cuvo793` (7).
+- 2-childCount-diff (no dimension change): `dizuse-83-dabi909`,
+  `rizexu-84-xujo903` (2).
+- Singletons: `lufide-34-cexu026` (deep-path `@fill` mismatch),
+  `sejuzo-42-fini523` (element-type mismatch `a`/`line`/`text` --
+  structural misalignment, not a color/size gap), `xabije-20-xusi569`
+  (~1.11px position delta), `zirori-93-jefo337` (item 4 above),
+  `zuxoxu-54-pejo512` (`@id` off-by-N, already named N48/N49 territory).
+
+Sampled Group A's actual WIDTH DELTAS to test the "one shared mechanism"
+hypothesis BEFORE attempting a fix (diagnosis.md: instrument before
+hypothesizing): `cicovi` Δ+1, `gatula` Δ-1, `temise` Δ+13, `pijiju` Δ+28,
+`dorelu` Δ+33, `lejoga` Δ-200. Deltas span three orders of magnitude with
+BOTH signs -- this rules out a single shared layout-formula mechanism
+(a real shared bug produces a CONSTANT or formulaic delta, per this
+mission's own N46 precedent for the `5.5625`-constant chrome-centering
+bug). Spot-read 2 fixtures to confirm heterogeneity directly rather than
+inferring from deltas alone: `dorelu-66-lixu637` is a SELF-LOOP edge with
+a label (`Foo --> Foo : foo >`), a narrow/rare layout case; `lejoga-79-
+poji465` is an unrelated 12-classifier multi-inheritance diagram with 2
+notes, width delta -200 (structurally a completely different content
+shape). "Group A"/"Group B" are diff-shape coincidences (both diffs
+happen to land on the SAME xpath attribute name), not evidence of a
+shared cause -- confirmed, not assumed.
+
+Given confirmed heterogeneity, did NOT attempt a guess-fix targeting any
+one of these (would violate diagnosis.md's "no fix before a stated
+mechanism" rule for the 25 fixtures whose mechanism was NOT individually
+diagnosed this iteration). Left named, with the per-fixture diff shapes
+recorded above, for a future iteration's per-fixture drill (matching
+N48/N49's own established discipline for near-zero harvests) -- NOT
+independently re-classified beyond the shape-grouping above; explicitly
+NOT claimed to be item-20/enhanced-body-member/note-of-member territory
+without individually confirming each (unlike N50's own harvest, which
+had time to at least name likely overlaps -- this iteration's remaining
+budget went to the shape-heterogeneity falsification test instead, judged
+higher-value than another unconfirmed guess at overlap).
+
+### Full-corpus regression scan (before/after per-fixture zero-diff-set
+### comparison against the git-tracked `ratchet.json`'s pre-iteration 260
+### entries)
+
+**6 new zero-diff, 0 regressed**, confirmed twice (once after mechanisms
+1-3, once after mechanism 5): `jezepa-12-padu194`, `vufuko-05-lapu034`,
+`ragona-89-fadi984`, `cunavo-77-filo788`, `ziromu-57-mima164` (mechanism
+3's un-named bonus reach), `mumefa-23-xoxe715`.
+
+Class census: **260/718 -> 266/718** (1-3:31->26, 4-10:115->114, 11-30:34
+unchanged, 31+:278 unchanged). All 6 new fixtures added to `oracle/
+goldens/svg-class/ratchet.json` (`golden.svg`+`in.puml` copied from
+`test-results/dot-cache/class/<slug>/`, `source: "dot-cache"`, `addedAt:
+"2026-07-18"`) -- all 6 confirmed `dotEqual: true` in `parity-class.json`
+(class DOT stays 708/708 in sync). Ratchet: 260 -> 266 fixtures / 268
+tests (was 262).
+
+### DOT gate (frozen, verified unchanged)
+
+`component: 262/262 -- usecase: 90/90 -- class: 708/708 -- object: 78/80
+-- state: 267/267` -- all five counts EXACT, no movement.
+
+### Description SVG gate (frozen, verified unchanged)
+
+`component`+`usecase` census: `48/355` zero-diff (deterministic pass), set
+unchanged (48 zero-diff count identical; `description.golden.ratchet
+.test.ts` -- 51 tests, all passing, no slug additions/removals). Every
+file touched this iteration that is SHARED with description
+(`preprocessor.ts`, `skinparam.ts`, `annotations/blocks.ts`,
+`annotations/style.ts`) was verified deliberately: mechanisms 1-2's
+`arrowThickness`/`classBorderThickness`/`classBorderColor` are CLASS-ONLY
+consumers (`class-geo-builders.ts`/`renderer-classifier-box.ts`, not
+reachable from description's own renderer); mechanism 5's
+`applyStyleOverrides`/`resolveBoxFill`/`buildBorderRect` changes ARE
+shared chrome code, but are purely ADDITIVE (a new `document` selector
+check that only fires when a fixture actually authors a bare `<style>
+document {...}` block, and a fill-resolution change that only diverges
+from the old omitted-fill behavior when `backgroundColor` is non-null --
+neither condition is met by any of the 48 pinned description fixtures,
+confirmed via the unchanged ratchet-test slug count).
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9632 tests, all passing** (net
++28 over N50's 9604: +6 new ratchet AC1 tests (266-260), 1 in
+`skinparam.test.ts`'s arrowthickness case + 3 in `class-geo-builders
+.test.ts` for mechanism 1; 6 in `skinparam.test.ts` + 2 in
+`preprocessor.test.ts` + 6 in `renderer.test.ts` for mechanism 2/3; 3 in
+`annotations-style.test.ts` + 3 in `annotations-blocks.test.ts` for
+mechanism 5's two-part fix -- the remainder are the SAME-count updates to
+pre-existing full-object-shape `toEqual` assertions (not new tests) and
+3 test files needing a new required field added to stay assignable).
+`npm run typecheck`: clean (both configs). `npm run lint`: clean. `npm run
+build`: clean (555 modules, dts generation succeeded).
+
+### Named, NOT attempted this iteration (README items, current queue)
+
+1. `classDiagram.class.header` nested style cascade (`fumalu-64-vude116`)
+   -- carried unchanged from N49/N50, still 1 reach, still multi-layer
+   (layout + render), not attempted.
+2. Dark-theme chrome (`zirori-93-jefo337`) -- RE-DIAGNOSED this iteration,
+   scope corrected UPWARD from N50's "2-diff gap" estimate to "a full
+   per-color draw-time companion-color subsystem" -- see mechanism 4
+   above. Still 1 confirmed near-zero corpus reach.
+3. Self-loop edge label layout (`dorelu-66-lixu637`, NEWLY NAMED) --
+   width delta +33px on a `Foo --> Foo : label` self-loop, a narrow/rare
+   layout case, not individually diagnosed.
+4. The remaining 24 fixtures of item 6's heterogeneous residual cluster
+   (this iteration's own scan above) -- shape-grouped, root causes NOT
+   individually diagnosed, explicitly NOT claimed to overlap any prior
+   named item without confirmation.
+5. Every item carried forward unchanged from N50's own queue not
+   mentioned above (`mumefa`'s fill mystery is now RESOLVED, drop from
+   future queues under that name; item 3/4 -- classifier tag-cascade
+   thickness / divider-color -- are BOTH now landed, drop from future
+   queues; the classifier tag-cascade thickness's BASE, non-tag variant
+   is ALSO now landed as a byproduct; edge/arrow `thickness` -- the
+   `arrowThickness` skinparam default is now landed, but the SEPARATE
+   `<style> arrow { LineThickness N } }` cascade route -- if any corpus
+   fixture uses it -- was NOT surveyed this iteration; dotted-namespace
+   nesting, multi-line generic-tag box, `skinparam genericDisplay old`,
+   `<style> class { MaximumWidth N } }`, note-of-member,
+   enhanced-body-member, hidden-bracket, lollipop-socket,
+   class-font-role-residual, note-creole-markup, item 20, item 24's
+   remaining 2 sub-cases, item 28) -- none surveyed this iteration (time
+   budget went to the six named N50 mechanisms + item 6's falsification
+   test).
+
+**Superseded this iteration**: N50's queue items 3 (`skinparam
+classBorderThickness<<stereo>>`) and 4 (`skinparam classHeaderBackground
+Color`/`classBorderColor` divider-line stroke color) are BOTH now landed
+(mechanisms 2/3 above) -- drop from future queues under those names.
+N50's queue item 1 (`mumefa`'s `fill="none"` mystery) is FULLY RESOLVED
+(mechanism 5) -- drop from future queues; the "needs jar instrumentation"
+flag is now moot, the mechanism is documented in code comments
+(`blocks.ts#resolveBoxFill`, `style.ts#applyStyleOverrides`'s
+`documentBare` block) for any future maintainer who needs to re-derive it
+without re-running the jar.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n51-census.ts` (1-3-bucket enumerator + `--single`/`--raw`
+single-fixture diff/render dumper, grew incrementally across the
+iteration) -- deleted before finishing (confirmed via `ls scripts/ | grep
+n51`, empty). One patched local jar build (`/tmp/n51-patch-build`, two
+single-class recompiles -- `StyleStorage.java` then `Style.java` --
+against `~/git/plantuml/build/classes/java/main`'s classpath, `jar uf`
+into a COPY named `patched-oracle.jar`) -- `oracle/dist/plantuml-
+oracle.jar` itself was NEVER touched (the patched copy and its companion
+`mumefa.puml` test fixture lived entirely under `/tmp/n51-patch-build`),
+deleted before finishing. No `git worktree` needed this iteration -- the
+git-tracked `ratchet.json` manifest itself served as the "before"
+snapshot for regression verification (`comm`-equivalent Python set diff
+against the fresh census's zero-diff list), same technique N50
+established. No git mutations (no stash/checkout/reset/clean) run this
+iteration. Nothing committed (orchestrator owns commits per mission
+rule).

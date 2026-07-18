@@ -131,6 +131,60 @@ export interface Theme {
        *  (shared with description's package/folder USymbol rendering, see
        *  `class-namespace-shape.ts#titleFont`'s doc comment). */
       packageBorderThickness?: number;
+      /** G2 N51: `skinparam classBorderColor #X` / `skinparam class {
+       *  BorderColor #X }` -- the classifier box's own bare (non-`<style>`,
+       *  non-tag) LineColor override (`FromSkinparamToStyle.java:183`:
+       *  `element.class_` LineColor -- the SAME StyleSignature
+       *  `classCascadeBorder` above models for `<style>` blocks). Read by
+       *  `renderer-classifier-box.ts#classBorder` as the fallback tier
+       *  BELOW the `.tagname`/`classCascadeBorder` cascade and ABOVE the
+       *  plain `theme.colors.border` default -- mirrors the PRE-EXISTING
+       *  `classBackground`/`classCascadeBackground` two-tier precedent
+       *  exactly (`classifierFill`'s own doc comment), jar-verified
+       *  `cunavo-77-filo788` (`classBorderColor #F0F`, no `<style>` block,
+       *  no stereotype tag match -- box `stroke`/both divider `stroke`s all
+       *  render `#FF00FF`). */
+      classBorder?: string;
+      /** G2 N51: `skinparam classBorderThickness N` / `skinparam class {
+       *  BorderThickness N }` -- the classifier box outline's + divider
+       *  lines' own stroke-width override (`FromSkinparamToStyle.java:195`:
+       *  `element.class_` LineThickness), jar default `0.5`
+       *  (`renderer-classifier-box.ts`'s own pre-existing hardcoded
+       *  literal). Read by `renderer-classifier-box.ts#classBorderStrokeWidth`
+       *  BELOW the per-stereotype `classBorderThicknessByStereo` bucket and
+       *  ABOVE the `0.5` default -- jar-verified `vaxeku-10-peko225`
+       *  (`classBorderThickness .5`, matches the pre-existing default
+       *  coincidentally -- already zero-diff before this field existed). */
+      classBorderThickness?: number;
+      /** G2 N51: `skinparam classBorderThickness<<stereo>> N` --
+       *  `SkinParam#getThickness(LineParam, Stereotype)` (`SkinParam.java
+       *  :904-938`): a STEREOTYPE-QUALIFIED skinparam key, resolved by
+       *  DIRECT VALUE LOOKUP (`param.name() + "thickness" +
+       *  stereotype.getLabel(...)`), NOT via the `<style>`/StyleSignature
+       *  cascade `classTagCascade`/`resolveClassTagCascadeEntry` model for
+       *  `.tagname` sub-selectors -- a genuinely separate mechanism that
+       *  happens to share the `<<stereotype>>` suffix syntax. Keyed by the
+       *  LOWERCASED stereotype label (matching `resolveClassTagCascadeEntry`'s
+       *  own case-insensitive comparison against `geo.stereotypeLabels`).
+       *  Wins over the plain `classBorderThickness` above when the
+       *  classifier's OWN stereotype matches a key here -- jar-verified
+       *  `ragona-89-fadi984` (`class A <<stereo>>` renders stroke-width 5,
+       *  `class B` with no stereotype stays at the 0.5 default). */
+      classBorderThicknessByStereo?: Readonly<Record<string, number>>;
+      /** G2 N51: `skinparam arrowThickness N` -- `FromSkinparamToStyle.java
+       *  :150`: `SName.arrow` LineThickness, the DEFAULT stroke-width every
+       *  edge draws at when it carries no `-[thickness=N]->`/`-[bold]->`
+       *  bracket override of its own (`LinkType#getStroke3(UStroke
+       *  defaultThickness)`, `decoration/LinkType.java:245-256`: a bracket
+       *  override always wins; absent one, this skinparam's value is
+       *  applied to the edge's OWN dash-pattern via `LinkStyle#goThickness`
+       *  -- BOLD edges still hardcode thickness 2 regardless, per that
+       *  function's existing doc comment). Read by
+       *  `class-geo-builders.ts#buildStrokeOverride` as the fallback
+       *  passed to the SAME `svek-edge-stroke.ts#strokeForStyle` formula
+       *  the bracket-override path already uses -- jar-verified
+       *  `jezepa-12-padu194`/`vufuko-05-lapu034`. */
+      arrowThickness?: number;
       /** G2 N23/N32: `skinparam class { AttributeFontSize N }` / `skinparam
        *  classAttributeFontSize N` -- upstream `FontParam.CLASS_ATTRIBUTE`'s
        *  dedicated size override, style-mapped by `FromSkinparamToStyle

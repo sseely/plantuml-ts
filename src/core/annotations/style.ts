@@ -77,6 +77,21 @@ export interface AnnotationBoxStyle {
    *  module doc comment for the full title/legend-only `Box*` key list this
    *  mirrors. */
   lineThickness: number;
+  /** G2 N51: the document canvas's own resolved background hex
+   *  (`resolveColorToSvgHex(theme.colors.background)`, computed ONCE in
+   *  `resolveAnnotationStyles` and copied verbatim onto every element) --
+   *  `blocks.ts#borderBoxStyle` compares its OWN resolved `backgroundColor`
+   *  against this to reproduce `TextBlockBordered#drawU`'s redundant-fill
+   *  suppression (`klimt/shape/TextBlockBordered.java:122-127`:
+   *  `backgroundColor.equals(ug.getDefaultBackground()) -> back =
+   *  HColors.none()`) -- jar-verified via direct `TextBlockBordered`
+   *  instrumentation (`plans/g2-class-svg/ledger.md` N51,
+   *  `mumefa-23-xoxe715`: legend's cascaded `BackGroundColor` resolves to
+   *  the SAME yellow as the document's own canvas background, so jar draws
+   *  `fill="none"` instead of the redundant literal color; `majoge-68-
+   *  zuji574`'s document/legend colors DIFFER, so the legend keeps its own
+   *  explicit fill). */
+  documentBackground: string;
   padding: BoxSides;
   margin: BoxSides;
   /** D8: for `title`/`caption`, `DiagramChromeFactory.addTitle`/`addCaption`
@@ -209,6 +224,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
     lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: { top: 5, right: 5, bottom: 5, left: 5 },
     margin: { top: 5, right: 5, bottom: 5, left: 5 },
   },
@@ -223,6 +239,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
     lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: ZERO_SIDES,
     margin: ZERO_SIDES,
   },
@@ -237,6 +254,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
     lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: ZERO_SIDES,
     margin: ZERO_SIDES,
   },
@@ -251,6 +269,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
     lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: ZERO_SIDES,
     margin: { top: 1, right: 1, bottom: 1, left: 1 },
   },
@@ -266,6 +285,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     lineColor: 'black',
     roundCorner: 15,
     lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: { top: 5, right: 5, bottom: 5, left: 5 },
     margin: { top: 12, right: 12, bottom: 12, left: 12 },
   },
@@ -285,6 +305,7 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     // plantuml.skin:85 -- mainframe's OWN LineThickness override (1.5),
     // not root's 1.0 -- see this field's doc comment on the interface.
     lineThickness: 1.5,
+    documentBackground: '',
     padding: { top: 1, right: 5, bottom: 1, left: 5 },
     margin: { top: 10, right: 5, bottom: 10, left: 5 },
   },
@@ -507,6 +528,26 @@ function applyStyleOverrides(
   const root = styleMap.get('root');
   if (root !== undefined) applyDeclarations(style, root, documentBackgroundHex);
 
+  // G2 N51: a BARE `<style> document { ... } }` block (NO nested element
+  // selector) is a genuine member of every chrome element's `{root,
+  // document,<element>}` style signature -- `StyleStorage#computeMergedStyle`
+  // matches by pure SET-CONTAINMENT (`StyleSignatureBasic#matchAll`, java),
+  // not ancestor-path specificity, so it applies to EVERY element unless a
+  // more specific selector below overwrites the SAME property -- jar-
+  // verified via direct `StyleStorage` instrumentation (`plans/g2-class-svg/
+  // ledger.md` N51, mumefa-23-xoxe715 trace) confirming the bare `document`
+  // entry wins over the skin-default `BASE_DEFAULTS` (this module's own
+  // `#D` legend default, etc.) exactly like `root` above, and is in turn
+  // overwritten by the more-specific `bare`/`documentScoped`/type-scoped
+  // selectors that follow -- their existing precedence already matches
+  // jar's real "last write wins per-property" merge order (a NESTED user
+  // override is always inserted/merged AFTER its own enclosing bare block
+  // reaches this same property, `majoge-68-zuji574` jar-verified: `document
+  // { BackGroundColor orange; legend { BackgroundColor green } }` renders
+  // the legend green, not orange).
+  const documentBare = styleMap.get('document');
+  if (documentBare !== undefined) applyDeclarations(style, documentBare, documentBackgroundHex);
+
   const bare = styleMap.get(element);
   if (bare !== undefined) applyDeclarations(style, bare, documentBackgroundHex);
 
@@ -556,6 +597,8 @@ export function resolveAnnotationStyles(
   const result = {} as Record<AnnotationElement, AnnotationBoxStyle>;
   for (const element of ANNOTATION_ELEMENTS) {
     const style = cloneBoxStyle(BASE_DEFAULTS[element]);
+    // G2 N51: see `AnnotationBoxStyle#documentBackground`'s own doc comment.
+    style.documentBackground = documentBackgroundHex;
     // G2 N46 (near-zero harvest): `skinparam DefaultFontName X` maps to
     // `PName.FontName` at `SName.root` (`FromSkinparamToStyle.java:156`,
     // `addConvert("defaultFontName", PName.FontName, SName.root)`) --

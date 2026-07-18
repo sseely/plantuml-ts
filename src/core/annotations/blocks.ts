@@ -73,6 +73,7 @@ import { rect, text } from '../svg.js';
 import { shiftFragmentBody } from './coord-shift.js';
 import type { BoxStyle } from '../svg.js';
 import { HorizontalAlignment } from '../klimt/geom/HorizontalAlignment.js';
+import { resolveColorToSvgHex } from '../klimt/color/HColorSet.js';
 import { javaRound4 } from '../number-format.js';
 
 /** The fragment shape {@link buildAnnotationBlock} returns — width/height
@@ -213,31 +214,65 @@ function measureLines(lines: readonly string[], font: FontSpec, measurer: String
  *  `Rectangle2D` upstream, never reaching the rx/ry-emitting branch --
  *  jar-verified the SAME `bajula-59-puxi485` fixture (header, roundCorner 0:
  *  no `rx`/`ry` at all) and `mumefa-23-xoxe715` (legend, roundCorner 15: the
- *  oracle's `ry="7.5"` was missing from this port's rx-only output). Builds
- *  `fill` the same as before (omitted, not `undefined`, when
- *  `backgroundColor` is `null` — required under this project's
- *  `exactOptionalPropertyTypes`). */
+ *  oracle's `ry="7.5"` was missing from this port's rx-only output). G2 N51:
+ *  `fill` is likewise now ALWAYS explicit (`resolveBoxFill` below), never
+ *  omitted -- see that function's own doc comment. */
 function borderBoxStyle(style: AnnotationBoxStyle): BoxStyle {
   const box: BoxStyle = {
     stroke: style.lineColor ?? 'none',
     strokeWidth: style.lineThickness,
+    fill: resolveBoxFill(style),
   };
   if (style.roundCorner !== 0) {
     const corner = style.roundCorner / SVG_ROUND_CORNER_DIVISOR;
     box.rx = corner;
     box.ry = corner;
   }
-  if (style.backgroundColor !== null) box.fill = style.backgroundColor;
   return box;
 }
 
+/**
+ * G2 N51: jar's `TextBlockBordered#drawU` (`klimt/shape/TextBlockBordered
+ * .java:122-127`) resolves the fill to the LITERAL "none" color -- never
+ * an omitted attribute -- in THREE cases: no `backgroundColor` set, an
+ * explicitly transparent one (this port's `null` already models both),
+ * OR the resolved color EQUALS the document canvas's own background
+ * (`ug.getDefaultBackground()`) -- a redundant-fill suppression jar
+ * applies so a chrome block that happens to match the canvas doesn't draw
+ * a pointless opaque rect. jar-verified `mumefa-23-xoxe715` (the legend's
+ * `<style> document { BackGroundColor yellow } }`-cascaded background
+ * resolves to the SAME yellow as the document canvas -- oracle draws
+ * `fill="none"`) against the counter-fixture `majoge-68-zuji574`
+ * (`document { BackGroundColor orange; legend { BackgroundColor green
+ * } }` -- DIFFERENT colors, the legend keeps its own explicit `#008000`).
+ * Comparison runs both sides through `resolveColorToSvgHex` -- the stored
+ * `backgroundColor` may still be a raw CSS/named-color token (`"yellow"`,
+ * `resolveChromeColor`'s own doc comment), while `documentBackground` is
+ * ALREADY hex-normalized (`resolveAnnotationStyles`'s own doc comment).
+ */
+function resolveBoxFill(style: AnnotationBoxStyle): string {
+  if (style.backgroundColor === null) return 'none';
+  if (resolveColorToSvgHex(style.backgroundColor) === style.documentBackground) return 'none';
+  return style.backgroundColor;
+}
+
 /** Border/background rect at the un-plus-oned padded size (see
- *  {@link BORDERED_DIMENSION_QUIRK}), suppressed when both colors are
- *  `null` (`TextBlockBordered#drawU`: `back.isTransparent() == false ||
- *  color.isTransparent() == false`, collapsed to this port's `string |
- *  null` color model — `null` IS the transparent/absent case). */
+ *  {@link BORDERED_DIMENSION_QUIRK}), suppressed when BOTH the RESOLVED
+ *  fill (`resolveBoxFill` -- post redundant-fill-collapse, G2 N51) and
+ *  `lineColor` are none/`null` (`TextBlockBordered#drawU`: `back
+ *  .isTransparent() == false || color.isTransparent() == false`, collapsed
+ *  to this port's `string | null` color model — `null`/`'none'` IS the
+ *  transparent/absent case). G2 N51: MUST check the resolved fill, not the
+ *  raw `style.backgroundColor` -- a `document{BackGroundColor X}` cascade
+ *  can make `backgroundColor` non-`null` while STILL collapsing to `'none'`
+ *  (X equals the canvas background), and jar draws NO rect at all for that
+ *  case when there is also no line color (title/header/footer/caption's
+ *  own `lineColor: null` default, jar-verified `mumefa-23-xoxe715`: no
+ *  `<rect>` before its header/title/footer `<text>`) -- only `legend`'s
+ *  OWN non-null default `lineColor: 'black'` keeps its rect alive
+ *  (`fill="none" stroke="black"`) under the identical collapse. */
 function buildBorderRect(style: AnnotationBoxStyle, textWidth: number, textHeight: number): string {
-  if (style.backgroundColor === null && style.lineColor === null) return '';
+  if (resolveBoxFill(style) === 'none' && style.lineColor === null) return '';
   return rect(0, 0, textWidth, textHeight, borderBoxStyle(style));
 }
 

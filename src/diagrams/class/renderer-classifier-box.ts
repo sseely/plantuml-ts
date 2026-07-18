@@ -95,7 +95,36 @@ function classBorder(geo: ClassifierGeo, theme: Theme): string {
   // G2 N37: the `.tagname` sub-selector cascade wins over the plain
   // ancestor cascade -- see `classifierFill`'s identical precedent above.
   const tagBorder = resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.border;
-  return tagBorder ?? theme.colors.graph.classCascadeBorder ?? theme.colors.border;
+  // G2 N51: `skinparam classBorderColor #X` -- the bare (non-`<style>`,
+  // non-tag) fallback tier, mirroring `classifierFill`'s identical
+  // `classCascadeBackground ?? classBackground` two-tier precedent -- see
+  // `theme.ts#classBorder`'s own doc comment.
+  return tagBorder ?? theme.colors.graph.classCascadeBorder ?? theme.colors.graph.classBorder ?? theme.colors.border;
+}
+
+/**
+ * G2 N51: box/divider stroke WIDTH -- the classifier box outline's and
+ * every divider line's own `stroke-width`, jar default `0.5`
+ * (`EntityImageClass.java`'s `getStyle().value(PName.LineThickness)`, the
+ * SAME `element.class_` StyleSignature `classBorder` above reads for
+ * LineColor). Per-stereotype `classBorderThickness<<X>>` wins over the
+ * plain `classBorderThickness` skinparam, which wins over the `0.5`
+ * default -- see `theme.ts#classBorderThicknessByStereo`'s own doc
+ * comment for why this is a DIRECT skinparam-value lookup, not a
+ * `<style>`/`.tagname` cascade (so it does NOT consult
+ * `resolveClassTagCascadeEntry`, unlike `classBorder`/`classifierFill`
+ * above).
+ */
+const CLASS_BORDER_STROKE_WIDTH_DEFAULT = 0.5;
+function classBorderStrokeWidth(geo: ClassifierGeo, theme: Theme): number {
+  const byStereo = theme.colors.graph.classBorderThicknessByStereo;
+  if (byStereo !== undefined && geo.stereotypeLabels !== undefined) {
+    for (const label of geo.stereotypeLabels) {
+      const hit = byStereo[label.toLowerCase()];
+      if (hit !== undefined) return hit;
+    }
+  }
+  return theme.colors.graph.classBorderThickness ?? CLASS_BORDER_STROKE_WIDTH_DEFAULT;
 }
 
 /**
@@ -463,7 +492,7 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
     ?? theme.colors.graph.classCascadeRoundCorner
     ?? 5;
   let body = rect(geo.x, geo.y, geo.width, geo.height, {
-    fill: classifierFill(geo, theme), stroke: classBorder(geo, theme), strokeWidth: 0.5,
+    fill: classifierFill(geo, theme), stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
     rx: roundCorner / 2, ry: roundCorner / 2,
   });
   if (geo.hideCircle !== true && hasBadge(geo.kind)) body += renderBadge(geo, theme);
@@ -545,7 +574,7 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     item: {
       url: geo.url,
       body: line(geo.x + 1, geo.y + divY, geo.x + geo.width - 1, geo.y + divY, {
-        stroke: classBorder(geo, theme), strokeWidth: 0.5,
+        stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
       }),
     },
   }));

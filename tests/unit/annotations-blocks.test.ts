@@ -59,6 +59,7 @@ function makeStyle(overrides: Partial<AnnotationBoxStyle> = {}): AnnotationBoxSt
     lineColor: null,
     roundCorner: 0,
     lineThickness: 1, // G2 N50: root{}'s LineThickness 1.0 default
+    documentBackground: '#FFFFFF', // G2 N51: default canvas background
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
     margin: { top: 0, right: 0, bottom: 0, left: 0 },
     horizontalAlignment: HorizontalAlignment.LEFT,
@@ -188,6 +189,54 @@ describe('buildAnnotationBlock — border rect stroke/rx defaults (G2 N50)', () 
     const style = makeStyle({ lineColor: '#0000FF', lineThickness: 5 });
     const block = buildAnnotationBlock('legend', ['x'], style, measurer);
     expect(block.body).toMatch(/stroke-width="5"/);
+  });
+});
+
+
+/**
+ * G2 N51: `TextBlockBordered#drawU` (`klimt/shape/TextBlockBordered.java
+ * :122-127`) resolves the fill to the LITERAL "none" -- not the raw
+ * `backgroundColor` -- whenever the resolved color EQUALS the document
+ * canvas's own background (`documentBackground`, `resolveAnnotationStyles`'
+ * own field). The rect itself is only fully SUPPRESSED when that redundant-
+ * fill collapse leaves BOTH the fill and lineColor absent (`mumefa-23-
+ * xoxe715` jar-verified: legend's OWN `lineColor: 'black'` default keeps
+ * its rect alive as `fill="none" stroke="black"`, while title/header/
+ * footer's `lineColor: null` default draws NO rect at all under the
+ * identical redundant-fill collapse).
+ */
+describe('buildAnnotationBlock — redundant-fill collapse vs document background (G2 N51)', () => {
+  const measurer = new FixedMeasurer(10, 14);
+
+  it('emits fill="none" when the resolved backgroundColor equals the document background, but a lineColor keeps the rect alive', () => {
+    const style = makeStyle({
+      backgroundColor: 'yellow',
+      lineColor: 'black',
+      documentBackground: '#FFFF00',
+    });
+    const block = buildAnnotationBlock('legend', ['x'], style, measurer);
+    expect(block.body).toMatch(/<rect[^>]*fill="none"/);
+    expect(block.body).toMatch(/stroke="#000000"/);
+  });
+
+  it('draws the rect fill normally when the resolved backgroundColor differs from the document background', () => {
+    const style = makeStyle({
+      backgroundColor: 'green',
+      lineColor: 'black',
+      documentBackground: '#FFA500',
+    });
+    const block = buildAnnotationBlock('legend', ['x'], style, measurer);
+    expect(block.body).toMatch(/<rect[^>]*fill="#008000"/);
+  });
+
+  it('suppresses the rect entirely when the collapsed fill AND lineColor are both absent', () => {
+    const style = makeStyle({
+      backgroundColor: 'yellow',
+      lineColor: null,
+      documentBackground: '#FFFF00',
+    });
+    const block = buildAnnotationBlock('title', ['T'], style, measurer);
+    expect(block.body).not.toMatch(/<rect/);
   });
 });
 
