@@ -1,14 +1,15 @@
 /**
- * Object/map classifier sizing — `kind:'object'` and `kind:'map'` leaves in
- * the class diagram layout engine (./layout.ts). Split into its own module
- * (mirrors class-lollipop.ts / class-magma.ts's precedent for a synthesising
- * helper) to keep class-layout-helpers.ts under the repo's 500-line-per-file
- * cap and every function under the CCN/NLOC caps.
+ * Object classifier sizing + the header-row math SHARED by object/map/json
+ * (`kind:'object'`) leaves in the class diagram layout engine (./layout.ts).
+ * Split into its own module (mirrors class-lollipop.ts / class-magma.ts's
+ * precedent for a synthesising helper) to keep class-layout-helpers.ts under
+ * the repo's 500-line-per-file cap and every function under the CCN/NLOC
+ * caps. `kind:'map'` sizing lives in the sibling ./class-map-sizing.ts (G3/O1
+ * split, same 500-line-cap motivation — this file was about to exceed the
+ * cap once the O1 data-row fix's doc comments landed).
  *
  * Faithful port of the dimension math:
  *   @see ~/git/plantuml/.../svek/image/EntityImageObject.java
- *   @see ~/git/plantuml/.../svek/image/EntityImageMap.java
- *   @see ~/git/plantuml/.../cucadiagram/TextBlockMap.java
  *   @see ~/git/plantuml/.../cucadiagram/MethodsOrFieldsArea.java (asBlockMemberImpl)
  *   @see ~/git/plantuml/.../cucadiagram/BodierLikeClassOrObject.java (getBody, OBJECT branch)
  *   @see ~/git/plantuml/.../klimt/font/FontParam.java (OBJECT_STEREOTYPE = size 12, italic)
@@ -18,35 +19,39 @@
  *   - test-results/dot-cache/object/beleso-08-ruca459 — plain object, no
  *     stereotype/fields (dimTitle only, both nodes).
  *   - test-results/dot-cache/object/figeze-77-fozi735 — object with 2 fields,
- *     no stereotype (field-area width/height formula).
+ *     no stereotype (field-area width/height formula, per-row baseline+
+ *     textLength, G3/O1).
  *   - test-results/dot-cache/object/majake-62-pero492 — object with/without 1
  *     stereotype + 1 field (stereo line HEIGHT only — no fixture in the
  *     corpus has a stereo-dominant WIDTH, so the guillemet-wrapped stereo
  *     WIDTH formula below is a faithful port but numerically unverified).
- *   - test-results/dot-cache/object/bepafe-03-teda035 — map, 3 plain rows,
- *     no stereotype (full TextBlockMap width/height formula, exact match).
  *   - oracle/goldens/object/nukera-08-dige359 — object with 4 raw (non-
  *     structured) member lines, each carrying a distinct explicit visibility
  *     char (-#~+) — verifies {@link OBJECT_SMALL_ICON}'s fixed per-block icon
- *     reserve (p1: 133.7125 x 82.0 px exact).
- * See this task's mission-brief return for the worked numbers.
+ *     reserve (p1: 133.7125 x 82.0 px exact) AND (G3/O1) that the field-row
+ *     baseline stride is exactly fontSize, independent of the icon reserve.
+ * See this task's mission-brief return for the worked numbers. `map`'s own
+ * verification fixtures (bepafe-03-teda035, diveje-52-xefe514) live in
+ * ./class-map-sizing.ts's module doc.
  *
- * `titleDimension`/`measureStereo`/`headerRows` are exported — EntityImageJson
- * shares the SAME header formula as EntityImageObject/EntityImageMap (name
- * margin 2,2 + optional italic stereotype line, both centered and stacked),
- * so class-json-sizing.ts (mission object-dot-sync Phase L) reuses them
- * rather than duplicating the header math a third time.
+ * `titleDimension`/`measureStereo`/`headerRows`/`baselineOffsetFor` are
+ * exported — `map` (./class-map-sizing.ts) and `json`
+ * (class-json-sizing.ts) share the SAME header formula as EntityImageObject
+ * (name margin 2,2 + optional italic stereotype line, both centered and
+ * stacked) and the SAME "ascent-from-row-top" baseline convention for their
+ * OWN data rows, so both reuse these helpers rather than duplicating the
+ * math a second/third time.
  */
 
-import type { Classifier, Member, MapRow } from './ast.js';
+import type { Classifier, Member } from './ast.js';
 import type { Theme } from '../../core/theme.js';
-import type { StringMeasurer } from '../../core/measurer.js';
+import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import type { ClassifierGeo } from './layout.js';
 import type { MeasuredClassifier } from './class-layout-helpers.js';
 import { javaRound4 } from '../../core/number-format.js';
 
 // ---------------------------------------------------------------------------
-// Shared object/map header sizing (name + optional stereotype, stacked)
+// Shared object/map/json header sizing (name + optional stereotype, stacked)
 // ---------------------------------------------------------------------------
 
 /** FontParam.OBJECT_STEREOTYPE's hardcoded size (12, italic) — shared by
@@ -59,9 +64,24 @@ function wrapGuillemet(label: string): string {
   return `«${label}»`;
 }
 
-interface Dim {
+export interface Dim {
   width: number;
   height: number;
+}
+
+/**
+ * `fontSize - measurer.getDescent(fontSpec, text)` — the "ascent-from-
+ * line-top" baseline convention every class text row uses
+ * (`class-layout-helpers.ts`'s own `baselineOffset`, `headerRows` below,
+ * `class-namespace-shape.ts#getTitleBaselineOffset`). Every {@link
+ * StringMeasurer} implementation's `getDescent` is content-independent
+ * (ignores its `text` argument — `core/measurer.ts`'s own doc comment), so
+ * this is safe to compute ONCE per (fontFamily, fontSize) and reuse across
+ * every row in a block, rather than re-deriving it per row. Exported for
+ * ./class-map-sizing.ts's own data-row baseline (G3/O1).
+ */
+export function baselineOffsetFor(fontSpec: FontSpec, measurer: StringMeasurer): number {
+  return fontSpec.size - measurer.getDescent(fontSpec, '');
 }
 
 /** EntityImageObject/Map#getNameAndSteretypeDimension: width = max of the two
@@ -132,17 +152,20 @@ export function measureStereo(classifier: Classifier, theme: Theme, measurer: St
  * `namePadding` is caller-supplied (not a shared constant here) because
  * object/map/json each define their OWN "coincidentally-equal-but-
  * independently-named" margin literal (`OBJECT_NAME_PADDING`,
- * `MAP_NAME_MARGIN`, `class-json-sizing.ts`'s `JSON_NAME_MARGIN` --
- * all `2`, per each file's own doc-comment precedent for NOT sharing a
- * single named constant across files for a coincidental numeric match).
+ * `class-map-sizing.ts`'s `MAP_NAME_MARGIN`, `class-json-sizing.ts`'s
+ * `JSON_NAME_MARGIN` -- all `2`, per each file's own doc-comment precedent
+ * for NOT sharing a single named constant across files for a coincidental
+ * numeric match).
  *
- * OUT OF SCOPE for this fix (named, not silently dropped): the SAME
- * missing-`width`/wrong-baseline pattern also affects object FIELD rows
- * (`measureObjectFields`), map DATA rows (`buildMapRowGeo`), and json entry
- * rows (`class-json-sizing.ts#buildJsonRows`) -- a related but functionally
- * separate mechanism (different padding constants, variable per-row
- * heights for map/json), deferred to a dedicated O1+ iteration rather than
- * folded into this header-only fix (see `plans/g3-object-svg/ledger.md`).
+ * G3/O1 landed the SAME missing-`width`/wrong-baseline fix for object FIELD
+ * rows (`measureObjectFields` below), map DATA rows
+ * (`class-map-sizing.ts#buildMapRowGeo`), and json entry rows
+ * (`class-json-sizing.ts#buildJsonRows`) — a related but functionally
+ * separate mechanism from this function's own header fix (different padding
+ * constants, variable per-row heights for map/json, and — map-specific — a
+ * CENTER-vs-LEFT alignment split between the key and value columns that
+ * this header function's own single-column centering does not need). See
+ * those functions' own doc comments for the per-mechanism formulas.
  *
  * Does NOT thread a per-classifier `<style>`/`<<tag>>`-cascade FontSize
  * override (`skinparam object { FontSize }` / `<<tag>> { FontSize }`) --
@@ -189,6 +212,13 @@ export function headerRows(
     indent: (boxWidth - nameWidth) / 2,
     width: nameWidth,
   });
+  // #lizard forgives -- 37 NLOC, CCN 2: a single optional stereo-row
+  // branch plus the always-present name row, each a flat 6-8-field object
+  // literal (PlacementStrategyY1Y2's centering/baseline math, faithfully
+  // ported per this project's porting discipline) -- splitting either
+  // row's literal into its own helper would only relocate the NLOC, not
+  // reduce it, and would separate the two rows' shared `stereoHeight`
+  // dependency from its single point of use.
   return rows;
 }
 
@@ -263,6 +293,18 @@ interface FieldsResult {
  * `getUBlock(null, ...)`). Falls back to the empty-fields placeholder / a
  * zero box per BodierLikeClassOrObject#getBody's OBJECT branch (see file doc
  * for the exact showFields/hasMembers matrix).
+ *
+ * G3/O1: each row's baseline is `OBJECT_FIELD_MARGIN_Y + i*fontSize +
+ * baselineOffset` (the SAME "ascent-from-row-top" convention as
+ * {@link headerRows}, one row-height stride per index `i`) -- NOT the
+ * pre-O1 half-height guess (`i*fontSize + fontSize/2`), which only
+ * coincided with jar for a font with zero descent (never, for real text).
+ * Every row also carries its OWN `javaRound4`'d raw text width for
+ * `textLength` -- jar-verified against figeze-77-fozi735's "user"
+ * (`name = "Dummy"` -> 101.4125, `id = 123` -> 42.525, visibly DIFFERENT
+ * per-row values, ruling out a shared-block-width hypothesis) and
+ * nukera-08-dige359's p1 (4 identical-text visibility-icon rows, baseline
+ * stride unperturbed by the icon reserve).
  */
 function measureObjectFields(
   classifier: Classifier,
@@ -282,10 +324,12 @@ function measureObjectFields(
   const textIndent = OBJECT_FIELD_MARGIN_X + iconReserve;
   const width = Math.max(...widths) + iconReserve + OBJECT_FIELD_MARGIN_X * 2;
   const height = visibleMembers.length * theme.fontSize + OBJECT_FIELD_MARGIN_Y * 2;
+  const baselineOffset = baselineOffsetFor(fontSpec, measurer);
   const rows = texts.map((t, i) => ({
     text: t,
-    y: i * theme.fontSize + theme.fontSize / 2,
+    y: OBJECT_FIELD_MARGIN_Y + i * theme.fontSize + baselineOffset,
     indent: textIndent,
+    width: javaRound4(widths[i]!),
     ...(visibleMembers[i]!.visibilityExplicit === true
       ? { visibilityIcon: visibleMembers[i]!.visibility }
       : {}),
@@ -329,110 +373,4 @@ export function measureObjectClassifier(
   // whenever showFields is true, regardless of whether there are visible
   // members (the empty-fields placeholder is ALSO wrapped in one).
   return { width, height, rows, dividerYs: showFields ? [title.height] : [] };
-}
-
-// ---------------------------------------------------------------------------
-// map
-// ---------------------------------------------------------------------------
-
-/** EntityImageMap: `withMargin(name, 2, 2)` — fixed, not style-driven
- *  (unlike object's Padding-based name margin, which happens to share the
- *  same numeric value). */
-const MAP_NAME_MARGIN = 2;
-/** TextBlockMap#getTextBlock: `withMargin(result, 5, 2)` per key/value cell. */
-export const MAP_CELL_MARGIN_X = 5;
-const MAP_CELL_MARGIN_Y = 2;
-/** TextBlockMap.Point#getDiameter — the linked-row value-cell placeholder;
- *  never actually drawn (see buildMapRowGeo doc), only sized. */
-const MAP_POINT_DIAMETER = 7;
-/** EntityImageMap.xMarginCircle. */
-const MAP_X_MARGIN_CIRCLE = 5;
-
-interface MapRowMetrics {
-  keyWidth: number;
-  valueWidth: number;
-  height: number;
-  /** A `key *-> dest` linked row (or an unresolved one) — value == '' is
-   *  this AST's placeholder for TextBlockMap's Point sentinel (ast.ts
-   *  MapRow doc). */
-  isPoint: boolean;
-}
-
-/** One TextBlockMap row: getHeightOfRow = max(key, value) cell height; each
- *  cell (key always, value only for a non-point row) gets the 5,2 margin;
- *  a point row's value cell is the 7x7 Point diameter instead. */
-function measureMapRow(row: MapRow, fontSpec: { family: string; size: number }, measurer: StringMeasurer): MapRowMetrics {
-  const keyM = measurer.measure(row.key, fontSpec);
-  const keyDim: Dim = { width: keyM.width + MAP_CELL_MARGIN_X * 2, height: keyM.height + MAP_CELL_MARGIN_Y * 2 };
-  const isPoint = row.value === '';
-  if (isPoint) {
-    return { keyWidth: keyDim.width, valueWidth: MAP_POINT_DIAMETER, height: Math.max(keyDim.height, MAP_POINT_DIAMETER), isPoint };
-  }
-  const valueM = measurer.measure(row.value, fontSpec);
-  const valueDim: Dim = { width: valueM.width + MAP_CELL_MARGIN_X * 2, height: valueM.height + MAP_CELL_MARGIN_Y * 2 };
-  return { keyWidth: keyDim.width, valueWidth: valueDim.width, height: Math.max(keyDim.height, valueDim.height), isPoint };
-}
-
-/**
- * Build the per-row rendering rows[] + dividerYs[] for the map's data rows.
- *
- * Every row contributes exactly TWO rows[] entries (key, value) so the
- * renderer can reconstruct row/column geometry from rows[] + dividerYs alone
- * (no ClassifierGeo schema change needed — layout.ts is at the project's
- * 500-line cap). A point row's "value" entry carries empty text: the
- * renderer skips drawing it (TextBlockMap#drawU never calls `value.drawU`
- * for a Point cell — only the key, left-aligned same as any other row) and
- * skips that row's vertical column divider.
- */
-function buildMapRowGeo(
-  rows: readonly MapRow[],
-  metrics: readonly MapRowMetrics[],
-  titleHeight: number,
-  colAWidth: number,
-): { rows: ClassifierGeo['rows']; dividerYs: number[] } {
-  const outRows: ClassifierGeo['rows'] = [];
-  const dividerYs: number[] = [];
-  let y = titleHeight;
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]!;
-    const m = metrics[i]!;
-    dividerYs.push(y);
-    const midY = y + m.height / 2;
-    outRows.push({ text: row.key, y: midY, indent: MAP_CELL_MARGIN_X });
-    outRows.push({ text: m.isPoint ? '' : row.value, y: midY, indent: colAWidth + MAP_CELL_MARGIN_X });
-    y += m.height;
-  }
-  return { rows: outRows, dividerYs };
-}
-
-/**
- * Measure a `map` leaf (EntityImageMap#calculateDimensionSlow +
- * TextBlockMap#calculateDimensionSlow). Unlike object, `showFields` is
- * irrelevant here — `BodierMap#getBody` ignores its showFields parameter
- * entirely and always returns the full row table (`hide members` / `hide
- * empty members` have no effect on a map's body, matching upstream).
- */
-export function measureMapClassifier(classifier: Classifier, theme: Theme, measurer: StringMeasurer): MeasuredClassifier {
-  const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
-  const nameM = measurer.measure(classifier.display, fontSpec);
-  const nameDim: Dim = { width: nameM.width + MAP_NAME_MARGIN * 2, height: nameM.height + MAP_NAME_MARGIN * 2 };
-  const stereoDim = measureStereo(classifier, theme, measurer);
-  const title = titleDimension(nameDim, stereoDim);
-
-  const rows = classifier.rows ?? [];
-  const metrics = rows.map((r) => measureMapRow(r, fontSpec, measurer));
-  const colA = metrics.length === 0 ? 0 : Math.max(...metrics.map((m) => m.keyWidth));
-  const colB = metrics.length === 0 ? 0 : Math.max(...metrics.map((m) => m.valueWidth));
-  const fieldsHeight = metrics.reduce((sum, m) => sum + m.height, 0);
-
-  const width = Math.max(colA + colB, title.width + MAP_X_MARGIN_CIRCLE * 2);
-  // getMethodOrFieldHeight's empty-substitution never fires for MAP
-  // (leafType === MAP is excluded in the upstream condition) — height is
-  // titleHeight + the raw (possibly zero, for an empty map body) fields height.
-  const height = title.height + fieldsHeight;
-
-  const headerGeo = headerRows(classifier, theme, measurer, width, MAP_NAME_MARGIN);
-  const { rows: rowGeo, dividerYs } = buildMapRowGeo(rows, metrics, title.height, colA);
-
-  return { width, height, rows: [...headerGeo, ...rowGeo], dividerYs };
 }

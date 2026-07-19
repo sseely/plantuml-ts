@@ -170,6 +170,23 @@ export const ELEMENT_BUCKET_SNAMES = new Set([
   // a note's OWN `<<stereotype>>` via `withTOBECHANGED`) is a SEPARATE,
   // deeper mechanism -- surveyed, not built (G2 N34 ledger).
   'note',
+  // G3/O1: `object`/`map`/`json` each carry their OWN StyleSignature
+  // upstream (`EntityImageObject`/`Map`/`Json#getStyleSignature` --
+  // `SName.object`/`map`/`json`, all under `SName.objectDiagram`),
+  // independent of class's `SName.class_` -- UNLIKE class/interface/enum,
+  // which upstream coincidentally share ONE StyleSignature
+  // (`renderer-classifier-box.ts#classifierFill`'s own doc comment). Reused
+  // for FREE via this same generic per-element bucket for the PLAIN
+  // `skinparam {object,map,json}BackgroundColor` form (jar-verified against
+  // majake-62-pero492: `skinparam objectBackgroundColor red` tints every
+  // plain object's box). The LEGACY tag-scoped form
+  // (`objectBackgroundColor<<tag>>`) is a SEPARATE, larger mechanism (ALL
+  // `<<tag>>`-suffixed skinparam keys are discarded to `unknown[]` except
+  // `classBorderThickness<<X>>` -- see this file's own `key.includes('<<')`
+  // early-branch doc comment), deferred, not built here.
+  'object',
+  'map',
+  'json',
 ]);
 
 type ElementColorRole = 'background' | 'border' | 'font';

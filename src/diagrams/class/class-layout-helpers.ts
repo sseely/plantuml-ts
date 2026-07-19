@@ -25,7 +25,8 @@ import type { CreoleAtom } from '../../core/klimt/creole/atom/Atom.js';
 // class/) — `usecase`/`mix_actor` leaves under allowmixing use the SAME
 // USymbol sizing formulas as their standalone descdiagram counterparts.
 import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
-import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
+import { measureObjectClassifier } from './class-object-map-sizing.js';
+import { measureMapClassifier } from './class-map-sizing.js';
 import { resolveClassTagCascadeEntry } from '../../core/style-cascade-class.js';
 import { measureJsonClassifier } from './class-json-sizing.js';
 import { isCollapsedGroup } from './class-magma.js';

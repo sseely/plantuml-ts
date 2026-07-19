@@ -72,6 +72,36 @@ entry rows — a related but functionally separate mechanism, deferred).
 All 5 are `dotEqual: true` per `parity-object.json` (regenerated
 2026-07-19, `conformant:5, structural-match:7, diverged:68`).
 
+## Current state (G3/O1, 2026-07-19)
+
+**10 fixtures pinned.** O1 fixed the sibling data-row mechanism named (but
+deferred) in O0: `measureObjectFields`/`class-map-sizing.ts#buildOneMapRow`/
+`class-json-sizing.ts#buildJsonRows` had the SAME missing-`width`/wrong-Y
+pattern as O0's header fix, for object field rows, map key/value cells, and
+json entry rows. Object field rows used a naive half-height Y
+(`i*fontSize + fontSize/2`) and set no `width`; fixed to the same
+"ascent-from-row-top" `marginY + i*fontSize + (fontSize - descent)`
+baseline, each row keeping its OWN raw textLength. Map rows additionally
+had a real ALIGNMENT bug beyond the shared pattern: jar's `TextBlockMap
+#drawU` centers the KEY within colA (`plantuml.skin`'s `map {
+HorizontalAlignment center }`) but draws the VALUE flush-left at
+`colA + margin` — the port used a flat `MAP_CELL_MARGIN_X` indent for
+every key (never centered) and set no `width` on either cell. A `key *->
+dest` (Point) row's key centers against the classifier's FULL final width,
+not colA (`TextBlockMap#drawU`'s own `if (value instanceof Point)`
+branch). Json entry cells are simpler than map's — always flush-left,
+never centered (`TextBlockCucaJSon#getTextBlock`'s fixed
+`HorizontalAlignment.LEFT`) — but shared the same wrong-baseline/no-width
+bug, including a nested object member's key aligning to the TOP of its
+own (possibly much taller) sub-table row, not its center. Corpus effect:
+**5/80 -> 10/80** zero-diff (+5: `febadi-87-zozu271`, `lalizo-85-paxe277`,
+`lapato-45-neje847`, `rotele-89-cuva650`, `zagodo-28-ranu153`). Class
+292-set and description 48-set both re-verified intact; DOT gate
+unchanged (render-only fix, `component 262/262`, `usecase 90/90`, `class
+708/708`, `object 78/80`, `state 267/267`). See
+`plans/g3-object-svg/ledger.md` O1 for the full mechanism writeup and the
+O2+ queue.
+
 ## Add rule
 
 A fixture may be added to `ratchet.json` only when **both** hold:

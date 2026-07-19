@@ -44,8 +44,8 @@ census (48 set intact) · object census (non-dropping).
 | Iter | Scope | Status |
 |---|---|---|
 | O0 | Harness: extend svg-conformance-census.ts's renderFixtureFor to dispatch `object` through the class pipeline (G2 N0 precedent — check how object fixtures parse: the class engine's object commands); object ratchet harness (oracle/goldens/svg-object/ + object.golden.ratchet.test.ts + parity-object.json via svg-parity-survey's type args); TRUE baseline + `--families` classification + the opening queue table. Landed the `headerRows()` centering/baseline/textLength fix (object/map/json header rows) — census 1/80 -> 5/80. See `plans/g3-object-svg/ledger.md` O0 for the full family table (O1+ queue). | done |
-| O1 | Drill family #2 from the O0 table: DATA-row (object field / map cell / json entry) baseline+textLength — same mechanism shape as O0's own fix, formula pre-derived, highest-reach in-scope family | todo |
-| O2+ | drill remaining families largest-first per the O0 table | todo |
+| O1 | Fixed family #2 (DATA-row baseline+textLength, object field/map cell/json entry — same shape as O0's header fix) and the `skinparam {object,map,json}BackgroundColor` cascade (near-zero-harvest) — census 5/80 -> 10/80. Split `class-map-sizing.ts` out of `class-object-map-sizing.ts` (500-line cap). See `plans/g3-object-svg/ledger.md` O1 for the full writeup, deferred mechanisms (tag-scoped BackgroundColor, `~`-stripped object display names, remaining near-zero fixtures), and the O2+ queue. | done |
+| O2+ | Drill remaining O0/O1 family-table items largest-first (excluding the 41/80 gvts-attributed path/@d family): multi-stacked-stereotype render split (family #5, `fafozi-27-reja300`), the `~`-leading-char object-display-name strip (`linuxu-41-cogo780`), the tag-scoped `objectBackgroundColor<<X>>` mechanism, remaining near-zero-diff fixtures (`fajafu-44-cuve930`/`nufoju-44-dabi767`/`soxufi-98-nita528`) | todo |
 
 ## Standing rules
 

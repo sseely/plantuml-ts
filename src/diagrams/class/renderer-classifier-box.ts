@@ -15,7 +15,7 @@ import type { Theme } from '../../core/theme.js';
 import { rect, text, line, ellipse, image } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { resolveBareOrBackColor } from './class-color-override.js';
-import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
+import { MAP_CELL_MARGIN_X } from './class-map-sizing.js';
 import {
   hasBadge,
   resolveBadgeFill,
@@ -44,6 +44,34 @@ import { renderEnhancedBody } from './renderer-body-enhanced.js';
 // Classifier kind → fill color
 // ---------------------------------------------------------------------------
 
+/** `theme.colors.graph.classCascadeBackground ?? classBackground` -- the
+ *  terminal class-family default every kind falls back to when no
+ *  higher-priority override applies (shared because object/map/json
+ *  coincidentally default to the SAME jar hex, `#F1F1F1`, as class --
+ *  see `classifierFill`'s own doc comment for why this is NOT the same as
+ *  object/map/json sharing class's CASCADE). */
+function classDefaultBackground(theme: Theme): string {
+  return theme.colors.graph.classCascadeBackground ?? theme.colors.graph.classBackground;
+}
+
+/** G3/O1: `theme.colors.elements[sname].background` -- resolves the SAME
+ *  raw-`parseColor` value the generic `ELEMENT_BUCKET_SNAMES` bucket
+ *  populates for every other element kind (`note`, `spot<Kind>`). A plain
+ *  color NAME still needs HColorSet resolution (`resolveColorToSvgHex`,
+ *  mirroring `renderer-note.ts#resolveNoteBackground`'s identical branch).
+ *  Gradient `Paint`s are NOT supported here (unlike that note precedent) --
+ *  `classifierFill`'s return type is `string`, shared with two other
+ *  callers (`renderEnhancedBody`/`renderVisibilityUrlBackground`) that
+ *  don't accept a `Paint`; widening all three for a feature no fixture in
+ *  the corpus exercises is out of this iteration's scope -- falls through
+ *  to the class default in that (currently unencountered) case, same as
+ *  "unset". */
+function resolveElementBackground(theme: Theme, sname: string): string | undefined {
+  const bucket = theme.colors.elements?.[sname]?.background;
+  if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
+  return undefined;
+}
+
 function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // Upstream has no `enum`/`interface` StyleSignature for the box fill --
   // `EntityImageClassHeader#getStyleSignature` (and the lollipop-interface
@@ -64,6 +92,23 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // doc comment for the full extraction rule).
   const override = resolveBareOrBackColor(geo.color);
   if (override !== undefined) return resolveColorToSvgHex(override);
+  // G3/O1: `object`/`map`/`json` each carry their OWN StyleSignature
+  // upstream (`SName.object`/`map`/`json` under `SName.objectDiagram`),
+  // independent of class's `SName.class_` (`EntityImageObject`/`Map`/
+  // `Json#getStyleSignature`) -- so they read their OWN `skinparam
+  // {object,map,json}BackgroundColor` bucket instead of the class
+  // `.tagname`/ancestor cascade below, which is genuinely class-only
+  // upstream (jar-verified: `skinparam objectBackgroundColor` never tints a
+  // PLAIN `class`, and vice versa -- majake-62-pero492). Falls through to
+  // the SAME terminal class default ONLY because object/map/json have no
+  // distinct default color of their own upstream (all three coincidentally
+  // default to jar's shared `#F1F1F1`), not because they share class's
+  // cascade -- `<<tag>>`-scoped `objectBackgroundColor<<X>>` is a SEPARATE,
+  // larger, deferred mechanism (`skinparam.ts#ELEMENT_BUCKET_SNAMES`'s own
+  // doc comment on the `object`/`map`/`json` entries).
+  if (geo.kind === 'object' || geo.kind === 'map' || geo.kind === 'json') {
+    return resolveElementBackground(theme, geo.kind) ?? classDefaultBackground(theme);
+  }
   // G2 N37: the `.tagname` sub-selector cascade (`class { .mystyle {
   // BackgroundColor cyan } } }`) wins over the plain ancestor cascade below
   // when the classifier carries a matching stereotype -- see
@@ -75,7 +120,7 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // theme.ts`) could ever populate from the SAME StyleMap -- it additionally
   // covers the `classDiagram`/`root` ancestor layer and nested `classDiagram
   // .class {}` -- see `theme.ts`'s own field doc comment.
-  return theme.colors.graph.classCascadeBackground ?? theme.colors.graph.classBackground;
+  return classDefaultBackground(theme);
 }
 
 /**

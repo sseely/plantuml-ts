@@ -30,6 +30,7 @@ import { renderClass } from '../../../src/diagrams/class/renderer.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { resolveSkinparam } from '../../../src/core/skinparam.js';
 
 const measurer = new FormulaMeasurer();
 const theme = defaultTheme;
@@ -133,6 +134,67 @@ describe('renderClass() on an object diagram geometry', () => {
 // ---------------------------------------------------------------------------
 // 5. Full pipeline — renderClass with multiple object classifiers
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 6. skinparam {object,map,json}BackgroundColor -- G3/O1 (each kind has its
+// OWN StyleSignature upstream (`EntityImageObject`/`Map`/`Json#getStyleSignature`
+// -- `SName.object`/`map`/`json`, all under `objectDiagram`), independent of
+// class's `SName.class_` -- unlike class/interface/enum (which upstream
+// coincidentally SHARE one StyleSignature, `renderer-classifier-box.ts
+// #classifierFill`'s own doc comment), so object/map/json must NOT inherit
+// class's `classBackgroundColor`/`<style> class {}` cascade. Reuses the
+// generic per-element `ELEMENT_BUCKET_SNAMES` bucket (`skinparam.ts`) the
+// SAME mechanism `note`/`spotClass` already ride (D1/D4) -- `object`/`map`/
+// `json` added as new bucket snames. OUT OF SCOPE (named, not silently
+// dropped): the LEGACY tag-scoped form (`objectBackgroundColor<<tag>>`) --
+// ALL `<<tag>>`-suffixed skinparam keys are discarded to `unknown[]` except
+// `classBorderThickness<<X>>` (skinparam.ts's own doc comment on that early
+// branch) -- a separate, larger mechanism (stereotype-qualified skinparam
+// value lookup, `SkinParam.java:904-938`), deferred.
+// ---------------------------------------------------------------------------
+
+describe('skinparam {object,map,json}BackgroundColor (G3/O1)', () => {
+  it('tints an object classifier\'s box fill (plain, no stereotype)', () => {
+    const { theme: t } = resolveSkinparam(new Map([['objectbackgroundcolor', 'red']]), defaultTheme);
+    const ast = parseClass(src(['object Foo']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('fill="#FF0000"');
+  });
+
+  it('tints a map classifier\'s box fill independently of objectBackgroundColor', () => {
+    const { theme: t } = resolveSkinparam(new Map([['mapbackgroundcolor', 'blue']]), defaultTheme);
+    const ast = parseClass(src(['map M {', 'k => v', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('fill="#0000FF"');
+  });
+
+  it('tints a json classifier\'s box fill independently of objectBackgroundColor', () => {
+    const { theme: t } = resolveSkinparam(new Map([['jsonbackgroundcolor', 'green']]), defaultTheme);
+    const ast = parseClass(src(['json J {', '"a": 1', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('fill="#008000"');
+  });
+
+  it('does NOT tint a plain class classifier (object/map/json buckets are independent of class\'s own cascade)', () => {
+    const { theme: t } = resolveSkinparam(new Map([['objectbackgroundcolor', 'red']]), defaultTheme);
+    const ast = parseClass(src(['class C']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).not.toContain('fill="#FF0000"');
+  });
+
+  it('an explicit #color override still wins over objectBackgroundColor (existing precedence, unaffected)', () => {
+    const { theme: t } = resolveSkinparam(new Map([['objectbackgroundcolor', 'red']]), defaultTheme);
+    const ast = parseClass(src(['object Foo #purple']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('fill="#800080"');
+    expect(svg).not.toContain('fill="#FF0000"');
+  });
+});
 
 describe('renderClass() — multiple object classifiers', () => {
   it('draws no orange badge for object kind (badge removed -- see the renderClass() test above)', () => {

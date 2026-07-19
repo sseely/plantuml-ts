@@ -11,6 +11,9 @@
  *   - figeze-77-fozi735  — object with 2 fields, no stereo
  *   - majake-62-pero492  — object with/without 1 stereotype + 1 field
  *   - bepafe-03-teda035  — map, 3 plain rows, no stereo
+ *   - nukera-08-dige359  — object, 4 explicit-visibility field rows (G3/O1)
+ *   - diveje-52-xefe514  — map with 1 linked (`*->`, Point) row + 2 plain
+ *     rows (G3/O1)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -77,6 +80,72 @@ describe('measureObjectClassifier — object with fields, no stereo (figeze-77-f
     expect(c.rows[1]!.text).toBe('name = "Dummy"');
     expect(c.rows[2]!.text).toBe('id = 123');
     expect(c.rows[1]!.visibilityIcon).toBeUndefined();
+  });
+
+  // G3/O1: data-row baseline+textLength -- jar's `<text y="39.8889" ...
+  // textLength="101.4125">name = "Dummy"</text>` / `<text y="53.8889" ...
+  // textLength="42.525">id = 123</text>` against rect y=7 --
+  // MethodsOrFieldsArea's own per-row "ascent-from-row-top" baseline (same
+  // convention as headerRows, G3/O0), NOT the pre-O1 half-height guess --
+  // and EACH row's OWN raw textLength, not a shared block width (the two
+  // rows have visibly different textLength: 101.4125 vs 42.525).
+  it("sets each field row's OWN textLength and an ascent-from-row-top baseline", () => {
+    const ast = makeAST([
+      objectClassifier('user', 'user', {
+        members: [
+          { visibility: '+', name: 'name', type: '"Dummy"', isStatic: false, isAbstract: false },
+          { visibility: '+', name: 'id', type: '123', isStatic: false, isAbstract: false },
+        ],
+      }),
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    const nameRow = c.rows[1]!;
+    const idRow = c.rows[2]!;
+    expect(nameRow.width).toBeCloseTo(101.4125, 3);
+    expect(idRow.width).toBeCloseTo(42.525, 3);
+    // title.height(18) + OBJECT_FIELD_MARGIN_Y(4) + baselineOffset(10.8889)
+    // -- jar's y=39.8889 minus rect y=7
+    expect(nameRow.y).toBeCloseTo(32.8889, 3);
+    // title.height(18) + OBJECT_FIELD_MARGIN_Y(4) + fontSize(14) +
+    // baselineOffset(10.8889) -- jar's y=53.8889 minus rect y=7
+    expect(idRow.y).toBeCloseTo(46.8889, 3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// object — nukera-08-dige359: 4 visibility-icon rows, IDENTICAL text --
+// discriminates the per-row-baseline formula from a shared-height guess
+// (icon reserve must not perturb the baseline stride).
+// ---------------------------------------------------------------------------
+
+describe('measureObjectClassifier — 4 explicit-visibility field rows (nukera-08-dige359)', () => {
+  it("strides each row's baseline by exactly fontSize, independent of the icon reserve", () => {
+    const ast = makeAST([
+      objectClassifier('p1', '~#1: Person', {
+        members: [
+          { visibility: '-', name: 'toto', rawDisplay: 'String toto = "hello"', isStatic: false, isAbstract: false, visibilityExplicit: true },
+          { visibility: '#', name: 'toto', rawDisplay: 'String toto = "hello"', isStatic: false, isAbstract: false, visibilityExplicit: true },
+          { visibility: '~', name: 'toto', rawDisplay: 'String toto = "hello"', isStatic: false, isAbstract: false, visibilityExplicit: true },
+          { visibility: '+', name: 'toto', rawDisplay: 'String toto = "hello"', isStatic: false, isAbstract: false, visibilityExplicit: true },
+        ],
+      }),
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    // header(1) + 4 field rows
+    expect(c.rows).toHaveLength(5);
+    const ys = c.rows.slice(1).map((r) => r.y);
+    // title.height(18) + OBJECT_FIELD_MARGIN_Y(4) + i*fontSize(14) +
+    // baselineOffset(10.8889) -- jar's y=39.8889/53.8889/67.8889/81.8889
+    // minus rect y=7
+    expect(ys[0]).toBeCloseTo(32.8889, 3);
+    expect(ys[1]).toBeCloseTo(46.8889, 3);
+    expect(ys[2]).toBeCloseTo(60.8889, 3);
+    expect(ys[3]).toBeCloseTo(74.8889, 3);
+    // every row shares the SAME textLength (identical post-strip text) --
+    // 107.7125, the oracle's own value
+    for (const r of c.rows.slice(1)) expect(r.width).toBeCloseTo(107.7125, 3);
   });
 });
 
@@ -147,6 +216,101 @@ describe('measureMapClassifier — 3-row map, no stereotype (bepafe-03-teda035)'
     const c = geo.classifiers[0]!;
     // titleHeight only: measure("Empty",14).width + 4 padding, height = 14+4=18
     expect(c.height).toBeCloseTo(18, 5);
+  });
+
+  // G3/O1: data-row baseline+textLength+indent. jar's `TextBlockMap#drawU`
+  // (klimt/geom/HorizontalAlignment#getPosition) CENTERS each key within
+  // colA (`style.getHorizontalAlignment()` = CENTER, plantuml.skin's
+  // `map { HorizontalAlignment center }`) but draws the value FLUSH-LEFT at
+  // `colA + MAP_CELL_MARGIN_X` (the value TextBlock's own left-margined
+  // text, `TextBlockMap#getTextBlock`'s `HorizontalAlignment.LEFT`) --
+  // jar-verified against bepafe-03-teda035's CapitalCity: "UK" x=30.9875
+  // (centered, NOT flush at rect x+5), "London"/"Washington"/"Berlin" all
+  // x=79.4875 (flush at colA+5 regardless of each value's own width).
+  it("centers each row's key within colA, draws the value flush-left at colA+margin, " +
+     'and sets each cell\'s OWN textLength', () => {
+    const ast = makeAST([
+      {
+        id: 'CapitalCity',
+        display: 'CapitalCity',
+        kind: 'map',
+        typeParams: [],
+        members: [],
+        rows: [
+          { key: 'UK', value: 'London' },
+          { key: 'USA', value: 'Washington' },
+          { key: 'Germany', value: 'Berlin' },
+        ],
+      },
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    // rows[0] = header name; data rows start at index 1: UK key/value,
+    // USA key/value, Germany key/value.
+    const [ukKey, ukValue, usaKey, usaValue, deKey, deValue] = c.rows.slice(1);
+
+    // colA = 67.4875 (Germany's key cell, the widest) -- (colA - rawWidth)/2
+    expect(ukKey!.width).toBeCloseTo(19.5125, 3);
+    expect(ukKey!.indent).toBeCloseTo(23.9875, 3); // jar x=30.9875 - rect x=7
+    expect(usaKey!.width).toBeCloseTo(28.875, 3);
+    expect(usaKey!.indent).toBeCloseTo(19.3063, 3); // jar x=26.3063 - rect x=7
+    expect(deKey!.width).toBeCloseTo(57.4875, 3);
+    expect(deKey!.indent).toBeCloseTo(5, 3); // jar x=12 - rect x=7 (widest key)
+
+    // every value cell is flush-left at colA(67.4875) + MAP_CELL_MARGIN_X(5)
+    // = 72.4875, independent of its OWN width (London/Washington/Berlin all
+    // share the same x)
+    expect(ukValue!.width).toBeCloseTo(46.725, 3);
+    expect(ukValue!.indent).toBeCloseTo(72.4875, 3); // jar x=79.4875 - rect x=7
+    expect(usaValue!.width).toBeCloseTo(73.9375, 3);
+    expect(usaValue!.indent).toBeCloseTo(72.4875, 3);
+    expect(deValue!.width).toBeCloseTo(35.875, 3);
+    expect(deValue!.indent).toBeCloseTo(72.4875, 3);
+
+    // baseline: rowTop + MAP_CELL_MARGIN_Y(2) + baselineOffset(10.8889) --
+    // key and value share the same row baseline.
+    // row0 top = title.height(18); row1 top = 18+18=36; row2 top = 18+18+18=54
+    expect(ukKey!.y).toBeCloseTo(30.8889, 3); // jar y=73.8889 - rect y=43
+    expect(ukValue!.y).toBeCloseTo(30.8889, 3);
+    expect(usaKey!.y).toBeCloseTo(48.8889, 3); // jar y=91.8889 - rect y=43
+    expect(deKey!.y).toBeCloseTo(66.8889, 3); // jar y=109.8889 - rect y=43
+  });
+});
+
+// ---------------------------------------------------------------------------
+// map — diveje-52-xefe514: 1 linked (Point) row + 2 plain rows
+// ---------------------------------------------------------------------------
+
+describe('measureMapClassifier — linked (Point) row + 2 plain rows (diveje-52-xefe514)', () => {
+  it("centers the Point row's key within the FULL box width (not colA), and draws no value", () => {
+    const ast = makeAST([
+      {
+        id: 'CapitalCity',
+        display: 'CapitalCity',
+        kind: 'map',
+        typeParams: [],
+        members: [],
+        rows: [
+          { key: 'UK', value: '', linkedCode: 'London' },
+          { key: 'USA', value: 'Washington' },
+          { key: 'Germany', value: 'Berlin' },
+        ],
+      },
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.width).toBeCloseTo(151.425, 3);
+    const [ukKey, ukValue] = c.rows.slice(1);
+    // (boxWidth(151.425) - rawWidth(19.5125)) / 2 = 65.95625 -- jar x=72.9563
+    // minus rect x=7 -- centered against the FULL box width, NOT colA(67.4875)
+    // (TextBlockMap#drawU: `horizontalAlignment.getPosition(keyWidth, trueWidth)`
+    // for a Point row, vs `..., widthColA)` for a plain row).
+    expect(ukKey!.width).toBeCloseTo(19.5125, 3);
+    expect(ukKey!.indent).toBeCloseTo(65.9563, 3);
+    expect(ukKey!.y).toBeCloseTo(30.8889, 3); // jar y=37.8889 - rect y=7
+    // no value text/textLength for a Point row
+    expect(ukValue!.text).toBe('');
+    expect(ukValue!.width).toBeUndefined();
   });
 });
 
