@@ -43,8 +43,9 @@ census (48 set intact) · object census (non-dropping).
 
 | Iter | Scope | Status |
 |---|---|---|
-| O0 | Harness: extend svg-conformance-census.ts's renderFixtureFor to dispatch `object` through the class pipeline (G2 N0 precedent — check how object fixtures parse: the class engine's object commands); object ratchet harness (oracle/goldens/svg-object/ + object.golden.ratchet.test.ts + parity-object.json via svg-parity-survey's type args); TRUE baseline + `--families` classification + the opening queue table | todo |
-| O1+ | drill families largest-first per the O0 table | todo |
+| O0 | Harness: extend svg-conformance-census.ts's renderFixtureFor to dispatch `object` through the class pipeline (G2 N0 precedent — check how object fixtures parse: the class engine's object commands); object ratchet harness (oracle/goldens/svg-object/ + object.golden.ratchet.test.ts + parity-object.json via svg-parity-survey's type args); TRUE baseline + `--families` classification + the opening queue table. Landed the `headerRows()` centering/baseline/textLength fix (object/map/json header rows) — census 1/80 -> 5/80. See `plans/g3-object-svg/ledger.md` O0 for the full family table (O1+ queue). | done |
+| O1 | Drill family #2 from the O0 table: DATA-row (object field / map cell / json entry) baseline+textLength — same mechanism shape as O0's own fix, formula pre-derived, highest-reach in-scope family | todo |
+| O2+ | drill remaining families largest-first per the O0 table | todo |
 
 ## Standing rules
 

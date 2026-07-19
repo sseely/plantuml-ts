@@ -243,7 +243,7 @@ export function measureJsonClassifier(
   const width = Math.max(dimNode.width, title.width + JSON_X_MARGIN_CIRCLE * 2);
   const height = title.height + fieldsHeight;
 
-  const headerGeo = headerRows(classifier, nameDim.height, stereoDim.height);
+  const headerGeo = headerRows(classifier, theme, measurer, width, JSON_NAME_MARGIN);
   const { rows: entryRows, starts } = buildJsonRows(dimNode, 0, title.height);
 
   return { width, height, rows: [...headerGeo, ...entryRows], dividerYs: starts };

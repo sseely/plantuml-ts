@@ -151,6 +151,94 @@ describe('measureMapClassifier — 3-row map, no stereotype (bepafe-03-teda035)'
 });
 
 // ---------------------------------------------------------------------------
+// headerRows — name/stereo row CENTERING + baseline-Y + textLength (G3/O0
+// fix). Jar-verified against dot-cache/object's niloru-34-nuve651
+// ("Foo", no stereo), majake-62-pero492's foo3 (<<azerty>> + field), and
+// bepafe-03-teda035's map CapitalCity (no stereo) -- see
+// class-object-map-sizing.ts#headerRows's own doc comment for the full
+// PlacementStrategyY1Y2 citation. Pre-O0, every header row drew flush-left
+// (indent 0) with no textLength/lengthAdjust at all.
+// ---------------------------------------------------------------------------
+
+describe('headerRows — object, no stereotype (niloru-34-nuve651: "Foo")', () => {
+  it('centers the name row within the final box width and sets textLength', () => {
+    const ast = makeAST([objectClassifier('Foo', 'Foo')]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    // box width 38.15 (OBJECT_EMPTY_FIELDS(10) vs title.width(28.15)+2*5)
+    expect(c.width).toBeCloseTo(38.15, 5);
+    expect(c.rows).toHaveLength(1);
+    const nameRow = c.rows[0]!;
+    expect(nameRow.text).toBe('Foo');
+    expect(nameRow.width).toBeCloseTo(24.15, 5);
+    // (38.15 - 24.15) / 2 = 7 -- jar's text x=14 minus rect x=7
+    expect(nameRow.indent).toBeCloseTo(7, 5);
+    // OBJECT_NAME_PADDING(2) + baselineOffset(14) -- jar's text y=19.8889
+    // minus rect y=7
+    expect(nameRow.y).toBeCloseTo(12.8889, 3);
+  });
+});
+
+describe('headerRows — object with stereotype (majake-62-pero492: foo3 <<azerty>>)', () => {
+  it('centers BOTH the stereo row and the name row, each with its own textLength', () => {
+    const ast = makeAST([
+      objectClassifier('foo3', 'foo3', {
+        members: [{ visibility: '+', name: 'dummy', isStatic: false, isAbstract: false }],
+        stereotype: 'azerty',
+      }),
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.width).toBeCloseTo(57.85, 3);
+    const stereoRow = c.rows[0]!;
+    const nameRow = c.rows[1]!;
+    expect(stereoRow.text).toBe('«azerty»');
+    expect(stereoRow.fontSize).toBe(12);
+    expect(stereoRow.width).toBeCloseTo(45.975, 3);
+    // (57.85 - 45.975) / 2 = 5.9375 -- jar's text x=12.9375 minus rect x=7
+    expect(stereoRow.indent).toBeCloseTo(5.9375, 3);
+    // baselineOffset(12pt) -- jar's text y=116.3333 minus rect y=107
+    expect(stereoRow.y).toBeCloseTo(9.3333, 3);
+    expect(nameRow.width).toBeCloseTo(27.2125, 3);
+    // (57.85 - 27.2125) / 2 = 15.31875 -- jar's text x=22.3188 minus rect x=7
+    expect(nameRow.indent).toBeCloseTo(15.31875, 3);
+    // stereoHeight(12) + OBJECT_NAME_PADDING(2) + baselineOffset(14) --
+    // jar's text y=131.8889 minus rect y=107
+    expect(nameRow.y).toBeCloseTo(24.8889, 3);
+  });
+});
+
+describe('headerRows — map, no stereotype (bepafe-03-teda035: CapitalCity)', () => {
+  it('centers the name row within the map\'s final (data-row-dominated) width', () => {
+    const ast = makeAST([
+      {
+        id: 'CapitalCity',
+        display: 'CapitalCity',
+        kind: 'map',
+        typeParams: [],
+        members: [],
+        rows: [
+          { key: 'UK', value: 'London' },
+          { key: 'USA', value: 'Washington' },
+          { key: 'Germany', value: 'Berlin' },
+        ],
+      },
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.width).toBeCloseTo(151.425, 3);
+    const nameRow = c.rows[0]!;
+    expect(nameRow.text).toBe('CapitalCity');
+    expect(nameRow.width).toBeCloseTo(67.8125, 3);
+    // (151.425 - 67.8125) / 2 = 41.80625 -- jar's text x=48.8063 minus rect x=7
+    expect(nameRow.indent).toBeCloseTo(41.80625, 3);
+    // MAP_NAME_MARGIN(2) + baselineOffset(14) -- jar's text y=55.8889 minus
+    // rect y=43
+    expect(nameRow.y).toBeCloseTo(12.8889, 3);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // map — DOT emission: shape=plaintext, no isPort even with a row-link edge
 // ---------------------------------------------------------------------------
 

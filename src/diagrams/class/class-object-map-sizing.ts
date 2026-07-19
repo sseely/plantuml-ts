@@ -43,6 +43,7 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { ClassifierGeo } from './layout.js';
 import type { MeasuredClassifier } from './class-layout-helpers.js';
+import { javaRound4 } from '../../core/number-format.js';
 
 // ---------------------------------------------------------------------------
 // Shared object/map header sizing (name + optional stereotype, stacked)
@@ -81,14 +82,113 @@ export function measureStereo(classifier: Classifier, theme: Theme, measurer: St
   });
 }
 
-/** Header rows shared by object and map: stereo (italic, if present) stacked
- *  above the name, both horizontally centered (indent 0 -> renderer centers). */
-export function headerRows(classifier: Classifier, nameH: number, stereoH: number): ClassifierGeo['rows'] {
+/**
+ * Header rows shared by object/map/json: stereo (italic, if present) stacked
+ * above the name, BOTH horizontally centered within the classifier's FINAL
+ * content width -- `EntityImageObject#getLayout` builds a `ULayoutGroup`
+ * (`PlacementStrategyY1Y2`) over `[stereo?, name]` and draws it via
+ * `header.drawU(ug, dimTotal.getWidth(), dimTitle.getHeight())`;
+ * `PlacementStrategyY1Y2#getPositions` centers EVERY block at
+ * `x = (width - blockWidth) / 2` (klimt/geom/PlacementStrategyY1Y2.java) --
+ * `width` there is `dimTotal.getWidth()`, the classifier's FULL final box
+ * width (post `Math.max(fieldsWidth, title.width + 2*marginCircle)`), NOT
+ * `title.width` alone -- so `boxWidth` here must be the caller's already-
+ * computed FINAL width, not a value derivable from this function's own
+ * inputs (G3/O0, jar-verified against 6 samples spanning all three kinds:
+ * `niloru-34-nuve651`/`pagidu-67-doxa131`/`sobosi-40-xuda813`/
+ * `vozomu-86-rodo657` (plain object, no stereo), `majake-62-pero492`'s
+ * `foo3` + `fafozi-27-reja300`'s `node2` (object with stereotype/stacked
+ * stereotypes), `bepafe-03-teda035`'s `CapitalCity` (map) and `A` (json) --
+ * every sample's `<text x>` matches `boxWidth`-centered exactly; the
+ * PRE-O0 code centered against nothing (`indent: 0`, flush-left) and never
+ * set `width` at all (jar always emits `lengthAdjust`/`textLength` on both
+ * rows -- `renderRowText`'s own `row.width !== undefined` gate, this
+ * function's own prior doc comment already noted the omission was
+ * inherited, not deliberate).
+ *
+ * The name TextBlock is drawn `TextBlockUtils.withMargin(tmp, padding)` --
+ * the raw name text is itself CENTERED within that padded block
+ * (`HorizontalAlignment.CENTER`), so with a symmetric `namePadding` the
+ * block-level centering (against `nameWidth + 2*namePadding`) and the
+ * inner-block centering compose to exactly `(boxWidth - nameWidth) / 2` for
+ * `indent` -- algebraically identical, verified directly against the raw
+ * (unpadded) `nameWidth`/`stereoWidth` this function already measures for
+ * `textLength`. The stereo TextBlock carries NO margin (this function's own
+ * pre-O0 doc comment, unchanged), so its indent uses the SAME formula
+ * against its own raw width with no padding term.
+ *
+ * Vertical stacking uses the SAME "ascent-from-line-top" `baselineOffset =
+ * fontSize - measurer.getDescent(fontSpec, text)` convention every other
+ * class text row uses (`class-layout-helpers.ts`'s own `baselineOffset`,
+ * `class-namespace-shape.ts#getTitleBaselineOffset`) -- the stereo row (no
+ * margin) draws at `y = stereoBaselineOffset` (its own 12pt
+ * `STEREO_FONT_SIZE`); the name row draws BELOW it at `y = stereoH +
+ * namePadding + nameBaselineOffset` (`namePadding` accounts for the name
+ * block's own top margin the stereo row never had) -- jar-verified: EVERY
+ * sample's name-row `y` equals `stereoH + namePadding + (fontSize -
+ * descent)` exactly, and the stereo row's `y` (when present) equals
+ * `STEREO_FONT_SIZE - descent(12pt)` exactly.
+ *
+ * `namePadding` is caller-supplied (not a shared constant here) because
+ * object/map/json each define their OWN "coincidentally-equal-but-
+ * independently-named" margin literal (`OBJECT_NAME_PADDING`,
+ * `MAP_NAME_MARGIN`, `class-json-sizing.ts`'s `JSON_NAME_MARGIN` --
+ * all `2`, per each file's own doc-comment precedent for NOT sharing a
+ * single named constant across files for a coincidental numeric match).
+ *
+ * OUT OF SCOPE for this fix (named, not silently dropped): the SAME
+ * missing-`width`/wrong-baseline pattern also affects object FIELD rows
+ * (`measureObjectFields`), map DATA rows (`buildMapRowGeo`), and json entry
+ * rows (`class-json-sizing.ts#buildJsonRows`) -- a related but functionally
+ * separate mechanism (different padding constants, variable per-row
+ * heights for map/json), deferred to a dedicated O1+ iteration rather than
+ * folded into this header-only fix (see `plans/g3-object-svg/ledger.md`).
+ *
+ * Does NOT thread a per-classifier `<style>`/`<<tag>>`-cascade FontSize
+ * override (`skinparam object { FontSize }` / `<<tag>> { FontSize }`) --
+ * that cascade is entirely unbuilt for object/map/json kinds (unlike the
+ * generic class header's `row.fontSize`, N23/N32) and is its own separate,
+ * larger, unbuilt feature (jar-verified absent via `tenalu-53-meri239`,
+ * which combines this gap with the centering bug and was excluded from
+ * this fix's own verification set for exactly that reason).
+ */
+export function headerRows(
+  classifier: Classifier,
+  theme: Theme,
+  measurer: StringMeasurer,
+  boxWidth: number,
+  namePadding: number,
+): ClassifierGeo['rows'] {
   const rows: ClassifierGeo['rows'] = [];
+  const nameFontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  const stereoFontSpec = { family: theme.fontFamily, size: STEREO_FONT_SIZE };
+  let stereoHeight = 0;
   if (classifier.stereotype !== undefined) {
-    rows.push({ text: wrapGuillemet(classifier.stereotype), y: stereoH / 2, indent: 0, italic: true });
+    const stereoText = wrapGuillemet(classifier.stereotype);
+    const stereoDim = measurer.measure(stereoText, stereoFontSpec);
+    // javaRound4: matches jar's `%.4f`-formatted textLength -- reused for
+    // BOTH the drawn width AND the centering indent below, same "round
+    // once, reuse" precedent as class-stereotype.ts's own rawTextWidth.
+    const stereoWidth = javaRound4(stereoDim.width);
+    const stereoBaseline = STEREO_FONT_SIZE - measurer.getDescent(stereoFontSpec, stereoText);
+    stereoHeight = stereoDim.height;
+    rows.push({
+      text: stereoText,
+      y: stereoBaseline,
+      indent: (boxWidth - stereoWidth) / 2,
+      italic: true,
+      width: stereoWidth,
+      fontSize: STEREO_FONT_SIZE,
+    });
   }
-  rows.push({ text: classifier.display, y: stereoH + nameH / 2, indent: 0 });
+  const nameWidth = javaRound4(measurer.measure(classifier.display, nameFontSpec).width);
+  const nameBaseline = theme.fontSize - measurer.getDescent(nameFontSpec, classifier.display);
+  rows.push({
+    text: classifier.display,
+    y: stereoHeight + namePadding + nameBaseline,
+    indent: (boxWidth - nameWidth) / 2,
+    width: nameWidth,
+  });
   return rows;
 }
 
@@ -222,7 +322,7 @@ export function measureObjectClassifier(
   const width = Math.max(fieldsDim.width, title.width + OBJECT_X_MARGIN_CIRCLE * 2);
   const height = title.height + fieldsHeight;
 
-  const rows = headerRows(classifier, nameDim.height, stereoDim.height);
+  const rows = headerRows(classifier, theme, measurer, width, OBJECT_NAME_PADDING);
   for (const r of fieldRows) rows.push({ ...r, y: title.height + r.y });
 
   // TextBlockLineBefore always draws its separator when reached — i.e.
@@ -331,7 +431,7 @@ export function measureMapClassifier(classifier: Classifier, theme: Theme, measu
   // titleHeight + the raw (possibly zero, for an empty map body) fields height.
   const height = title.height + fieldsHeight;
 
-  const headerGeo = headerRows(classifier, nameDim.height, stereoDim.height);
+  const headerGeo = headerRows(classifier, theme, measurer, width, MAP_NAME_MARGIN);
   const { rows: rowGeo, dividerYs } = buildMapRowGeo(rows, metrics, title.height, colA);
 
   return { width, height, rows: [...headerGeo, ...rowGeo], dividerYs };

@@ -1,0 +1,4 @@
+@startuml
+object toto1
+toto1 *-- toto2
+@enduml
