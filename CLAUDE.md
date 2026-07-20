@@ -13,6 +13,20 @@ exist: `skinparam.ts` (resolveSkinparam, parseStyleBlock), `latex.ts` (KaTeX),
 exact Java packages, reuse targets, architecture constraints, and common agent
 mistakes per remaining phase.
 
+## graphviz-ts issue tracking
+
+Verified graphviz-ts library findings live in `docs/graphviz-issues/` — one
+`.md` per issue, self-contained: the finding, its census impact, a minimal
+repro (ideally the exact DOT text that reproduces it) plus any
+prompt/procedure needed to observe the divergence, and a pointer to the
+evidence trail. `docs/graphviz-issues/TRACKER.md` is the status list: a
+plain checklist with exactly one item per issue file, nothing else. Check a
+box only when the fix has landed in the pinned graphviz-ts `.tgz` and the
+affected fixtures re-measure clean. Any iteration that verifies a NEW
+library finding must file it here (issue file + tracker line) before the
+iteration closes — a finding that exists only in a mission ledger is not
+filed.
+
 ## License
 
 MIT, per the MIT license option in upstream PlantUML's LICENSES.md (maintainer decision 2026-07-11). Keep dependencies MIT-compatible.
