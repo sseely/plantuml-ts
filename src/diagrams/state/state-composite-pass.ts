@@ -124,6 +124,8 @@ export type GeoSpec =
       headerLines?: readonly StateTextLine[];
       bodyLines?: readonly StateTextLine[];
       color?: string;
+      /** mission G4 S9 -- see `StateNodeGeo.stereotype`'s own doc comment. */
+      stereotype?: string;
       /** mission G4 S7 -- see `StateNodeGeo.creationIndex`'s own doc comment. */
       creationIndex?: number;
     }
@@ -155,6 +157,8 @@ export type GeoSpec =
       headerLines?: readonly StateTextLine[];
       bodyLines?: readonly StateTextLine[];
       color?: string;
+      /** mission G4 S9 -- see `StateNodeGeo.stereotype`'s own doc comment. */
+      stereotype?: string;
       /** mission G4 S6, mechanism 13: for a CONCURRENT-region-owning
        *  composite ONLY -- `localStates`/`localTransitions` above stay a
        *  flat, region-order concatenation (unchanged, still consumed

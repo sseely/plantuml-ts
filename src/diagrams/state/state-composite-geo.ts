@@ -172,6 +172,7 @@ function materializeAutonom(
     ...(spec.headerLines !== undefined ? { headerLines: spec.headerLines } : {}),
     ...(spec.bodyLines !== undefined ? { bodyLines: spec.bodyLines } : {}),
     ...(spec.color !== undefined ? { color: spec.color } : {}),
+    ...(spec.stereotype !== undefined ? { stereotype: spec.stereotype } : {}),
     ...(spec.creationIndex !== undefined ? { creationIndex: spec.creationIndex } : {}),
   };
 }
@@ -220,6 +221,7 @@ export function materializeSpecs(specs: readonly GeoSpec[], posMap: PosMap): Sta
         ...(spec.headerLines !== undefined ? { headerLines: spec.headerLines } : {}),
         ...(spec.bodyLines !== undefined ? { bodyLines: spec.bodyLines } : {}),
         ...(spec.color !== undefined ? { color: spec.color } : {}),
+        ...(spec.stereotype !== undefined ? { stereotype: spec.stereotype } : {}),
         ...(spec.creationIndex !== undefined ? { creationIndex: spec.creationIndex } : {}),
       });
     } else if (spec.kind === 'autonom') {

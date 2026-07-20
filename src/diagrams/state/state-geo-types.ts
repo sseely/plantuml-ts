@@ -123,6 +123,20 @@ export interface StateNodeGeo {
    * @see plans/g4-state-svg/ledger.md (S7)
    */
   creationIndex?: number;
+  /**
+   * mission G4 S9 (`StateBorderColor<<X>>` cascade): this node's OWN
+   * `<<stereotype>>` label (`State.stereotype`, raw case as written in the
+   * source -- lowercased only at LOOKUP time,
+   * `state-render-colors.ts#resolveStateBorder`, matching `core/skinparam
+   * .ts`'s own lowercased-key storage for `stateBorderColorByStereo`).
+   * Threaded onto BOTH a plain leaf (`buildStateGeoTextFields`) and a
+   * composite's own title node (`kind:'state'`/`'autonom'` GeoSpec
+   * variants, state-composite-pass.ts) -- NOT onto a non-autonom `'cluster'`
+   * node, which stays on its pre-existing dashed-rect fallback shape
+   * (mechanism 16, unrelated/unbounded, `plans/g4-state-svg/ledger.md` S3).
+   * `undefined` for a state with no `<<tag>>`.
+   */
+  stereotype?: string;
 }
 
 /** One stacked concurrent region's own materialized content -- see

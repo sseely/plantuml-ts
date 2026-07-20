@@ -3278,3 +3278,282 @@ after every change.
     feature.
 11. `<<sdlreceive>>` unwrapped-entity gap — unchanged from S1-S4.
 12. Notes never render — unchanged from S1-S4.
+## S9 — mechanism 20 (`StateBorderColor<<X>>` cascade) LANDED in full; 6
+new mechanisms sampled/attributed (notes-never-render, `<<sdlreceive>>`
+folded-frame shape, pseudostate stroke-color over-application, title/arrow
+`<style>` cascade generalization, json+composite childCount gap, CONC-region
+global numbering) diagnosed but explicitly NOT forced -- 39/271 -> 40/271
+
+### Summary
+
+Sampled ALL 31 of S8's own near-zero (1-3 diff) fixtures individually, plus
+25 from the 4-10 bucket (10 requested + a targeted 15-fixture note-family
+sweep), BEFORE choosing a fix target, per this iteration's own instruction.
+The full sample produced a much richer attribution table than S8's queue
+implied -- several items named as single-fixture residuals turned out to be
+small FAMILIES once sampled directly (see table below).
+
+Landed the task's own explicitly-named priority-2 item,
+`StateBorderColor<<stereotype>>` (`semala-31-joji042`'s sole blocker, S6/S7/S8
+re-confirmed), mirroring G2 N51's `classBorderThicknessByStereo` precedent
+exactly (`SkinParam#getColor(ColorParam, Stereotype)` -- a direct
+stereotype-qualified VALUE lookup, not the `<style>`/`.tagname` cascade).
+Landing it required threading a NEW `StateNodeGeo.stereotype` field through
+BOTH pipelines (flat `buildStateGeoTextFields`, composite `GeoSpec`
+'state'/'autonom' variants + `materializeSpecs`/`materializeAutonom`) --
+mirrors the ALREADY-established `color` field's identical two-pipeline
+threading pattern (mission G4 S2/S3), not a new mechanism shape. Scoped
+DELIBERATELY narrow: `StateBorderColor<<X>>` only, NOT `stateBackgroundColor
+<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>` (all three used by the
+OTHER known stereotype-color fixture, `laferu-31-tice836`) -- `FontSize<<X>>`
+would additionally require threading a per-stereotype font size through
+`state-sizing.ts`'s LAYOUT-time measurement (affects box width/height, a
+materially larger, unverified blast radius), and Background/FontColor were
+judged not worth splitting from FontSize's own three-key fixture. Jar-verified
+byte-exact against `semala-31-joji042` (both the box `rect`'s and divider
+`line`'s `stroke="#0000FF"`, non-stereotyped children unaffected) via the
+REAL production `renderSync` pipeline, not just the deterministic-measurer
+census harness -- caught (and resolved, see below) a survey-tooling race
+this iteration.
+
+### Mid-iteration tooling incident: stale `parity-state.json` race (resolved,
+### not a code bug)
+
+Regenerating `parity-state.json` per the write-set's own required step
+initially reported `semala-31-joji042` as `verdict: diverged` despite
+`dotEqual: true` and a byte-exact `DeterministicMeasurer` census pass -- a
+confusing, seemingly-contradictory result (a real code bug would need
+`@stroke` to differ under `WidthTableMeasurer` specifically, which makes no
+sense for a non-text attribute). Per diagnosis.md's "instrument before
+hypothesizing", re-ran `renderSync` directly (the REAL production entry
+point, not the survey script) and confirmed `stroke="#0000FF"` renders
+correctly. Root cause: an earlier BASH TOOLING mistake, not a rendering bug
+-- two independent invocations of the same long-running survey command were
+launched in overlapping background shells (the first via a bare command that
+auto-backgrounded, the second via a manually-run `until`-loop polling for
+"file exists AND no matching process" that returned true prematurely because
+a STALE `parity-state.json` from a PRIOR, unrelated survey run already
+existed on disk while the actual new survey was still mid-flight in a
+DIFFERENT background shell) -- the stale file was read before the real
+survey finished writing it. Killed the stray processes, re-ran the survey
+ONCE cleanly with a single `until`-loop keyed only on "no matching process
+running" (not file existence), and confirmed `semala-31-joji042: dotEqual:
+true, verdict: conformant` in the fresh, fully-completed 271/271 survey. No
+code change resulted from this — logged so a future iteration recognizes the
+"file exists but verdict looks wrong" symptom as a tooling race to
+re-instrument, not a rendering regression to chase.
+
+### Attribution table (31 near-zero + 25 from 4-10, evidence per family)
+
+| Family (fixture count sampled) | Symptom | Root cause | Status |
+|---|---|---|---|
+| `StateBorderColor<<X>>` (1: `semala-31-joji042`) | `rect`/`line` `@stroke` wrong | Stereotype-qualified skinparam entirely unimplemented for state | **LANDED** (mechanism 20, this iteration) |
+| `addStateBoxInk` 1px width asymmetry (3: `bilare-19-fufe539`, `jelusa-98-nexa591`, `lavera-29-vuka790`) | `@viewBox[2]`/`@width` off by exactly 1 | Pre-existing, S6-named, algebraically-derived 1-char fix, deliberately not landed (blast-radius-unverified, universally-reused ink formula) | Unchanged, re-confirmed with 2 NEW same-shape samples (was 1 known) |
+| Mechanism 16, entity-vs-cluster wrap dimension (10: `decede`/`fakali`/`gojuja`/`livuni`/`lulozu`/`nufigo`/`tofezi`/`xojudi`/`gokife`/`xomize`) | `@height`/`@viewBox[3]` + nested `g[N][childCount]` | Confirmed unbounded (needs graphviz cluster-bbox exposure), S1/S3/S6-named | Unchanged, largest single family in the near-zero bucket by far |
+| Notes never render (15 corpus-wide: `labono`/`pexuve`/`xodazu`/`dajipi`/`kujuzo`/`fatupo`/`fotigo`/`gedude`/`joleju`/`jaxuxe`/`kupexa`/`vateco`/`xupefu`/`tumaba`/`xeziki`) | `childCount` short by 1-2 (or, for `kujuzo`, a note WRONGLY rendered as a plain state box) | `layout.ts#buildFlatStateGeos` iterates `ast.states` ONLY -- a note's DOT-graph position (`state-dot-graph.ts#addNotes`) is computed and feeds layout spacing, but NEVER converted into a renderable `StateNodeGeo`/`NoteGeo`; the shared class-engine note subsystem (`renderer-note.ts`, `<polygon>`-based) does not match jar's OWN state-note shape (`<path>`-based folded-corner, jar-verified `labono`'s raw SVG) | **Diagnosed in full, NOT landed** -- largest single-mechanism reach found this iteration (15 fixtures, several with cascading document-size effects that would likely unmask MORE fixtures below them once fixed), but a genuinely new feature (parser grammar gap: `State.url`/note-position AST fields already partially exist for notes themselves but per-node `StateNodeGeo` rendering does not; needs a NEW state-specific note-box renderer since the shape byte-differs from class's `<polygon>` convention) comparable in scope to mechanism 5/6's own multi-iteration box-shape work — queued whole for S10 |
+| `<<sdlreceive>>` folded-frame shape (1: `cekolo-21-gini183`) | `g[1][childCount]` short by 2 | `state-sizing.ts` already approximates the DIMENSION (S1-era, flagged "UNVERIFIED") but no renderer branch draws jar's real `USymbolFrame`-style folded-corner-flag shape (`<path>` corner cut, no divider line) -- falls through to the plain box's divider-line shape instead, wrong element count | Diagnosed (root cause pinned to a specific missing renderer branch), NOT landed -- single fixture, unscoped new shape |
+| Pseudostate stroke-color over-application with `#color` (1: `ceruzi-77-give569`) | `<<start>>`/`<<end>>` `ellipse` `@stroke` colored (red/green) when jar keeps the `#222222` default | jar's `#color` override on a start/end pseudostate applies to FILL only (already correct, not flagged), our port ALSO applies it to STROKE (bug); `dummy #Blue` (a plain leaf) is unaffected, correctly | Diagnosed (root cause pinned to `renderer-pseudostate.ts`'s fill/stroke call for start/end), NOT landed this iteration (found late in the sampling pass, no remaining budget to verify blast radius against `renderer-pseudostate.ts`'s OTHER pseudostate kinds) |
+| `<style>` cascade generalization (4: `lasasi`/`soxene` [RoundCorner/Shadowing, S4-named], `judova-36-kana429` [title `HorizontalAlignment`/`FontColor`/`BackgroundColor`, NEW], `nanozi-96-foda024` [arrow `LineColor`/`HeadColor`, NEW]) | `text/@x` (title alignment) / `path/@stroke`+`polygon/@fill`+`@stroke` (arrow colors) wrong, or `childCount` short (box-level properties) | Same unimplemented `<style>`-tag cascade family S4 first named, now confirmed to span THREE independent sub-targets (state-box properties, title properties, arrow properties) rather than one | Re-confirmed + WIDENED (2 new sub-families found), still entirely unimplemented, unchanged |
+| json+composite childCount gap (1: `maruju-55-soko478`) | `g[1]/g[3][childCount]` 2 vs 6, `@viewBox[2]`/`@width` off by 8 | Not root-caused this iteration (combination of an embedded `json` leaf + a sibling composite state) | Diagnosed only (symptom located), root cause NOT yet isolated -- needs a probe script pass, deferred |
+| `xexika-61-fedu273`'s two sub-issues (1 fixture, 2 mechanisms) | `rect/@fill` (bare `StateBackgroundColor` skinparam not applied) + `g[3]`/`g[4]` `childCount` (arrow-endpoint markers `-->o`/`x-->` not drawn) | (a) `core/skinparam.ts`'s `ELEMENT_BUCKET_SNAMES` set does not include `'state'` -- the SAME generic per-element bucket mechanism `'object'`/`'map'`/`'json'` already reuse "for free" (G3/O1 precedent) is simply missing this ONE sname; (b) genuinely new arrow-decoration feature (circle/cross endpoint markers), unrelated | (a) Diagnosed, verified-cheap-but-NOT-landed this iteration (see below); (b) diagnosed only, unimplemented feature |
+| CONC-region bare-name global numbering (2: `lalava-26-zosi801`, `tegali-39-molu382`) | `<path id>` says local `CONC1` on the SECOND composite's own region, jar says global `CONC2` | `renderer.ts#localScopeName`'s per-composite-local numbering vs jar's diagram-global `getUniqueSequence2(CONCURRENT_PREFIX)` counter (S8-named) -- traced this iteration to the EXACT Java call site (`StateDiagram.java:194-208`, `concurrentState()`) and its counter field (`CucaDiagram.java:733`, `cpt2`, separate from the `creationIndex` counter `cpt1` S7 already threaded) | Re-derived precisely (see below), still NOT landed -- an open verification question (does `cpt2` tick fire on every parser pass, or only pass ONE, matching `cpt1`'s own S7-verified pass-ONE-only behavior?) blocks a confident implementation without repeating S7's own fixture-id-sequence verification methodology |
+
+### `xexika`'s bare `StateBackgroundColor`/`StateBorderColor` item — why NOT
+### landed despite being "free"
+
+Confirmed `'state'` is absent from `core/skinparam.ts#ELEMENT_BUCKET_SNAMES`
+(the SAME generic per-element `<sname>(Background|Border|Font)Color` bucket
+`'object'`/`'map'`/`'json'` already reuse for free, G3/O1) -- adding it would
+capture `StateBackgroundColor`/`StateBorderColor`/`StateFontColor`/
+`StateFontSize` (bare) parsing "for free" via the pre-existing mechanism.
+NOT landed this iteration because EVERY known corpus fixture using the bare
+form (`cinoni-00-sere847`, `dapuko-98-zuzo096`, `taxile-56-goca422`,
+`vekoja-22-made430`, `xexika-61-fedu273` -- 5 total, re-surveyed this
+iteration) is dominated by a LARGER, unrelated bug (mechanism 16's cluster-
+wrap gap, or `xexika`'s own arrow-marker gap) that would keep the fixture off
+zero regardless -- meaning the fix's REAL improvement could not be jar-
+verified end-to-end on any clean sample this iteration, only asserted
+correct by inspection. Also unclear which of `renderer-box.ts`'s 6
+`resolveStateFill` call sites should consume the new bucket tier: the doc
+comment on `state-render-colors.ts` itself states initial/final/fork/join
+pseudostates have their OWN distinct default colors (`PSEUDO_ANCHOR_COLOR`/
+`SYNCHRO_BAR_COLOR`, NOT the plain-state `StyleSignature`), so a correct
+scoping needs to exclude those call sites specifically -- a small but real
+extra verification step with no fixture to confirm it against this
+iteration. Named precisely (exact set/field, exact call sites to include/
+exclude) for S10.
+
+### CONC-region global numbering — Java source re-derived, still not landed
+
+Traced `renderer.ts#localScopeName`'s S8-named gap to its exact upstream
+mechanism: `StateDiagram.java:194-208`'s `concurrentState()` calls
+`this.getUniqueSequence2(CONCURRENT_PREFIX)` (`CucaDiagram.java:733`,
+`return prefix + cpt2.addAndGet(1);`) -- a SEPARATE counter field (`cpt2`)
+from `cpt1` (mission G4 S7's own `creationIndex` source, `getUniqueSequence`/
+`getUniqueSequenceValue`). `CommandConcurrentState.isEligibleFor` returns
+`true` for `ParserPass.ONE`/`TWO`/`THREE` (jar's state-diagram grammar runs
+THREE passes total, unlike this port's two), and `executeArg` calls
+`diagram.concurrentState(...)` UNCONDITIONALLY on every eligible pass --
+reading the Java in isolation suggests `cpt2` (and the synthetic `CONC<n>`
+group's `quarkInContext` lookup) would fire 3 TIMES per separator, which
+would be architecturally broken (three different-numbered group names per
+separator) unless there is a REPLAY-vs-fresh-creation distinction inside
+`quarkInContext`/`gotoGroup` this iteration did not trace far enough to
+confirm. S7's OWN precedent (`ParseState.creationCounter`'s doc comment)
+establishes that `cpt1` DOES need explicit pass-ONE-only gating in THIS
+port's two-pass model (`nextCreationIndex(ps)` only fires `if (pass ===
+'one')` at the identical `--`/`||` separator command site,
+`state-commands.ts:159-172`) -- but that conclusion was reached via S7's own
+fixture-id-sequence cross-verification methodology (5 independent samples),
+not by reading the Java source alone. Implementing `cpt2` threading
+correctly needs the SAME rigor (a handful of independent `CONC<n>` id
+sequences from real jar fixtures, verified against a hypothesized pass-
+gating rule BEFORE writing code) -- not yet done this iteration, so NOT
+landed despite the call site now being fully pinned down. Named precisely
+(exact Java lines, exact counter field, exact open question) for S10 to
+pick up without re-deriving.
+
+### Files changed (S9)
+
+- `src/core/skinparam.ts` — `STATE_BORDER_COLOR_STEREO_RE`,
+  `stateBorderColorByStereo` accumulator + `<<`-branch parsing +
+  `graphOverride` wiring (mirrors `classBorderThicknessByStereo` exactly).
+- `src/core/theme.ts` — `colors.graph.stateBorderColorByStereo?:
+  Readonly<Record<string, string>>` (new field, additive).
+- `src/diagrams/state/state-geo-types.ts` — `StateNodeGeo.stereotype?:
+  string` (new field, additive).
+- `src/diagrams/state/state-sizing.ts` — `StateGeoTextFields.stereotype`,
+  `buildStateGeoTextFields` threads `state.stereotype` through.
+- `src/diagrams/state/state-composite-pass.ts` — `GeoSpec` 'state'/'autonom'
+  variants gain `stereotype?: string`.
+- `src/diagrams/state/state-composite-geo.ts` — `materializeSpecs`
+  ('state' branch) and `materializeAutonom` copy `spec.stereotype` through
+  (mirrors the pre-existing `spec.color` pattern exactly).
+- `src/diagrams/state/state-render-colors.ts` — new `resolveStateBorder`
+  (stereotype-scoped border-color resolution, mirrors `resolveStateFill`).
+- `src/diagrams/state/renderer-box.ts` — `renderNormal` uses
+  `resolveStateBorder` instead of the bare `theme.colors.border`.
+- `src/diagrams/state/renderer-composite-box.ts` — `buildCoreLayers`/
+  `buildActionZone` both use `resolveStateBorder`.
+- `tests/unit/skinparam.test.ts` — 2 new tests (stereo-key parsing,
+  lowercasing).
+- `tests/unit/state/layout.test.ts` — 4 new tests (flat + composite +
+  concurrent-region stereotype threading).
+- `tests/unit/state/state-render-colors.test.ts` (NEW) — 5 tests
+  (`resolveStateBorder` direct unit coverage, no fixture required).
+- `oracle/goldens/svg-state/ratchet.json` — 1 fixture added (38→39).
+- `oracle/goldens/svg-state/semala-31-joji042/{in.puml,golden.svg}` — NEW,
+  copied verbatim from `test-results/dot-cache/state/semala-31-joji042/`.
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated
+  (271/271 surveyed, re-run once after a tooling-race false alarm, see
+  above).
+- `plans/g4-state-svg/README.md`, `ledger.md`, `decision-journal.md` — this
+  entry.
+
+### Ratchet / pins
+
++1 new pin (38→**39**) — `semala-31-joji042`, verified `dotEqual: true` in
+the (twice-regenerated, second run clean) `parity-state.json` (AC3) before
+pinning. `state.golden.ratchet.test.ts`: **41 tests** (39 pins), was 40/38.
+
+### size-backlog.json: unchanged (0 entries touched)
+
+This iteration's mechanism is render-color-only (no sizing-formula
+changes) — `state-dot-parity.test.ts` (size-backlog ratchet) stayed at
+**268/268** passing throughout, checked before and after.
+
+### Gates (S9, final)
+
+- `state` census: **40/271** zero-diff (`1-3:30, 4-10:130, 11-30:27, 31+:44,
+  errors:0`) — was S8's `39/271` (`1-3:31, 4-10:130, 11-30:27, 31+:44`).
+  +1 new pin, all 39 S8-pinned fixtures verified unchanged (fresh census
+  before/after).
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified before and after.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing,
+  unchanged throughout.
+- `npm test -- --run`: **10012/10012** passing (368 files), up from
+  10000/10000 (+11 new tests this iteration + 1 new ratchet-pin test).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: **41 tests** (39 pins), up from 40 (38
+  pins).
+
+### S10+ queue
+
+1. **Notes never render** (NEW, S9, LARGEST reach found this iteration —
+   15 corpus fixtures) — `layout.ts#buildFlatStateGeos` never converts a
+   note's DOT-computed position into a renderable `StateNodeGeo`; needs a
+   state-specific note-box renderer (`<path>`-based folded corner, NOT
+   class's `<polygon>`-based `renderer-note.ts` shape — jar-verified byte
+   difference, `labono-83-nega255`). Comparable in scope to mechanism 5/6's
+   own multi-iteration box-shape work. Full fixture list in the attribution
+   table above.
+2. **CONC-region bare-name global numbering** (S8, re-derived to the exact
+   Java call site this iteration) — `cpt2` counter
+   (`CucaDiagram.java:733`), `StateDiagram.java:194-208`'s
+   `concurrentState()`. Open question: pass-gating behavior (mirrors S7's
+   own `cpt1`/`creationIndex` derivation, which needed 5 independent
+   fixture-id-sequence samples to confirm pass-ONE-only firing) — needs the
+   SAME rigor before implementing. 2 known fixtures (`lalava-26-zosi801`,
+   `tegali-39-molu382`).
+3. **Bare `StateBackgroundColor`/`StateBorderColor`/`StateFontColor`/
+   `StateFontSize`** (NEW, S9) — `ELEMENT_BUCKET_SNAMES` missing `'state'`
+   (a ONE-LINE addition, mirrors G3/O1's `'object'`/`'map'`/`'json'`
+   precedent), but every known fixture is masked by a larger unrelated bug
+   (mechanism 16 or arrow-markers) so the improvement could not be jar-
+   verified end-to-end this iteration; also needs scoping which
+   `resolveStateFill` call sites should consume it (excludes initial/
+   final/fork/join per their own distinct-default-color doc comment).
+4. **`stateBackgroundColor<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>`**
+   (NEW, S9, deliberately deferred alongside mechanism 20's own
+   `StateBorderColor<<X>>`) — `laferu-31-tice836`'s sole blocker.
+   `FontSize<<X>>` needs LAYOUT-time (not just render-time) threading
+   through `state-sizing.ts` (affects box width/height) — materially larger
+   than the border-color case just landed.
+5. **`<style>` cascade generalization** (S4, WIDENED this iteration — now
+   3 independent sub-families: state-box `RoundCorner`/`Shadowing`
+   [S4-original], title `HorizontalAlignment`/`FontColor`/
+   `BackgroundColor` [NEW], arrow `LineColor`/`HeadColor` [NEW]) —
+   `judova-36-kana429`, `nanozi-96-foda024` join `lasasi-13-nona547`/
+   `soxene-95-domu248`. Entirely unimplemented `<style>`-tag cascade for
+   state diagrams.
+6. **`<<sdlreceive>>` folded-frame shape** (NEW root-cause pinpoint, S9;
+   symptom known since S1-S4) — `cekolo-21-gini183`'s sole blocker; the
+   dimension formula already exists (S1, flagged unverified) but no
+   renderer branch draws the real `USymbolFrame` shape.
+7. **Pseudostate stroke-color over-application with `#color`** (NEW, S9) —
+   `ceruzi-77-give569`'s sole blocker; `renderer-pseudostate.ts` applies a
+   `#color` override to BOTH fill and stroke on start/end pseudostates, jar
+   applies it to fill only. Found late, blast radius against other
+   pseudostate kinds unverified.
+8. **`maruju-55-soko478`'s json+composite childCount gap** (NEW, S9,
+   symptom only) — root cause not yet isolated, needs a probe script pass.
+9. Mechanism 16 (entity-vs-cluster wrap dimension) — unchanged, needs
+   `layoutGraph()`/graphviz-ts cluster-bbox exposure. LARGEST family in the
+   near-zero bucket this iteration (10/31 sampled fixtures).
+10. `pevene-26-kebo361`'s minlen=0 same-rank clip-inset delta (S8) —
+    unchanged, needs a second independent sample before filing to
+    `docs/graphviz-issues/`.
+11. `buildConcurrentRegionLeaf`'s own `creationIndex` gap (S7/S8) —
+    unchanged, still no clean fixture to verify against.
+12. State hyperlink (`[[url]]`) annotation (S8, RE-SCOPED this iteration) —
+    `kenuci-20-cane702` (anchor-reference form `[[{alias}]]`) +
+    `dajipi-09-doki542` (regular URL form) — investigated this iteration:
+    substantially MORE complex than the task's own "mirror class's URL
+    subsystem" framing suggested. jar wraps each entity's WHOLE box in
+    `<a>`, with URL INHERITANCE from the nearest ancestor entity that has
+    one (`kenuci`'s `S.a.b` has no own url but inherits `a`'s, NOT `S`'s),
+    plus a separate anchor-reference resolution path (`[[{alias}]]` ->
+    `href=""`, `title=alias`) distinct from a real URL. `State.url` does
+    not exist on the AST at all yet (parser, not just renderer, gap).
+    Comparable in scope to notes (item 1) — a new multi-layer feature, not
+    a cheap mirror.
+13. `addStateBoxInk`'s max-corner asymmetry (`bilare`'s 1px rounding,
+    RE-CONFIRMED this iteration with 2 NEW same-shape samples — now 3
+    known fixtures) — unchanged, exact fix named, unverified blast radius.
+14. Creole/markdown bold (`**text**`) markup — unchanged, unimplemented
+    feature.
+15. `skin debug`/named-skin-file directive support — unchanged, unscoped.

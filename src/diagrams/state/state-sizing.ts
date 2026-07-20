@@ -324,6 +324,8 @@ export interface StateGeoTextFields {
   color?: string;
   /** mission G4 S5 -- see `StateNodeGeo.emptyDescription`'s own doc comment. */
   emptyDescription?: true;
+  /** mission G4 S9 -- see `StateNodeGeo.stereotype`'s own doc comment. */
+  stereotype?: string;
 }
 
 /**
@@ -355,5 +357,6 @@ export function buildStateGeoTextFields(
     fields.headerLines = measureTextLines(historyLabelText(state.kind), font, measurer);
   }
   if (state.color !== undefined) fields.color = state.color;
+  if (state.stereotype !== undefined) fields.stereotype = state.stereotype;
   return fields;
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-20T20:14:45.054Z",
+  "generatedAt": "2026-07-20T22:09:00.181Z",
   "fixtures": [
     {
       "slug": "bajelo-54-dixe684",
@@ -862,9 +862,7 @@
       "slug": "kilato-12-laso661",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/polygon[1]/@points"
+      "verdict": "conformant"
     },
     {
       "slug": "kiniro-32-mama877",
@@ -1653,9 +1651,7 @@
       "slug": "semala-31-joji042",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@stroke"
+      "verdict": "conformant"
     },
     {
       "slug": "sesafu-14-nora165",

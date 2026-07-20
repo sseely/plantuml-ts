@@ -223,6 +223,21 @@ export interface Theme {
        *  `ragona-89-fadi984` (`class A <<stereo>>` renders stroke-width 5,
        *  `class B` with no stereotype stays at the 0.5 default). */
       classBorderThicknessByStereo?: Readonly<Record<string, number>>;
+      /** G4 S9: `skinparam StateBorderColor<<stereo>> #X` --
+       *  `SkinParam#getColor(ColorParam, Stereotype)`: a STEREOTYPE-
+       *  QUALIFIED skinparam key, resolved by DIRECT VALUE LOOKUP (mirrors
+       *  `classBorderThicknessByStereo`'s identical mechanism/doc comment
+       *  above, applied to a state box's own border COLOR instead of class's
+       *  border THICKNESS). Keyed by the LOWERCASED stereotype label
+       *  (`core/skinparam.ts#STATE_BORDER_COLOR_STEREO_RE`, matching a
+       *  state's own `StateNodeGeo.stereotype`, lowercased at lookup time).
+       *  Read by `state-render-colors.ts#resolveStateBorder` as the fallback
+       *  tier BELOW `theme.colors.border`'s own default -- jar-verified
+       *  `semala-31-joji042` (`skinparam StateBorderColor<<meblue>> blue`,
+       *  `state a<<meblue>>` renders `stroke="#0000FF"` on both its own
+       *  outline `rect` and divider `line`; its plain (non-stereotyped)
+       *  children keep the `#181818` default). */
+      stateBorderColorByStereo?: Readonly<Record<string, string>>;
       /** G2 N51: `skinparam arrowThickness N` -- `FromSkinparamToStyle.java
        *  :150`: `SName.arrow` LineThickness, the DEFAULT stroke-width every
        *  edge draws at when it carries no `-[thickness=N]->`/`-[bold]->`

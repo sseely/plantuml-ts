@@ -283,6 +283,17 @@ function matchElementFontSizeKey(
 // (see e.g. `renderer-group.ts#XML_UNSAFE_RE`).
 const CLASS_BORDER_THICKNESS_STEREO_RE = new RegExp('^classborderthickness<<(.+)>>$');
 
+// G4 S9: `skinparam StateBorderColor<<stereo>> #X` -- the state-diagram
+// analog of `classBorderThickness<<X>>` above (`SkinParam#getColor(ColorParam,
+// Stereotype)`, a direct stereotype-qualified VALUE lookup, not the
+// `<style>`/`.tagname` cascade) -- see `theme.ts#stateBorderColorByStereo`'s
+// own doc comment. Scoped to BorderColor only this iteration (Background/
+// FontColor/FontSize<<X>> would additionally require threading a per-
+// stereotype font size through `state-sizing.ts`'s LAYOUT-time measurement,
+// a materially larger, deferred mechanism -- `plans/g4-state-svg/ledger.md`
+// S9's own queue).
+const STATE_BORDER_COLOR_STEREO_RE = new RegExp('^statebordercolor<<(.+)>>$');
+
 export function resolveSkinparam(
   skinparams: ReadonlyMap<string, string>,
   base: Theme,
@@ -344,6 +355,9 @@ export function resolveSkinparam(
   // switch below (the `<<` early-branch), see `theme.ts
   // #classBorderThicknessByStereo`'s doc comment.
   let classBorderThicknessByStereo: Record<string, number> | undefined;
+  // G4 S9: `stateBorderColor<<X>>` -- accumulated OUTSIDE the main switch,
+  // same shape as `classBorderThicknessByStereo` above.
+  let stateBorderColorByStereo: Record<string, string> | undefined;
   // G2 N51: `arrowThickness` -- the class-edge default stroke-width (see
   // `theme.ts#arrowThickness`'s doc comment).
   let arrowThickness: number | undefined;
@@ -436,6 +450,7 @@ export function resolveSkinparam(
     // (theme.ts) for the full mechanism.
     if (key.includes('<<')) {
       const stereoMatch = CLASS_BORDER_THICKNESS_STEREO_RE.exec(key);
+      const stateBorderStereoMatch = STATE_BORDER_COLOR_STEREO_RE.exec(key);
       if (stereoMatch !== null) {
         const v = Number.parseFloat(value.trim());
         if (Number.isFinite(v)) {
@@ -443,6 +458,10 @@ export function resolveSkinparam(
           classBorderThicknessByStereo ??= {};
           classBorderThicknessByStereo[stereo] = v;
         }
+      } else if (stateBorderStereoMatch !== null) {
+        const stereo = stateBorderStereoMatch[1]!.trim();
+        stateBorderColorByStereo ??= {};
+        stateBorderColorByStereo[stereo] = resolveColor(value);
       } else {
         unknown.push(key);
       }
@@ -783,6 +802,7 @@ export function resolveSkinparam(
     classBorder !== undefined ||
     classBorderThickness !== undefined ||
     classBorderThicknessByStereo !== undefined ||
+    stateBorderColorByStereo !== undefined ||
     arrowThickness !== undefined ||
     classAttributeFontSize !== undefined ||
     classAttributeFontFamily !== undefined ||
@@ -861,6 +881,8 @@ export function resolveSkinparam(
       graphOverride.classBorderThickness = classBorderThickness;
     if (classBorderThicknessByStereo !== undefined)
       graphOverride.classBorderThicknessByStereo = classBorderThicknessByStereo;
+    if (stateBorderColorByStereo !== undefined)
+      graphOverride.stateBorderColorByStereo = stateBorderColorByStereo;
     if (arrowThickness !== undefined) graphOverride.arrowThickness = arrowThickness;
     if (classAttributeFontSize !== undefined)
       graphOverride.classAttributeFontSize = classAttributeFontSize;

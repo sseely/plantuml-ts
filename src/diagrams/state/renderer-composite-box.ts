@@ -79,7 +79,7 @@
 import type { StateNodeGeo, StateTextLine } from './state-geo-types.js';
 import type { Theme } from '../../core/theme.js';
 import { rect, line, text, path } from '../../core/svg.js';
-import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFill, textAscent } from './state-render-colors.js';
+import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFill, resolveStateBorder, textAscent } from './state-render-colors.js';
 import { javaRound4 } from '../../core/number-format.js';
 
 /** `URectangle.halfRounded`'s own `roundCorner/2` — SAME `rx`/`ry` value as
@@ -155,7 +155,9 @@ function buildCoreLayers(node: StateNodeGeo, theme: Theme): {
 } {
   const headerLines = node.headerLines!;
   const fill = resolveStateFill(node, STATE_DEFAULT_BACKGROUND);
-  const border = theme.colors.border;
+  // G4 S9: `StateBorderColor<<X>>` cascade -- see `resolveStateBorder`'s own
+  // doc comment. Jar-verified `semala-31-joji042`'s own composite `a`.
+  const border = resolveStateBorder(node, theme);
   const ascent = textAscent(theme.fontSize);
   const headerHeight = MARGIN + headerLines.length * theme.fontSize + MARGIN_LINE;
   const dividerY1 = node.y + headerHeight;
@@ -193,7 +195,7 @@ function buildActionZone(
 ): ActionZone {
   const bodyLines = node.bodyLines ?? [];
   if (bodyLines.length === 0) return EMPTY_ACTION_ZONE;
-  const border = theme.colors.border;
+  const border = resolveStateBorder(node, theme);
   const actionZoneHeight = bodyLines.length * theme.fontSize + MARGIN;
   const dividerY2 = dividerY1 + actionZoneHeight;
   const bg = rect(node.x, dividerY1, node.width, actionZoneHeight, { fill, stroke: fill, strokeWidth: 1 });

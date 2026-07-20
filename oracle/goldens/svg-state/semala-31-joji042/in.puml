@@ -1,0 +1,8 @@
+@startuml
+skinparam StateBorderColor<<meblue>> blue
+state a<<meblue>> {
+  state b
+  --
+  state c
+}
+@enduml

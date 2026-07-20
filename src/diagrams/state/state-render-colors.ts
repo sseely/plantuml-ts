@@ -15,6 +15,7 @@
 import type { StateNodeGeo } from './state-geo-types.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { resolveBareOrBackColor } from '../class/class-color-override.js';
+import type { Theme } from '../../core/theme.js';
 
 /** Default box fill (`skinparam stateBackgroundColor`'s own terminal
  *  default) — jar-verified jocela-05-niba392 / votoki-67-gufa610 /
@@ -35,6 +36,28 @@ export const STATE_BORDER_STROKE_WIDTH = 0.5;
 export function resolveStateFill(node: Pick<StateNodeGeo, 'color'>, fallback: string): string {
   const override = resolveBareOrBackColor(node.color);
   return override !== undefined ? resolveColorToSvgHex(override) : fallback;
+}
+
+/**
+ * `skinparam StateBorderColor<<X>> #color` -- `SkinParam#getColor(ColorParam,
+ * Stereotype)`, a direct stereotype-qualified VALUE lookup (mission G4 S9,
+ * mirrors the class engine's `classBorderThicknessByStereo` mechanism, G2
+ * N51). Wins over the plain `theme.colors.border` default when `node`'s OWN
+ * stereotype (lowercased, matching `core/skinparam.ts`'s own lowercased-key
+ * storage) has a matching entry in `theme.colors.graph.stateBorderColorByStereo`.
+ * Jar-verified `semala-31-joji042` (`skinparam StateBorderColor<<meblue>>
+ * blue`, `state a<<meblue>>` -> box/divider `stroke="#0000FF"`; its plain,
+ * non-stereotyped children keep the `#181818` default).
+ */
+export function resolveStateBorder(
+  node: Pick<StateNodeGeo, 'stereotype'>,
+  theme: Pick<Theme, 'colors'>,
+): string {
+  if (node.stereotype !== undefined) {
+    const override = theme.colors.graph.stateBorderColorByStereo?.[node.stereotype.toLowerCase()];
+    if (override !== undefined) return resolveColorToSvgHex(override);
+  }
+  return theme.colors.border;
 }
 
 /**

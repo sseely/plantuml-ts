@@ -66,6 +66,7 @@ dot-sync-report (frozen) · class census (294 set intact) · object census
 | S6 | Landed mechanisms 13/14 (concurrent-region dashed separator lines; per-region pseudo-node scope-id collision), TDD-first, jar-verified against `nelupe-49-xova546`'s full XML dump. Landing mechanism 13 immediately surfaced a THIRD bug in the same area (mechanism 7's own `moveDelta` position correction was never wired into the concurrent-region path at all, `regionInkDim` renamed `regionInkGeometry`) plus a fourth, independent bug in `layout.ts#shiftStateNode` (the document-margin shift never touched the new `concurrentRegions`/`separators` fields) -- both fixed alongside 13/14, jar-verified byte-exact position match on `semala-31-joji042`/`nivanu-50-zajo916`. Three items were re-diagnosed deeper than their prior naming and re-confirmed correctly out of scope: mechanism 16 (entity-vs-cluster wrap dimension, now confirmed via a THIRD independent sample, larger reach than known -- 7/27 sampled fixtures); `skin debug` (re-scoped from "niveno's background bug" to its true scope, a whole unimplemented named-skin-file directive feature); `bilare-19-fufe539`'s 1px rounding (exact fix algebraically derived but NOT landed -- touches an already-verified, widely-reused ink formula, blast radius unverified this iteration). Mechanism 19 (`path/@d` routing, the mission's own secondary scope) was sampled again per this iteration's own instruction and confirmed NOT the sole blocker on any near-zero fixture this iteration -- still unstarted as its own item. Census: `14/271` -> `14/271` zero-diff (`1-3:29->27, 4-10:136->134, 11-30:44->41, 31+:48->55`) -- NO net new pin despite substantial jar-verified improvement on every sampled concurrent-region fixture (e.g. `nivanu-50-zajo916`: childCount-diff -> 1 diff, `pevene-26-kebo361`: 26+ diffs -> 15), because the SOLE remaining blocker on every concurrent-region fixture is now the id-numbering creation-index gap (mechanism 10's own remainder), refined this iteration into three concrete, verified sub-patterns (CONC-region synthetic-entity id consumption; transitions interleaved with entities in creation order; `remove`d entities still consuming an id slot) but not solved -- all 14 S5 pins verified unchanged. See `plans/g4-state-svg/ledger.md` S6 for the full mechanism writeups, the refined attribution table, and the S7+ queue. | done |
 | S7 | Landed mechanism 10 in full (id-numbering creation-index gap): derived jar's real `net.atmp.CucaDiagram#cpt1` shared-counter algorithm from Java source + 5 jar-verified fixture id-sequences BEFORE writing code, then threaded true parse-time `creationIndex` through the ENTIRE state pipeline (parser -> AST -> layout -> composite-pass `GeoSpec` tree -> `renderer-uid.ts`, all 3 S6-refined sub-patterns: CONC-region phantom ticks, transition/auto-created-endpoint interleaving, `remove`d-entity gaps). Landing the id-VALUE fix surfaced (jar-verified, `nelupe-49-xova546`) two further bugs in the SAME area, fixed alongside: sibling DOCUMENT ORDER (the S5-era "real before pseudo" heuristic was only a special case of true creation-order sorting, NEW `sortSpecsByCreationIndex`) and a composite-pipeline `<path id>` bug (`buildLevelTransitionGeos` leaked the raw `'[*]'` AST token instead of the scope-resolved pseudo-anchor name, `renderer.ts#svgEndpointId` extended). Census: `14/271` -> `16/271` zero-diff (`1-3:27->26, 4-10:134->133, 11-30:41->47, 31+:55->49`), +2 new pins (`nivanu-50-zajo916`, `xoravu-40-gebe122`), 0 regressed. Verified EVERY ONE of the mission's own 5 required sample categories (plain, nested composite, concurrent regions, removed entities, `[*]` in multiple scopes) is now either TRUE ZERO or blocked SOLELY by an already-named, UNRELATED mechanism -- `semala-31-joji042` down to the already-named `<<meblue>>` stereotype-border-color gap alone; `pevene-26-kebo361`/`nelupe-49-xova546` down to PURE `path/@d`/`polygon` geometry (mechanism 19) alone, the strongest evidence yet gathered for that item. Mechanism 19 itself NOT started this iteration (budget fully consumed by mechanism 10's own scope + its 2-bug unmasking cascade; a preliminary look suggests a graphviz-ts/dot-layout spline-simplification gap, not a state-diagram-specific bug). See `plans/g4-state-svg/ledger.md` S7 for the full derivation, mechanism writeups, attribution table, and the S8+ queue. | done |
 | S8 | Landed mechanism 19 (transition `path/@d` routing) in full: root cause was a missing `manualArrowheads: true` seam flag on state's 3 `DotInputGraph` construction sites (mirrors class's own G2 N29 fix -- state switched to inline-`<polygon>` arrowheads in S1 mechanism 3, the SAME switch that made class need this flag, but state's own construction sites never carried it over), confirmed by reproducing `nelupe-49-xova546`'s exact pinned svek DOT through BOTH real `dot -Tplain` and a minimal `layoutGraph()` probe BEFORE writing any fix -- real dot reached the target node's boundary, `layoutGraph()` without the flag stopped ~11.5px short. S7's own "looks like a graphviz-ts spline-simplification gap" framing was explicitly UNVERIFIED and, once reproduced, WRONG -- a seam invocation gap, not a library bug. Landing the flag surfaced a SECOND bug: `renderer.ts#buildPathD` was discarding the ALREADY-correct `1+3n` bezier-spline structure `layoutState()` produces and re-deriving a Catmull-Rom smoothing curve instead (2-3x too many segments) -- rewritten to mirror `class/renderer.ts#buildPathData` exactly. A THIRD, independent bug found and landed the same iteration: `kilato-12-laso661`'s choice-diamond `<polygon>` was missing its jar-required closing point (`renderer-pseudostate.ts#closeDiamondPoints`, a state-local patch -- `core/svg.ts#diamond` is shared with activity/chronology and outside this mission's write-set). Census: `16/271` -> `39/271` zero-diff (`1-3:26->31, 4-10:133->130, 11-30:47->27, 31+:49->44`), +23 new pins (the largest single-iteration jump this mission has seen), 0 regressed, ratchet now 40 tests (38 pins). Two further mechanisms diagnosed but NOT landed (write-set/verification-blocked): CONC-region bare-name global numbering (2 fixtures, `renderer.ts#localScopeName`'s per-composite-local numbering vs jar's diagram-global counter) and a small (<0.5px) genuine graphviz-ts vs real-dot clip-inset delta on `pevene-26-kebo361`'s own minlen=0 same-rank edges (reproduced, not yet filed -- needs a second independent sample). Re-confirmed `<<meblue>>`/`StateBorderColor<<X>>` (blocked by write-set: needs `core/skinparam.ts`/`core/theme.ts`) and `buildConcurrentRegionLeaf`'s creationIndex gap (both known fixtures dominated by unrelated larger bugs, still unverifiable). See `plans/g4-state-svg/ledger.md` S8 for the full derivation, attribution table, and the S9+ queue. | done |
+| S9 | Landed mechanism 20 (`StateBorderColor<<X>>` stereotype-qualified skinparam cascade) in full: mirrors G2 N51's `classBorderThicknessByStereo` precedent exactly (`core/skinparam.ts`/`core/theme.ts`, additive-only, both class/object/description censuses proven unchanged), closing `semala-31-joji042` -- the task's own explicitly-named priority-2 target. Required threading a NEW `StateNodeGeo.stereotype` field through both the flat and composite pipelines, mirroring the pre-existing `color` field's identical two-pipeline threading shape (S2/S3). Sampled ALL 31 of S8's near-zero fixtures plus 25 from the 4-10 bucket BEFORE choosing a fix target, surfacing a much richer attribution table than S8's queue implied: notes-never-render is a 15-fixture family (the LARGEST single reach found this mission, root-caused to `layout.ts#buildFlatStateGeos` never converting a note's DOT-computed position into a renderable `StateNodeGeo`, jar's OWN note shape is `<path>`-based, byte-different from class's `<polygon>`-based `renderer-note.ts`); the `<style>` cascade gap widened to 3 independent sub-families (state-box, title, arrow properties); `addStateBoxInk`'s 1px asymmetry re-confirmed with 2 new same-shape samples; `<<sdlreceive>>`'s folded-frame shape and a pseudostate stroke-color over-application bug were newly root-caused (both single-fixture, not landed); CONC-region global numbering was traced to its EXACT Java call site (`StateDiagram.java:194-208`, `cpt2` counter) but left unimplemented pending the same fixture-id-sequence verification rigor S7 used for `cpt1`/`creationIndex`; the state hyperlink mechanism was investigated and found substantially more complex than the task's own framing suggested (URL inheritance from nearest ancestor, a separate anchor-reference `[[{alias}]]` resolution path, `State.url` missing from the AST entirely) -- re-scoped, not landed. A mid-iteration bash-tooling race (two overlapping `svg-parity-survey.ts` background invocations produced a stale-file false alarm) was diagnosed and resolved with no code change -- see ledger for the full incident writeup. Census: `39/271` -> `40/271` zero-diff (`1-3:31->30, 4-10:130->130, 11-30:27->27, 31+:44->44`), +1 new pin (`semala-31-joji042`), 0 regressed, ratchet now 41 tests (39 pins). See `plans/g4-state-svg/ledger.md` S9 for the full attribution table and the S10+ queue. | done |
 
 ## Standing rules
 
@@ -82,108 +83,86 @@ parallel implementation. graphviz-ts findings go in
 `getLayout()`) applies. Complexity playbook, TDD, ledger:
 `plans/g4-state-svg/ledger.md`.
 
-## Gates (S8, final)
+## Gates (S9, final)
 
-- `state` census: **39/271** zero-diff (`1-3:31, 4-10:130, 11-30:27, 31+:44,
-  errors:0`) — was S7's `16/271` (`1-3:26, 4-10:133, 11-30:47, 31+:49`);
-  +23 new pins, all 16 S7-pinned fixtures verified unchanged.
+- `state` census: **40/271** zero-diff (`1-3:30, 4-10:130, 11-30:27, 31+:44,
+  errors:0`) — was S8's `39/271` (`1-3:31, 4-10:130, 11-30:27, 31+:44`);
+  +1 new pin (`semala-31-joji042`), all 39 S8-pinned fixtures verified
+  unchanged.
 - Class census: **303/718**, intact, unchanged.
 - Object census: **22/80**, intact, unchanged.
 - Description census: **48/355**, intact, unchanged.
 - DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
   78/80 - state 267/267` — EXACTLY unchanged (verified BOTH before and
-  after every mechanism landed this iteration).
+  after the mechanism landed this iteration).
 - `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing
-  (0 failures), unchanged throughout — this iteration's mechanisms are
-  render-structure/routing/polygon-only, no raw DOT node-size changes.
-- `npm test -- --run`: 10000/10000 passing (367 files), `npm run
+  (0 failures), unchanged throughout — this iteration's mechanism is
+  render-color-only, no raw DOT node-size changes.
+- `npm test -- --run`: 10012/10012 passing (368 files), `npm run
   typecheck` / `npm run lint` / `npm run build`: all clean.
-- `state.golden.ratchet.test.ts`: 40 tests (38 pins), up from 18 (16 pins).
+- `state.golden.ratchet.test.ts`: 41 tests (39 pins), up from 40 (38 pins).
 
-## Mission status (S8, 2026-07-20)
+## Mission status (S9, 2026-07-20)
 
-**OPEN.** Landed mechanism 19 (transition `path/@d` routing — the
-mission's own long-standing secondary scope item, unstarted since S4) in
-full: per this iteration's own explicit instruction to reproduce with the
-fixture's exact svek DOT through real `dot -Tsvg`/`-Tplain` vs
-graphviz-ts BEFORE attributing anything to the library, fed
-`nelupe-49-xova546`'s pinned `oracle/goldens/state/<slug>/svek-3.dot`
-golden (already structurally EQUAL to jar per the frozen DOT gate)
-through both real graphviz 15.1.0 and a minimal `layoutGraph()` probe
-carrying the identical node/edge structure. Real dot's own spline reached
-to within 0.27px of the target node's boundary; `layoutGraph()` without
-any extra flags stopped ~11.5px short on the SAME input — the two
-diverged on identical structure, which is what led straight to the
-missing `manualArrowheads: true` seam flag (`graph-layout-build.ts
-#addEdges`), already landed for `class` in mission G2's own N29 and for
-`description` in mission G1's own I9, but never carried over when state
-switched to inline-`<polygon>` arrowheads in mission G4 S1 mechanism 3 —
-the SAME rendering-convention switch that made `class` need the flag.
-S7's own "looks like a graphviz-ts spline-simplification gap" framing,
-explicitly flagged as UNVERIFIED going into this iteration, turned out to
-be WRONG once actually reproduced: a seam invocation gap, not a library
-bug — the SAME class of root cause this mission has now proven twice
-(the S1-era arrowhead-gap; the shape:'box' hardcode) and G2 proved once
-(N29 itself).
+**OPEN.** Landed mechanism 20 (`StateBorderColor<<stereotype>>` cascade —
+the task's own explicitly-named priority-2 target) in full: mirrors G2
+N51's `classBorderThicknessByStereo` precedent (`core/skinparam.ts`/
+`core/theme.ts`, additive-only per the write-set's own boundary, both
+class/object/description censuses proven unchanged before and after).
+Closed `semala-31-joji042` (S6/S7/S8's own re-confirmed sole blocker).
+Required threading a NEW `StateNodeGeo.stereotype` field through BOTH the
+flat and composite pipelines — mirrors the pre-existing `color` field's
+identical two-pipeline threading shape (S2/S3), not a new mechanism shape.
+Deliberately scoped to `StateBorderColor<<X>>` only, not the sibling
+`stateBackgroundColor<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>` keys
+(`laferu-31-tice836`'s own blocker) — `FontSize<<X>>` needs LAYOUT-time
+threading through `state-sizing.ts` (affects box width/height), a
+materially larger, unverified blast radius; queued for S10.
 
-Landing the `manualArrowheads` fix at all 3 of state's `DotInputGraph`
-construction sites immediately surfaced a SECOND, independent bug:
-`renderer.ts#buildPathD` was discarding the ALREADY-correct `1+3n`
-bezier-spline structure `layoutState()`'s own raw output already carries
-(confirmed via direct inspection before writing the fix) and
-re-deriving a Catmull-Rom smoothing curve through the points regardless
-of count — producing 2-3x too many segments (jar draws ONE `C` command
-for `nelupe`'s `s7_2→chat1`; the pre-S8 port drew THREE). Rewritten to
-mirror `class/renderer.ts#buildPathData` exactly, including its
-straight-`L`-segment fallback for non-`1+3n` point lists.
-`renderer-arrowhead.ts#applyHeadTrim` already assumed the correct
-bezier-control-point structure (mirrors class's own `applyDecorTrim`),
-so no changes were needed there. A THIRD, independent bug was found and
-landed in the same iteration while sampling the resulting near-zero
-bucket: `kilato-12-laso661`'s choice-diamond `<polygon>` was missing its
-jar-required closing point (jar's `EntityImageBranch` repeats the first
-coordinate pair last, 5 pairs for a 4-sided diamond) — fixed via a
-state-local post-hoc string patch (`renderer-pseudostate.ts
-#closeDiamondPoints`) rather than touching the shared `core/svg.ts
-#diamond` (used by `activity`/`chronology` too, outside this mission's
-write-set).
+Per this iteration's own instruction, sampled ALL 31 of S8's near-zero
+(1-3 diff) fixtures individually plus 25 from the 4-10 bucket BEFORE
+choosing a fix target — surfacing a much richer attribution table than
+S8's queue implied. The single largest finding: **notes never render**,
+a 15-fixture corpus-wide family (the largest single reach found by this
+mission to date), root-caused to `layout.ts#buildFlatStateGeos` never
+converting a note's already-computed DOT-graph position into a renderable
+`StateNodeGeo` — and jar's OWN state-note shape is `<path>`-based
+(folded-corner, byte-verified against `labono-83-nega255`'s raw SVG),
+distinct from the class engine's `<polygon>`-based `renderer-note.ts`, so
+this is not a cheap cross-diagram reuse. Diagnosed in full, explicitly NOT
+forced this iteration (comparable in scope to mechanism 5/6's own
+multi-iteration box-shape work) — queued whole for S10. Six further
+mechanisms were newly diagnosed this iteration and also NOT landed: the
+`<style>`-tag cascade gap (S4-named) widened from one to THREE independent
+sub-families (state-box, title, arrow properties); `addStateBoxInk`'s 1px
+asymmetry was re-confirmed with 2 new same-shape samples (now 3 known
+fixtures); `<<sdlreceive>>`'s folded-frame shape and a pseudostate
+stroke-color-over-application bug were newly root-caused (both single-
+fixture); CONC-region bare-name global numbering (S8-named) was traced to
+its EXACT Java call site (`StateDiagram.java:194-208`'s `concurrentState()`,
+`CucaDiagram.java:733`'s `cpt2` counter) but left unimplemented pending the
+SAME fixture-id-sequence verification rigor S7 used to derive `cpt1`'s own
+pass-gating behavior; the state hyperlink (`[[url]]`) mechanism (S8-named)
+was investigated and found substantially more complex than the task's own
+"mirror class's URL subsystem" framing suggested — jar wraps each entity's
+WHOLE box in `<a>` with URL INHERITANCE from the nearest ancestor entity
+that has one, plus a separate `[[{alias}]]` anchor-reference resolution
+path, and `State.url` does not exist on the AST at all yet (a parser gap,
+not just a renderer gap) — re-scoped, not landed.
 
-Census: 16/271 → **39/271** zero-diff, +23 new pins (the largest
-single-iteration jump this mission has recorded), 0 regressed — every one
-of the 22 new manualArrowheads/buildPathD pins verified `dotEqual: true`
-in a regenerated `parity-state.json` before pinning (AC3). Drilling
-`pevene-26-kebo361` (the mission's OTHER named target, alongside
-`nelupe`) the same way surfaced a much smaller, genuinely real residual:
-a <0.5px graphviz-ts-vs-real-dot clip-inset delta specific to `minlen=0`
-same-rank straight edges (reproduced via a minimal probe, both engines'
-raw numbers gathered) — not yet filed to `docs/graphviz-issues/` pending
-a second independent sample to confirm the magnitude is consistent (this
-iteration's corpus scan found no second minlen=0 same-rank case).
-Sampling the resulting near-zero bucket also surfaced (diagnosed,
-NOT landed — write-set or verification blocked) a CONCURRENT-region
-bare-name global-numbering gap (`renderer.ts#localScopeName`'s
-per-composite-local `CONC<n>` derivation vs jar's diagram-global
-`getUniqueSequence2(CONCURRENT_PREFIX)` counter — 2 known fixtures,
-`lalava-26-zosi801`/`tegali-39-molu382`, both down to exactly 2 diffs on
-this one mechanism, scope narrowed by confirming `tests/oracle/
-svg-conformance/normalize.ts` strips ALL `data-*` attributes before
-comparison so only the rendered `<path id>` string is live-checked, not
-the internal qualified-name machinery); a state hyperlink (`[[url]]`)
-annotation gap (`kenuci-20-cane702`, entirely unimplemented feature); and
-a SECOND confirmation of the already-named S4 `<style>`-tag CSS-property
-cascade gap (`lasasi-13-nona547`/`soxene-95-domu248`, `RoundCorner`/
-`Shadowing` properties this time, same unimplemented family as S4's own
-`FontColor` finding). Two S6/S7-named items were re-confirmed still
-blocked this iteration: `<<meblue>>`/`StateBorderColor<<X>>`
-(`semala-31-joji042`'s sole blocker — `core/skinparam.ts`'s own source
-confirms stereotype-qualified skinparam keys are discarded for every
-property except `classBorderThickness<<X>>`, G2 N51's own precedent;
-landing this needs `core/skinparam.ts`/`core/theme.ts`, both outside this
-mission's write-set) and `buildConcurrentRegionLeaf`'s own unthreaded
-`creationIndex` (the only 2 known corpus fixtures combining
-cluster-classification with concurrent regions,
-`jijuze-43-ceva131`/`zecivu-62-pagu681`, are BOTH dominated by larger,
-unrelated sizing/childCount bugs, so the mechanism could not be
-independently jar-verified in isolation this iteration either). See
-`plans/g4-state-svg/ledger.md` S8 for the full derivation, attribution
-table, and the S9+ queue.
+A mid-iteration bash-tooling incident was diagnosed and resolved with NO
+code change: regenerating `parity-state.json` initially reported
+`semala-31-joji042` as `verdict: diverged` despite a byte-exact
+`DeterministicMeasurer` census pass, traced to a race between two
+overlapping background `svg-parity-survey.ts` invocations (a stale prior
+survey file was read before the real, still-running survey finished
+writing it) — re-ran once cleanly and confirmed `dotEqual: true, verdict:
+conformant`. Logged so a future iteration recognizes this exact symptom
+shape as a tooling race, not a rendering regression, before re-diagnosing
+from scratch.
+
+Census: 39/271 → **40/271** zero-diff, +1 new pin (`semala-31-joji042`),
+0 regressed — verified `dotEqual: true` in a freshly (twice-)regenerated
+`parity-state.json` before pinning (AC3). See `plans/g4-state-svg/
+ledger.md` S9 for the full attribution table, the CONC-numbering Java
+derivation, and the S10+ queue.

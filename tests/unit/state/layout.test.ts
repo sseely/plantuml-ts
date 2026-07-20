@@ -125,6 +125,32 @@ describe('layoutState — single standalone state', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G4 S9: stereotype threading (StateBorderColor<<X>> cascade prerequisite)
+// ---------------------------------------------------------------------------
+
+describe('layoutState — state stereotype threading', () => {
+  it('threads State.stereotype onto the flat-pipeline StateNodeGeo', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('a', { stereotype: 'meblue' })],
+      transitions: [],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const state = result.states.find((s) => s.id === 'a');
+    expect(state?.stereotype).toBe('meblue');
+  });
+
+  it('leaves stereotype undefined for a state with no <<tag>>', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('a')],
+      transitions: [],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const state = result.states.find((s) => s.id === 'a');
+    expect(state?.stereotype).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Acceptance criterion 1: [*] → A → B → [*] layered top-to-bottom
 // ---------------------------------------------------------------------------
 
@@ -266,6 +292,29 @@ describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
     const result = layoutState(ast, theme, measurer);
     const comp = result.states.find((s) => s.id === 'Composite');
     expect(comp?.color).toBe('#red');
+  });
+
+  // G4 S9: StateBorderColor<<X>> cascade prerequisite -- a composite's OWN
+  // stereotype must reach its materialized StateNodeGeo the SAME way #color
+  // does (jar-verified `semala-31-joji042`: `state a<<meblue>>` with
+  // concurrent regions -- see `state-render-colors.ts#resolveStateBorder`).
+  it('a composite stereotype threads through onto the materialized StateNodeGeo (autonom pipeline)', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child], stereotype: 'meblue' });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.stereotype).toBe('meblue');
+  });
+
+  it('a concurrent-region-owning composite stereotype ALSO threads through', () => {
+    const region1 = [makeState('R1A')];
+    const region2 = [makeState('R2A')];
+    const composite = makeState('Composite', { concurrentRegions: [region1, region2], stereotype: 'meblue' });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.stereotype).toBe('meblue');
   });
 
   it('a concurrent-region-owning composite ALSO carries headerLines for its own title (not just plain autonom composites)', () => {
