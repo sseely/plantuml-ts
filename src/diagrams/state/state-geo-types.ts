@@ -82,6 +82,50 @@ export interface StateNodeGeo {
    *  mechanism upstream, `Colors#getColor(BackGroundColor)`) can share one
    *  resolution function. */
   color?: string;
+  /**
+   * mission G4 S6, mechanism 13: for a CONCURRENT-region-owning composite
+   * ONLY (`state X { region1 -- region2 -- ... }`) -- the SAME content as
+   * `children`/`transitions` (which stay a flat, region-order concatenation,
+   * unchanged in shape, for `layout-ink-extent.ts#addNodeInk`'s and
+   * `renderer-uid.ts#buildStateUidPlan`'s existing flat walks) but GROUPED
+   * per stacked region, so `renderer.ts#renderNodeWrapped` can interleave
+   * each region's own states+transitions and draw a dashed `separators`
+   * line BETWEEN each pair -- jar's real document structure never wraps a
+   * region in its own `<g>` (`ConcurrentStates.java#drawU` draws each
+   * `inner`'s content directly, then the separator, in a single flat
+   * sequence inside the OWNING composite's own image) -- `undefined` for
+   * every non-concurrent node. The SAME `StateNodeGeo`/`TransitionGeo`
+   * object instances appear in both `concurrentRegions[i].children`/
+   * `.transitions` and the flat `children`/`transitions` arrays
+   * (`state-composite-geo.ts#materializeAutonom` builds the flat arrays BY
+   * CONCATENATING the per-region ones, not the reverse) -- `renderer-uid.ts`'s
+   * `edgeUid` Map is keyed by `TransitionGeo` object IDENTITY, so this
+   * sharing is load-bearing, not an optimization.
+   */
+  concurrentRegions?: readonly StateRegionGeo[];
+  /** mission G4 S6, mechanism 13: dashed separator lines between stacked
+   *  concurrent regions (`ConcurrentStates.java#Separator.drawSeparator`,
+   *  `stroke-width:1.5;stroke-dasharray:8,10;`) -- length `concurrentRegions!.
+   *  length - 1`, absolute (already dx/dy-shifted into this node's own
+   *  coordinate frame, same convention as `children`/`transitions`).
+   *  `undefined` for every non-concurrent node. */
+  separators?: readonly StateSeparatorGeo[];
+}
+
+/** One stacked concurrent region's own materialized content -- see
+ *  `StateNodeGeo.concurrentRegions`'s own doc comment. */
+export interface StateRegionGeo {
+  readonly children: readonly StateNodeGeo[];
+  readonly transitions: readonly TransitionGeo[];
+}
+
+/** One dashed separator line between two stacked concurrent regions -- see
+ *  `StateNodeGeo.separators`'s own doc comment. Absolute coordinates. */
+export interface StateSeparatorGeo {
+  readonly x1: number;
+  readonly y1: number;
+  readonly x2: number;
+  readonly y2: number;
 }
 
 export interface TransitionGeo {

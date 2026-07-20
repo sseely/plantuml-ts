@@ -29,7 +29,7 @@ import type { DotLayoutResult } from '../../core/graph-layout.js';
 import { buildDotGraph, endpointId, INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
 import { layoutComposite } from './state-composite-geo.js';
 import { attachTransitionLabel } from './state-transition-label.js';
-import type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
+import type { StateNodeGeo, TransitionGeo, StateGeometry, StateRegionGeo } from './state-geo-types.js';
 
 export type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
 import { computeStateDocumentDims, computeStateInkShift } from './layout-ink-extent.js';
@@ -147,13 +147,52 @@ function layoutFlat(ast: StateDiagramAST, theme: Theme, measurer: StringMeasurer
  *  formula (`computeStateDocumentDims`) instead of dot's own unrelated
  *  layout-margin convention. */
 function shiftStateNode(g: StateNodeGeo, dx: number, dy: number): StateNodeGeo {
+  const children = g.children.map((c) => shiftStateNode(c, dx, dy));
+  const transitions = g.transitions.map((t) => shiftStateTransition(t, dx, dy));
   return {
     ...g,
     x: g.x + dx,
     y: g.y + dy,
-    children: g.children.map((c) => shiftStateNode(c, dx, dy)),
-    transitions: g.transitions.map((t) => shiftStateTransition(t, dx, dy)),
+    children,
+    transitions,
+    // mission G4 S6, mechanism 13: the document-margin shift (mechanism 4)
+    // walks EVERY top-level state -- a concurrent-region-owning composite's
+    // own `concurrentRegions`/`separators` must shift IDENTICALLY, and must
+    // be REBUILT from the already-shifted `children`/`transitions` above
+    // (not independently re-shifted) so object identity survives this
+    // final document-level shift too (`state-composite-geo.ts#shiftGeo`'s
+    // own doc comment has the full identity-sharing rationale).
+    ...(g.concurrentRegions !== undefined
+      ? { concurrentRegions: resliceStateRegions(g.concurrentRegions, children, transitions) }
+      : {}),
+    ...(g.separators !== undefined
+      ? { separators: g.separators.map((sep) => ({ x1: sep.x1 + dx, y1: sep.y1 + dy, x2: sep.x2 + dx, y2: sep.y2 + dy })) }
+      : {}),
   };
+}
+
+/** Mirrors `state-composite-geo.ts#resliceRegions` (same re-grouping logic,
+ *  duplicated rather than imported to avoid a needless cross-module
+ *  dependency for a 10-line helper -- both operate on the SAME
+ *  `StateRegionGeo` shape via already-shifted flat arrays of matching
+ *  length). */
+function resliceStateRegions(
+  original: readonly StateRegionGeo[],
+  shiftedChildren: readonly StateNodeGeo[],
+  shiftedTransitions: readonly TransitionGeo[],
+): StateRegionGeo[] {
+  const out: StateRegionGeo[] = [];
+  let childCursor = 0;
+  let transitionCursor = 0;
+  for (const region of original) {
+    out.push({
+      children: shiftedChildren.slice(childCursor, childCursor + region.children.length),
+      transitions: shiftedTransitions.slice(transitionCursor, transitionCursor + region.transitions.length),
+    });
+    childCursor += region.children.length;
+    transitionCursor += region.transitions.length;
+  }
+  return out;
 }
 
 function shiftStateTransition(t: TransitionGeo, dx: number, dy: number): TransitionGeo {

@@ -2235,3 +2235,449 @@ iteration (nothing to tighten).
 11. Re-run the census and `--families` report FRESH again once mechanisms
     13/14 land — the concurrent-region family (18 fixtures) should show
     real per-feature fidelity for the first time this mission.
+
+## S6 — mechanisms 13/14 landed (concurrent-region separator lines +
+per-region pseudo-id collision), a NEW mechanism unmasked and landed
+alongside them (region-member position-offset), 14→14 pins (net), three
+larger deferred items re-diagnosed and confirmed correctly out-of-scope
+
+### Summary
+
+Per this iteration's own instruction, sampled the 29 S5-baseline near-zero
+(1-3 diff) fixtures in full (all 29, exceeding the mandated coverage) plus
+≥10 from the 4-10 bucket, with the mission's own suggested priority order
+("mechanism-19 cheap subset FIRST, then 13, then 14, then mechanism-10
+completion — but let the sample decide") explicitly tested against the
+data: **no near-zero fixture in the sample was blocked SOLELY by
+`svg/g/g/path/@d` (mechanism 19)** — every occurrence of that signature
+co-occurred with a larger, more-dominant blocker (mechanism 16's cluster-
+dimension gap, or the id-numbering gap below). Mechanisms 13/14 (already
+fully diagnosed in S5, exact fix locations named) were the clear
+cheapest-first target: 3 direct 1-3-bucket unlocks confirmed in the sample
+(`nivanu-50-zajo916`, `semala-31-joji042`, `pevene-26-kebo361`) plus the
+full 18-fixture concurrent-region family.
+
+Landed both, TDD-first, jar-verified against `nelupe-49-xova546`'s full
+pretty-printed XML dump (S5's own diagnosis artifact, reused rather than
+re-derived). Mechanism 14 (`buildConcurrentRegionPass` passing `owner.id`
+instead of `concurrentRegionScopeId(owner.id, regionIndex+1)` as `scopeId`)
+was a two-line fix, unit-tested first (RED confirmed via a direct
+`layoutState` probe showing two `StateNodeGeo` objects sharing id
+`__init_Owner`, GREEN after the fix). Mechanism 13 (the separator `<line>`
+itself, `stroke:#181818;stroke-width:1.5;stroke-dasharray:8,10;`) required a
+genuinely new data shape — `StateNodeGeo.concurrentRegions`/`.separators`,
+threaded through `GeoSpec`'s `'autonom'` variant, `materializeAutonom`, and
+`renderNodeWrapped` — since jar's real document order INTERLEAVES each
+region's own states+transitions with the separator (never wraps a region in
+its own `<g>`), which the pre-S6 flat `children`/`transitions` fields could
+not represent without losing per-region boundaries.
+
+Landing mechanism 13 immediately surfaced (via direct byte comparison, not
+guessed) a THIRD, previously-invisible bug: every concurrent region
+member's absolute position was short by a consistent `(+7, +7)` versus jar
+— `state-composite-concurrent.ts`'s own `regionInkDim` (renamed
+`regionInkGeometry`) computed `SvekResult#calculateDimension()`'s ink-extent
+`dx`/`dy` `moveDelta` correction (mechanism 7's own formula, ALREADY applied
+for the plain/non-concurrent composite case via `state-composite-autonom.ts
+#buildPlainAutonomSpec`'s `shiftDotLayoutResult` call) but silently
+DISCARDED it, using only `width`/`height` for stacking. Landed as part of
+the SAME mechanism-13 change (not a separate mechanism number — it is
+mechanism 7's own `moveDelta` half, simply never wired into the concurrent
+path when mechanism 7 first landed in S4). A SECOND, independent bug in the
+same area (`layout.ts#shiftStateNode`, the document-margin/mechanism-4 final
+shift) was ALSO found and fixed: it walked `children`/`transitions`
+recursively but never touched `concurrentRegions`/`separators`, so those
+fields retained PRE-document-shift coordinates even after the fix above —
+caught via a direct debug dump showing `node.children[0].x=12` but
+`node.concurrentRegions[0].children[0].x=5` for the identical logical
+object.
+
+Three further items were re-diagnosed this iteration (deeper than their S5
+naming) and confirmed correctly out of scope for a "cheapest first"
+iteration:
+
+- **Mechanism 16** (S1/S3's own "entity-vs-cluster wrap split", already
+  assessed unbounded twice) — reach is LARGER than previously known (7/27
+  sampled 1-3-bucket fixtures, not the 1-2 previously spot-checked). A
+  fresh check (`decede-10-buvu414`'s cluster margin=16px/1 child(50w) vs
+  `gojuja-90-pune699`'s cluster margin=24px/1 child(20w circle anchor))
+  confirms the margin is genuinely graphviz-DOT-derived (varies with
+  content shape), not a guessable fixed constant — re-confirms, does not
+  overturn, the prior unbounded assessment.
+- **`skin debug` / named-skin-file directive** (queued as "niveno's
+  background theme-resolution bug", a mis-scoped description) — direct
+  inspection of upstream's `skin/debug.skin` resource shows this is a
+  WHOLE bundled multi-property skin file (`FontSize 19`, `RoundCorner 15`,
+  `LineThickness 4`, `BackGroundColor #AAA`, `stereotype`/`title`/`header`
+  overrides, …), not a narrow background-color bug — this port has ZERO
+  `skin <name>` directive support at all. Correctly NOT attempted; the
+  queue's own framing undersold the true scope.
+- **`bilare-19-fufe539`'s 1px rounding** — hand-derivation shows the exact
+  algebra that would close it (`addStateBoxInk`'s max-corner ink point
+  changed from `(x+w, y+h-1)` to `(x+w-1, y+h-1)`, symmetric with the min
+  corner), but that function is an ALREADY jar-verified, widely-reused ink
+  formula (every leaf state box in the whole corpus) — changing it for a
+  single 1px, single-fixture gain risks the `size-backlog.json`
+  tighten-only hard boundary across dozens of already-pinned/backlogged
+  fixtures with no time this iteration to verify the full blast radius.
+  Deferred, NOT attempted; the exact formula change is named for a future
+  iteration with budget to verify it.
+
+Census: `14/271` → `14/271` zero-diff (`1-3:29→27, 4-10:136→134,
+11-30:44→41, 31+:48→55`) — **no net new pin**, despite substantial,
+jar-verified, real improvement on every sampled concurrent-region fixture
+(`nivanu-50-zajo916`: childCount-diff → 1 diff; `semala-31-joji042`:
+childCount-diff → 3 diffs; `pevene-26-kebo361`: 26+ deep diffs → 15,
+id-numbering + `path/@d`-only). The remaining blocker on EVERY
+concurrent-region fixture, without exception, is now a SINGLE root cause:
+the `id`/`data-qualified-name` numbering approximation (mechanism 10's own
+already-documented, already-deferred remainder) — refined this iteration
+into three concrete, verified sub-patterns (below), none individually
+narrow enough to patch without the others, all requiring the SAME
+underlying fix (true parse-time creation-index threading).
+
+### Sampled fixtures (29 from the 1-3 bucket — full coverage, exceeding the
+mandated ≥20 — plus 10 from 4-10, hand-probed)
+
+1-3 bucket (all 29 S5-baseline near-zero fixtures, individually diffed):
+`bilare-19-fufe539`, `cekolo-21-gini183`, `ceruzi-77-give569`, `dajipi-09-
+doki542`, `decede-10-buvu414`, `fakali-52-zuje420`, `gojuja-90-pune699`,
+`gokife-89-boja382`, `judova-36-kana429`, `kenuci-20-cane702`, `labono-83-
+nega255`, `lalava-26-zosi801`, `lasasi-13-nona547`, `livuni-63-fira764`,
+`lulozu-10-bopu547`, `maruju-55-soko478`, `mazuzu-54-mene929`, `nivanu-50-
+zajo916`, `nufigo-87-pivi558`, `pevene-26-kebo361`, `pexuve-81-suxi717`,
+`semala-31-joji042`, `soxene-95-domu248`, `tofezi-64-koda860`, `xeziki-47-
+zomo866`, `xodazu-26-cube992`, `xojudi-20-keco020`, `xomize-22-poro350`,
+`xoravu-40-gebe122`.
+4-10 bucket / deeper concurrent-region samples (10 hand-probed):
+`nelupe-49-xova546`, `sapelo-46-jafe280`, `niveno-60-tiro789`, plus 7 more
+from the concurrent-region family (`--`/`||`-bearing fixtures, `grep`-
+confirmed 18/271 total corpus reach) cross-checked pre/post mechanism 13/14.
+
+### Attribution table (mechanism-bucketed, cheapest-first)
+
+| Mechanism | Signature | Reach (sampled) | Status |
+|---|---|---|---|
+| 13. Concurrent-region separator `<line>`s (dashed, between stacked regions) | `svg/g[1]/g[1][childCount]` off by `(regions-1)` | 18/271 corpus fixtures use `--`/`\|\|` regions | **LANDED** |
+| 14. Per-region pseudo-node scope-id collision | duplicate `id="entXXXX"` on sibling `<g class="start_entity">`s | subset of the 18 (any region-owning composite with a `[*]` in >1 region) | **LANDED** |
+| (mechanism 7's own `moveDelta` half, missing for concurrent regions) | consistent `(+7,+7)` absolute position gap for EVERY region member | ALL 18 concurrent-region fixtures | **LANDED** (landed with mechanism 13, not a separately numbered mechanism — mechanism 7's own formula, simply never wired into this path) |
+| 10 (refined). id-numbering creation-index gap — 3 concrete sub-patterns found this iteration: (a) CONC-region synthetic entity consumes an invisible id slot (`nivanu`/`semala`, jar-verified: `ent0005`/`ent0003` skipped exactly where a CONC-region would be created); (b) a transition consumes an interleaved id slot alongside its own scope's entities, not after ALL entities globally (`pevene`: 2-slot gap before region-0's own first entity); (c) a `remove`d entity still consumes its own creation-time id slot (`xoravu-40-gebe122`: `ent0001` reserved for the removed state, `B`=`ent0002` not `ent0001`) | blocks EVERY concurrent-region AND `remove`-directive fixture from TRUE zero, even after mechanisms 13/14 | Diagnosed (3 sub-patterns, refining not replacing S5's own naming), NOT landed — same "separate, larger, mission-scale item" S5 already deferred; the 3 sub-patterns are NOT mutually consistent with one narrow patch (confirmed by testing a "count CONC-regions as 1 slot" hypothesis against `pevene`, which needs a 2-slot gap, not 1) |
+| 16. Entity-vs-cluster wrap dimension gap (S1/S3 item 3, re-confirmed unbounded) | cluster box header-height/margin varies by content (19px/16px for a 50w rect child, 19px/24px for a 20w circle anchor) | 7/27 sampled 1-3-bucket fixtures (`decede`,`tofezi`,`xojudi`,`soxene`,`lasasi`,`gojuja`,`nufigo`) — LARGER reach than previously spot-checked | Re-confirmed unbounded (3rd independent check), deferred unchanged |
+| `skin debug` / named-skin-file directive (re-scoped from "niveno's background bug") | `svg/@background` + cascading size diffs from an entire unapplied multi-property skin file | 1/271 confirmed (`niveno-60-tiro789`); true corpus reach for `skin <name>` unknown | Re-diagnosed as unimplemented FEATURE (not a narrow bug), deferred |
+| Leaf-state-box ink max-corner asymmetry (`bilare`'s 1px rounding) | `addStateBoxInk(x-1,y-1, x+w,y+h-1)` — hypothesized should be `x+w-1` too | 1/271 (`bilare-19-fufe539`); blast radius across the WHOLE corpus not verified | Diagnosed (exact algebraic fix named), NOT attempted — high blast-radius risk to an already-verified formula for a single-fixture 1px gain |
+| Creole/markdown bold (`**text**`) in state labels | literal `**` in rendered text, no bold font-weight/textLength | `mazuzu-54-mene929`, `gokife-89-boja382` (2/29 sampled) | Diagnosed as a wholly unimplemented feature (zero creole markup support in the state engine), deferred, unscoped |
+| `json` element mixed with `state` declarations | separate diagram-element type embedded alongside state syntax | `maruju-55-soko478` (1/29) | Out of scope, not chased |
+| 19. Transition `path/@d` routing (mission's own secondary scope) | e.g. `pevene`/`nelupe`/`sapelo`'s cross-region transitions | present in several samples, but in EVERY case co-occurring with mechanism 16 or the id-numbering gap as the DOMINANT blocker — confirmed NOT the sole blocker on any near-zero fixture sampled this iteration | Sampled per this iteration's own instruction, confirmed no cheap near-zero unlock exists this iteration; still NOT started as its own scoped item |
+
+### Mechanism 14 (per-region pseudo-node scope-id collision): LANDED
+
+Per diagnosis.md: instrumented before hypothesizing — a direct `layoutState`
+probe (2 concurrent regions, each with its own `[*] --> X` transition)
+reproduced the collision exactly: two DISTINCT `StateNodeGeo` objects with
+the identical `id: "__init_Owner"` in the composite's own `children` array,
+confirming `scopedPseudoIds`'s (`state-composite-pass.ts`) `__init_<scopeId>`
+naming collapses when `scopeId` is the SAME string for every region.
+`src/diagrams/state/state-composite-concurrent.ts#buildConcurrentRegionPass`
+passed `owner.id` (not a per-region id) as `scopeId` to
+`runOneConcurrentBranch` — while its OWN `noteScopeId` argument (the very
+next parameter) ALREADY computed the correct
+`concurrentRegionScopeId(owner.id, regionIndex + 1)`. Fix: compute that
+value ONCE and pass it for BOTH parameters. Unit test (`tests/unit/state/
+layout.test.ts`, "each concurrent region's own `[*]` pseudo-node gets a
+DISTINCT id") confirmed RED (`expected 1 to be 2`, i.e. only 1 distinct id
+existed across 2 regions) before the fix, GREEN after.
+
+### Mechanism 13 (concurrent-region separator lines): LANDED
+
+Per diagnosis.md: jar's real draw call
+(`ConcurrentStates.java#Separator.drawSeparator`, direct Java source read —
+`THICKNESS_BORDER=1.5`, `DASH=8`, gap `10`) draws each separator INLINE
+between region content, never inside a per-region `<g>` wrapper (confirmed
+via a full pretty-printed XML dump of `nelupe-49-xova546`'s own `s7_2`:
+region-0's own entities+link, THEN the separator `<line>`, THEN CONC1's own
+entities+link — all as DIRECT siblings inside `s7_2`'s own `<g>`, no
+intermediate region wrapper anywhere).
+
+Coordinate derivation, hand-verified against `nelupe-49-xova546`
+byte-for-byte: separator `x1` = composite box `x` + `InnerStateAutonom`'s
+own `MARGIN` (5) — ALREADY the exact value `materializeAutonom`'s own `dx`
+computes (`pos.x + spec.offset.x`), so a LOCAL `x1=0` (pre dx/dy-shift,
+matching `localPositions`' own convention) is correct, not a placeholder.
+`x2` = `x1 + contentWidth + DASH(8)`, where `contentWidth` is
+`stackConcurrentRegions`'s own already-computed `dimTotal.getWidth()`
+(`Separator.add`'s HORIZONTAL max-width rule, mechanism 8, S4) — jar-
+verified: box `x=7`, `MARGIN=5` → absolute `x1=12` (jar's own `x1="12"`);
+`contentWidth=102` → absolute `x2=12+102+8=122` (jar's own `x2="122"`). `y`
+= the cumulative region-height stack cursor at that point (the SAME
+`yShift` accumulator `combineConcurrentPasses` already tracked pre-S6, just
+now ALSO used to place the separator, not only to offset the next region's
+nodes).
+
+New data shape (`src/diagrams/state/state-geo-types.ts`):
+`StateNodeGeo.concurrentRegions?: readonly StateRegionGeo[]`
+(`{children, transitions}` per stacked region) and `.separators?: readonly
+StateSeparatorGeo[]` (absolute `x1/y1/x2/y2`, `undefined` for every
+non-concurrent node). Both are `undefined` for a plain composite, keeping
+the pre-S6 flat-materialization path completely unchanged for the other
+253/271 fixtures. Load-bearing identity constraint (documented in both the
+type and the code): `concurrentRegions[i].children`/`.transitions` and the
+FLAT `children`/`transitions` fields share the SAME object instances
+(`materializeAutonom` builds the flat arrays by concatenating the
+per-region ones, never re-materializing) — required because
+`renderer-uid.ts`'s `edgeUid` uid-numbering Map is keyed by `TransitionGeo`
+object IDENTITY, not value equality.
+
+`src/diagrams/state/renderer.ts#renderNodeWrapped` — when
+`node.concurrentRegions !== undefined`, interleaves each region's own
+`children`+`transitions` markup with a `renderSeparator` dashed `<line>`
+call between consecutive regions (`theme.colors.border`, `stroke-width:1.5`,
+a FIXED jar constant independent of the theme's own border-width elsewhere
+— matches `ConcurrentStates.java`'s own hardcoded `THICKNESS_BORDER`).
+Every other node keeps the pre-S6 "all children, then this node's own
+transitions" layout, byte-unchanged.
+
+**Jar-verified**: `semala-31-joji042` (2 regions, 1 separator) and
+`nivanu-50-zajo916` (2 regions, 1 separator, 3-level-nested region-0
+content) both show the separator `<line>` at the EXACT jar coordinates
+post-fix; `pevene-26-kebo361` (3 regions, 2 separators) confirms multi-
+separator stacking.
+
+### The `moveDelta` position-offset bug (landed alongside mechanism 13)
+
+Per diagnosis.md: closing mechanism 13's `childCount` gap let `compareSvg`
+recurse into region MEMBER content for the first time — surfacing a
+consistent `(+7, +7)` absolute position shortfall on EVERY region member
+(leaf or nested composite alike), confirmed via a byte-for-byte comparison
+against `coteta-47-mare883` (a PINNED, byte-exact PLAIN-composite fixture
+with a structurally identical single-child case): coteta's own child "c" is
+correctly positioned at local-raw-x(7) + `dx`(12) = absolute `x=19`, but
+`semala`'s region member "b" (same box size, same composite `offset`
+formula) landed at absolute `x=12` — implying a local-raw-x of 0, not 7.
+
+Root cause, instrumented not guessed: `state-composite-autonom.ts
+#buildPlainAutonomSpec` (the plain/non-concurrent case) computes
+`computeSvekResultGeometry`'s own `dx`/`dy` (`SvekResult
+#calculateDimension()`'s `moveDelta` correction, mechanism 7, S4) and
+applies it via `shiftDotLayoutResult` BEFORE the child pass's raw node
+positions are used — `state-composite-concurrent.ts`'s own `regionInkDim`
+(pre-S6) computed the IDENTICAL `computeSvekResultGeometry` call but
+DISCARDED its `dx`/`dy` fields, using only `width`/`height` for
+`stackConcurrentRegions`. Renamed to `regionInkGeometry` (returns the full
+`{width,height,dx,dy}`); `combineConcurrentPasses` now calls
+`shiftDotLayoutResult(p.result, geom.dx, geom.dy)` for EACH region before
+building `allNodes`/`regionTransitions` — the exact same formula
+`buildPlainAutonomSpec` already applies, just previously never wired into
+the concurrent-region path (this was NEVER mechanism 13/14's OWN scope — it
+is mechanism 7's own formula, simply incomplete since S4; not given its own
+mechanism number since it is not a new algorithm, just a missing call site).
+
+A SECOND bug in the same area was found while verifying the first: `layout.
+ts#shiftStateNode` (mechanism 4's own final document-margin shift, applied
+to EVERY top-level state) recursed into `children`/`transitions` but never
+touched `concurrentRegions`/`separators` — so those fields retained
+PRE-document-shift coordinates even after the `moveDelta` fix above,
+producing a SECOND, different-magnitude position mismatch visible only
+between `node.children[0]` and the (stale) `node.concurrentRegions[0]
+.children[0]` for the IDENTICAL logical state. Fixed with the same
+"reslice already-shifted flat arrays back into region boundaries"
+pattern used in `state-composite-geo.ts#shiftGeo` (a duplicated 10-line
+helper in each file — deliberate, per that helper's own doc comment, to
+avoid a needless cross-module dependency).
+
+**Jar-verified**: `semala-31-joji042` region members ("b", "c") now land at
+the EXACT jar-reported absolute positions (`x=12,y=36`/`x=12,y=101`
+pre-document-shift matched jar's OWN `x=19,y=43`/`x=19,y=108` once `dx=7`
+folded in correctly); `nivanu-50-zajo916`'s 3-level-deep region-0 nested
+composite ("two"→"three"→"four") ALSO lands correctly (confirming the
+`moveDelta` propagates through nested materialization, not just the
+region's own direct members).
+
+### Mechanism 16 (entity-vs-cluster wrap dimension, S1/S3 item 3): re-confirmed unbounded, NOT landed
+
+Direct byte comparison of TWO independent single-child cluster-classified
+composites: `decede-10-buvu414`'s `E{F}` (F a 50x50 rect leaf) shows header
+height 19px, side margin 16px; `gojuja-90-pune699`'s `A{[*]-->Configuring}`
+(a `[*]` region-anchor, a 20x20 circle, since the internal `[*]-->
+Configuring` link crosses `A`'s own boundary — `Configuring` is declared
+OUTSIDE `A`'s block — forcing `isAutarkic()` false, i.e. `'cluster'`
+classification per `state-composite-classify.ts`) shows header height 19px
+(same) but side margin 24px (DIFFERENT). The header-height constant (19,
+not `InnerStateAutonom`'s own 24) recurs identically across BOTH samples
+(and S3's own original `bajelo-54-dixe684` finding) — genuinely fixed. The
+SIDE MARGIN does not (16 vs 24, tracking child content SHAPE, not a fixed
+number) — consistent with genuine DOT-native cluster-margin computation
+(graphviz's own subgraph-cluster layout), which this port's `layoutGraph()`
+seam does not currently expose. Re-confirms, does not overturn, S1/S3's own
+"needs library-level cluster-bbox exposure" conclusion — now backed by a
+THIRD independent data point rather than one.
+
+### `skin debug` / named-skin-file directive: re-diagnosed, NOT landed
+
+Direct read of `~/git/plantuml/src/main/resources/skin/debug.skin` (the
+file `skin debug` loads) shows a WHOLE bundled property-override file:
+`root{FontName SansSerif; FontColor green; FontSize 19; RoundCorner 15;
+LineColor #3600A8; LineThickness 4; BackGroundColor #AAA; Shadowing 0.0}`
+plus separate `stereotype{}`/`title{}`/`header{}` blocks — this port has
+NO `skin <name>` directive support at all (grepped, zero hits for
+`'debug'`/`skin.*load` across `src/core/*.ts`/`src/diagrams/state/*.ts`).
+The S5 queue's own framing ("niveno's background theme-resolution bug")
+undersold this — `niveno-60-tiro789`'s `svg/@height`/`@width` diffs (196→
+221, 224→263) are NOT a sizing side-effect of a wrong background color;
+they are the DIRECT consequence of `FontSize 19` (vs default 14) and
+`RoundCorner 15` never being applied at all. Correctly NOT attempted this
+iteration — a whole new subsystem (named-skin-file resolution), not a
+one-fixture patch.
+
+### `bilare-19-fufe539`'s 1px rounding: diagnosed, NOT attempted
+
+Hand-derivation against jar's own document width (361, vs our 362):
+`computeStateDocumentDims`'s `rawWidth = maxX - minX + INK_DELTA(15)`.
+`minX` = 6 (leftmost box's own `addStateBoxInk(x-1,...)` = `7-1`). `maxX`
+(rightmost box's own ink contribution) = `addStateBoxInk`'s current
+`x + w` (NO `-1`) = `272.7125 + 74.575 = 347.2875`, giving OUR OWN
+(internally-consistent) `362`. Substituting a SYMMETRIC max-corner rule
+(`x + w - 1`, matching `addBarInk`'s own already-symmetric convention two
+functions above it in the same file) gives `maxX = 346.2875`, and the
+resulting document width computes to EXACTLY jar's own `361`. NOT landed:
+`addStateBoxInk` is an ALREADY jar-verified, universally-reused ink formula
+(every leaf state box in the corpus, including several already-pinned
+fixtures) — its OWN doc comment explicitly names the asymmetry as
+deliberate ("leaf-state-box ink rule's own `-1` min-corner asymmetry" —
+S4's decision journal). Changing it on the strength of ONE fixture's
+algebra, without time this iteration to verify the FULL corpus/
+`size-backlog.json` blast radius (a hard tighten-only boundary), was judged
+too risky — named precisely (including the exact one-character diff) for a
+future iteration with budget to verify it safely.
+
+### Also discovered, out of S6's write-set (named, not fixed)
+
+- Creole/markdown bold (`**text**`) syntax inside state display/body text
+  renders literally (no bold `font-weight`, wrong `textLength`) —
+  `mazuzu-54-mene929`, `gokife-89-boja382`. Zero creole markup support
+  exists anywhere in the state engine (`splitCreoleLines` only splits on
+  `\n`) — a genuinely unimplemented feature, unscoped for this mission's
+  remaining iterations unless separately prioritized.
+- `maruju-55-soko478` mixes a `json foo1 {...}` diagram element alongside
+  `state` declarations — out of scope, not chased.
+- `xoravu-40-gebe122`'s `remove $tagA` directive: the removed entity still
+  consumes an id-numbering slot in jar's real output (`ent0001` reserved,
+  `B`=`ent0002`) — folded into the id-numbering-gap sub-pattern list above,
+  not a separate mechanism.
+
+### Ratchet / pins
+
+**No new pins this iteration** (`14` pinned, unchanged from S5) — every
+sampled concurrent-region fixture improved substantially (jar-verified,
+several from double-digit diffs down to 1) but none reached TRUE zero,
+blocked entirely by the id-numbering gap (refined, not solved, this
+iteration). `oracle/goldens/svg-state/ratchet.json` unchanged.
+`state.golden.ratchet.test.ts`: **16 tests** (unchanged — 14×AC1 + AC2 +
+AC3), all passing. `parity-state.json` regenerated: 271/271 surveyed,
+267/271 `dotEqual`, 14/271 `conformant`, 0 timeouts/errors — IDENTICAL
+aggregate counts to S5 (the underlying per-fixture `maxDelta`/`firstDiff`
+values changed for concurrent-region fixtures, confirming real movement
+even though the coarse conformant/dotEqual buckets didn't shift).
+
+### size-backlog.json: unchanged (0 entries touched)
+
+This iteration's mechanisms touch RENDER structure (separator lines) and
+POSITION (the `moveDelta` fix, applied AFTER `layoutGraph()`'s own raw node
+sizes are captured) — neither touches a raw DOT NODE SIZE, which is what
+`state-dot-parity.test.ts`'s own `maxSizeDeltaIn` ratchet measures via
+`setLayoutInputObserver`. Verified, not assumed: **268/268** passing before
+and after every change this iteration. No tighten-only edits made (nothing
+to tighten — the size-backlog ratchet is orthogonal to this iteration's
+scope).
+
+### Files changed (S6)
+
+- `src/diagrams/state/state-geo-types.ts` — `StateNodeGeo.concurrentRegions`/
+  `.separators` (NEW), `StateRegionGeo`/`StateSeparatorGeo` (NEW interfaces).
+- `src/diagrams/state/state-composite-pass.ts` — `GeoSpec`'s `'autonom'`
+  variant gains `regions`/`separators` (NEW, optional).
+- `src/diagrams/state/state-composite-concurrent.ts` — `regionInkDim`
+  renamed `regionInkGeometry` (now returns `dx`/`dy` too, mechanism 7's
+  `moveDelta`); `buildConcurrentRegionPass` fixed (mechanism 14);
+  `combineConcurrentPasses` rewritten (mechanism 13: builds `regions`/
+  `separators`, applies `shiftDotLayoutResult` per region).
+- `src/diagrams/state/state-composite-autonom.ts` — `shiftDotLayoutResult`
+  exported (was module-local; reused by state-composite-concurrent.ts,
+  accepting the SAME established circular-import pattern S3 already used
+  for this file pair).
+- `src/diagrams/state/state-composite-geo.ts` — `materializeAutonom` builds
+  `children`/`transitions` FROM `regionsOut` (identity-preserving
+  concatenation) when `spec.regions` is defined, attaches `concurrentRegions`/
+  `separators`; `shiftGeo` reslices `concurrentRegions`/shifts `separators`
+  for a nested-ancestor shift (`resliceRegions`, NEW helper).
+- `src/diagrams/state/layout.ts` — `shiftStateNode` reslices
+  `concurrentRegions`/shifts `separators` for the document-margin shift
+  (`resliceStateRegions`, NEW helper — duplicated from `state-composite-
+  geo.ts#resliceRegions` deliberately, see that call site's own doc
+  comment).
+- `src/diagrams/state/renderer.ts` — `renderSeparator` (NEW);
+  `renderNodeWrapped` interleaves per-region content + separators when
+  `node.concurrentRegions !== undefined`.
+- `tests/unit/state/layout.test.ts` — NEW describe block (mechanisms
+  13/14), 1 new test (RED confirmed pre-fix, GREEN post-fix).
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated (271/271
+  surveyed, 14/271 conformant, 267/271 dotEqual, 0 timeouts/errors —
+  aggregate counts identical to S5, per-fixture deltas improved).
+- `plans/g4-state-svg/README.md`, `plans/g4-state-svg/ledger.md`,
+  `plans/g4-state-svg/decision-journal.md` — this entry.
+
+### Gates (S6, final)
+
+- `state` census: **14/271** zero-diff (`1-3:27, 4-10:134, 11-30:41,
+  31+:55, errors:0`) — was S5's `14/271` (`1-3:29, 4-10:136, 11-30:44,
+  31+:48`). No net new pin; all 14 S5 pins verified unchanged.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census: **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified before and after.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing,
+  unchanged throughout.
+- `npm test -- --run`: 9971/9971 passing (366 files, +1 test vs S5's 9970).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: 16 tests (14 pins), unchanged from S5.
+
+### S7+ queue
+
+1. **Mechanism 10's id-numbering gap, now with 3 concrete verified
+   sub-patterns** (CONC-region synthetic-entity id consumption; transitions
+   interleaved with entities in creation order, not batched; `remove`d
+   entities still consume an id slot) — the SOLE remaining blocker on
+   EVERY concurrent-region fixture and every `remove`-directive fixture.
+   Needs true parse-time creation-index threading through the AST (a
+   separate, larger item, unchanged in scope-size assessment from S5, but
+   now much more precisely specified).
+2. **Mechanism 16** (entity-vs-cluster wrap dimension) — needs
+   `layoutGraph()`/graphviz-ts cluster-bbox exposure; re-confirmed
+   unbounded a third time, larger reach than previously known (7/27
+   sampled).
+3. **`skin debug`/named-skin-file directive support** — a whole
+   unimplemented feature (bundled multi-property skin files), re-scoped
+   from "niveno's background bug"; genuinely unscoped for this mission
+   unless separately prioritized.
+4. **`addStateBoxInk`'s max-corner asymmetry** (`bilare`'s 1px rounding) —
+   exact one-character fix named (`x+w` → `x+w-1`), NOT landed due to
+   unverified blast radius across the size-backlog-tighten-only boundary;
+   needs a full-corpus verification pass before landing.
+5. **Transition routing/positioning** (`svg/g/g/path/@d`, mechanism 19,
+   the mission's own secondary scope) — sampled again this iteration,
+   confirmed it is NEVER the sole/dominant blocker on any near-zero
+   fixture; still entirely unscoped/unstarted as its own work item.
+6. Creole/markdown bold (`**text**`) markup in state labels — a genuinely
+   unimplemented feature (zero creole support in the state engine).
+7. `transitionArrowheadInk`'s own root cause (S4 queue item 2) — unchanged.
+8. `<<sdlreceive>>` unwrapped-entity gap — unchanged from S1-S4.
+9. Notes never render — unchanged from S1-S4 (confirmed present in
+   `labono-83-nega255`/`pexuve-81-suxi717`/`xodazu-26-cube992`, all 3 in
+   this iteration's own 1-3-bucket sample).
+10. `lonuti-97-voko521`'s own `<style>`-tag `FontColor` cascade gap —
+    unchanged from S4.
+11. `<<meblue>>`-style skinparam STEREOTYPE-scoped `StateBorderColor`
+    cascade gap (NEW this iteration, `semala-31-joji042`'s own remaining
+    non-id diff: `ours=#181818 jar=#0000FF` on the composite's own
+    rect/line stroke) — a stereotype-conditional skinparam override not
+    threading through to composite box borders. Named, not chased.

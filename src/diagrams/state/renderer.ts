@@ -22,7 +22,7 @@
 import type { StateGeometry, StateNodeGeo, TransitionGeo } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
-import { path, text } from '../../core/svg.js';
+import { path, text, line } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
 import { buildStateUidPlan } from './renderer-uid.js';
@@ -141,13 +141,47 @@ function wrapClassFor(node: StateNodeGeo): 'entity' | 'start_entity' | 'end_enti
  *  matching jar's real document nesting (a pass's own edges are direct
  *  children of that pass's own image, `renderer-group.ts`'s doc comment,
  *  `bajelo-54-dixe684` jar-verified). */
+/** `ConcurrentStates.java#Separator.drawSeparator`'s dashed rule between two
+ *  stacked regions -- `THICKNESS_BORDER=1.5`, `DASH=8`/gap `10` (a FIXED
+ *  jar constant, independent of theme border color/width elsewhere).
+ *  jar-verified `nelupe-49-xova546`: `stroke:#181818;stroke-width:1.5;
+ *  stroke-dasharray:8,10;`. */
+function renderSeparator(sep: { x1: number; y1: number; x2: number; y2: number }, theme: Theme): string {
+  return line(sep.x1, sep.y1, sep.x2, sep.y2, {
+    stroke: theme.colors.border,
+    strokeWidth: 1.5,
+    strokeDasharray: '8,10',
+  });
+}
+
+/** mission G4 S6, mechanism 13: a CONCURRENT-region-owning composite
+ *  interleaves each stacked region's own states+transitions with a dashed
+ *  `renderSeparator` line BETWEEN each pair -- jar's real document
+ *  structure never wraps a region in its own `<g>`
+ *  (`ConcurrentStates.java#drawU` draws each `inner`'s content directly,
+ *  then the separator, in one flat sequence inside the OWNING composite's
+ *  own image). Every other node (`node.concurrentRegions === undefined`)
+ *  keeps the pre-S6 "all children, then this node's own transitions"
+ *  layout unchanged. */
 function renderNodeWrapped(node: StateNodeGeo, theme: Theme, uidPlan: StateUidPlan): string {
   const ownShape = renderShape(node, theme);
-  const childrenMarkup = node.children.map((c) => renderNodeWrapped(c, theme, uidPlan)).join('');
-  const ownTransitionsMarkup = node.transitions
-    .map((t) => renderTransitionWrapped(t, theme, uidPlan))
-    .join('');
-  const inner = ownShape + childrenMarkup + ownTransitionsMarkup;
+  let inner: string;
+  if (node.concurrentRegions !== undefined) {
+    const separators = node.separators ?? [];
+    const blocks = node.concurrentRegions.map((region, i) => {
+      const stateMarkup = region.children.map((c) => renderNodeWrapped(c, theme, uidPlan)).join('');
+      const transitionMarkup = region.transitions.map((t) => renderTransitionWrapped(t, theme, uidPlan)).join('');
+      const sepMarkup = i < separators.length ? renderSeparator(separators[i]!, theme) : '';
+      return stateMarkup + transitionMarkup + sepMarkup;
+    });
+    inner = ownShape + blocks.join('');
+  } else {
+    const childrenMarkup = node.children.map((c) => renderNodeWrapped(c, theme, uidPlan)).join('');
+    const ownTransitionsMarkup = node.transitions
+      .map((t) => renderTransitionWrapped(t, theme, uidPlan))
+      .join('');
+    inner = ownShape + childrenMarkup + ownTransitionsMarkup;
+  }
   const wrapClass = wrapClassFor(node);
   if (wrapClass === undefined) return inner;
   const uid = uidPlan.nodeUid.get(node.id) ?? '';

@@ -298,6 +298,36 @@ describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Mission G4 S6, mechanisms 13/14: concurrent-region separator lines +
+// per-region pseudo-node scope-id collision
+// ---------------------------------------------------------------------------
+
+describe('layoutState -- concurrent regions (mechanisms 13/14)', () => {
+  it('each concurrent region\'s own [*] pseudo-node gets a DISTINCT id -- no cross-region collision', () => {
+    // Per diagnosis.md (S5 ledger): `buildConcurrentRegionPass` passed
+    // `owner.id` (not a per-region scope id) as the `scopeId` param, so
+    // EVERY region's own `[*]` pseudo-anchor collapsed onto the SAME
+    // `__init_<owner.id>` string id -- `renderer-uid.ts#buildStateUidPlan`
+    // keys its `ent%04d` uid Map by that string, so the LAST region visited
+    // silently overwrote every earlier region's own uid, producing
+    // duplicate `id="entXXXX"` attributes on sibling `<g>` elements (jar-
+    // verified via `nelupe-49-xova546`'s own pretty-printed XML dump).
+    const region1 = [makeState('A')];
+    const region2 = [makeState('B')];
+    const owner = makeState('Owner', {
+      concurrentRegions: [region1, region2],
+      transitions: [makeTransition('[*]', 'A'), makeTransition('[*]', 'B')],
+    });
+    const ast: StateDiagramAST = { states: [owner], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const ownerGeo = result.states.find((s) => s.id === 'Owner');
+    const initialIds = ownerGeo!.children.filter((c) => c.kind === 'initial').map((c) => c.id);
+    expect(initialIds).toHaveLength(2);
+    expect(new Set(initialIds).size).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Acceptance criterion 3: fork node width > height (bar shape)
 // ---------------------------------------------------------------------------
 

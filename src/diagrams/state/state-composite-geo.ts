@@ -17,7 +17,7 @@
 import type { DotLayoutResult } from '../../core/graph-layout.js';
 import type { GeoSpec } from './state-composite-pass.js';
 import { buildTopLevelPass, buildLevelTransitionGeos } from './state-composite-pass.js';
-import type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
+import type { StateNodeGeo, TransitionGeo, StateGeometry, StateRegionGeo } from './state-geo-types.js';
 import type { StateDiagramAST } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
@@ -31,13 +31,54 @@ export type PosMap = Map<string, DotLayoutResult['nodes'][number]>;
 const BOX_PAD = 12;
 
 function shiftGeo(g: StateNodeGeo, dx: number, dy: number): StateNodeGeo {
+  const children = g.children.map((c) => shiftGeo(c, dx, dy));
+  const transitions = g.transitions.map((t) => shiftTransition(t, dx, dy));
   return {
     ...g,
     x: g.x + dx,
     y: g.y + dy,
-    children: g.children.map((c) => shiftGeo(c, dx, dy)),
-    transitions: g.transitions.map((t) => shiftTransition(t, dx, dy)),
+    children,
+    transitions,
+    // mission G4 S6, mechanism 13: an ANCESTOR's own shift (e.g. this node
+    // is a nested composite reached via a grandparent's `spec.localStates`)
+    // must ALSO shift `concurrentRegions`/`separators` if this node itself
+    // owns concurrent regions -- otherwise a nested concurrent composite's
+    // separator lines would retain their PRE-ancestor-shift coordinates.
+    // `concurrentRegions` is rebuilt from the ALREADY-shifted `children`/
+    // `transitions` above (by slicing on original per-region lengths) so
+    // object identity with the flat arrays is preserved, matching
+    // `materializeAutonom`'s own identity-sharing contract.
+    ...(g.concurrentRegions !== undefined
+      ? { concurrentRegions: resliceRegions(g.concurrentRegions, children, transitions) }
+      : {}),
+    ...(g.separators !== undefined
+      ? { separators: g.separators.map((sep) => ({ x1: sep.x1 + dx, y1: sep.y1 + dy, x2: sep.x2 + dx, y2: sep.y2 + dy })) }
+      : {}),
   };
+}
+
+/** Re-groups already-shifted flat `children`/`transitions` back into their
+ *  original per-region boundaries (lengths preserved 1:1 by `shiftGeo`'s own
+ *  `.map` above, which never adds/removes entries) -- see `shiftGeo`'s own
+ *  doc comment for why this must reuse the SAME shifted objects rather than
+ *  re-deriving them. */
+function resliceRegions(
+  original: readonly StateRegionGeo[],
+  shiftedChildren: readonly StateNodeGeo[],
+  shiftedTransitions: readonly TransitionGeo[],
+): StateRegionGeo[] {
+  const out: StateRegionGeo[] = [];
+  let childCursor = 0;
+  let transitionCursor = 0;
+  for (const region of original) {
+    out.push({
+      children: shiftedChildren.slice(childCursor, childCursor + region.children.length),
+      transitions: shiftedTransitions.slice(transitionCursor, transitionCursor + region.transitions.length),
+    });
+    childCursor += region.children.length;
+    transitionCursor += region.transitions.length;
+  }
+  return out;
 }
 
 function shiftTransition(t: TransitionGeo, dx: number, dy: number): TransitionGeo {
@@ -96,10 +137,38 @@ function materializeAutonom(
   const dx = pos.x + spec.offset.x;
   const dy = pos.y + spec.offset.y;
   const localPosMap: PosMap = new Map(spec.localPositions.nodes.map((n) => [n.id, n]));
-  const children = materializeSpecs(spec.localStates, localPosMap).map((g) => shiftGeo(g, dx, dy));
-  const transitions = spec.localTransitions.map((t) => shiftTransition(t, dx, dy));
+  // mission G4 S6, mechanism 13: `spec.regions` (concurrent-region-owning
+  // composites ONLY) drives `children`/`transitions` too -- built by
+  // CONCATENATING the per-region materialized results, never the reverse,
+  // so `concurrentRegions[i].children`/`.transitions` and the flat
+  // `children`/`transitions` share the SAME object instances
+  // (`renderer-uid.ts`'s `edgeUid` Map is keyed by `TransitionGeo` object
+  // identity -- see `StateNodeGeo.concurrentRegions`'s own doc comment,
+  // state-geo-types.ts). `undefined` for every plain (non-concurrent)
+  // autonom composite, which keeps the pre-S6 flat-materialization path
+  // unchanged.
+  const regionsOut: StateRegionGeo[] | undefined = spec.regions?.map((r) => ({
+    children: materializeSpecs(r.specs, localPosMap).map((g) => shiftGeo(g, dx, dy)),
+    transitions: r.transitions.map((t) => shiftTransition(t, dx, dy)),
+  }));
+  const children =
+    regionsOut !== undefined
+      ? regionsOut.flatMap((r) => r.children)
+      : materializeSpecs(spec.localStates, localPosMap).map((g) => shiftGeo(g, dx, dy));
+  const transitions =
+    regionsOut !== undefined
+      ? regionsOut.flatMap((r) => r.transitions)
+      : spec.localTransitions.map((t) => shiftTransition(t, dx, dy));
+  const separators = spec.separators?.map((sep) => ({
+    x1: sep.x1 + dx,
+    y1: sep.y1 + dy,
+    x2: sep.x2 + dx,
+    y2: sep.y2 + dy,
+  }));
   return {
     id: spec.id, kind: 'normal', display: spec.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height, children, transitions,
+    ...(regionsOut !== undefined ? { concurrentRegions: regionsOut } : {}),
+    ...(separators !== undefined ? { separators } : {}),
     ...(spec.headerLines !== undefined ? { headerLines: spec.headerLines } : {}),
     ...(spec.bodyLines !== undefined ? { bodyLines: spec.bodyLines } : {}),
     ...(spec.color !== undefined ? { color: spec.color } : {}),

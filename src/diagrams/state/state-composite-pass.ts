@@ -141,6 +141,21 @@ export type GeoSpec =
       headerLines?: readonly StateTextLine[];
       bodyLines?: readonly StateTextLine[];
       color?: string;
+      /** mission G4 S6, mechanism 13: for a CONCURRENT-region-owning
+       *  composite ONLY -- `localStates`/`localTransitions` above stay a
+       *  flat, region-order concatenation (unchanged, still consumed
+       *  whenever `regions` is `undefined`), but this field groups the SAME
+       *  specs/transitions per stacked region so `state-composite-geo.ts
+       *  #materializeAutonom` can build BOTH the flat arrays (by
+       *  concatenating these, preserving object identity for
+       *  `renderer-uid.ts`'s identity-keyed `edgeUid` Map) AND the
+       *  interleaved `StateNodeGeo.concurrentRegions` the renderer needs.
+       *  See `state-composite-concurrent.ts#combineConcurrentPasses`. */
+      regions?: readonly { specs: readonly GeoSpec[]; transitions: readonly TransitionGeo[] }[];
+      /** mission G4 S6, mechanism 13: LOCAL (pre dx/dy-shift) dashed
+       *  separator-line coordinates between stacked regions -- see
+       *  `StateNodeGeo.separators`'s own doc comment (state-geo-types.ts). */
+      separators?: readonly { x1: number; y1: number; x2: number; y2: number }[];
     }
   | { kind: 'cluster'; id: string; display: string; children: readonly GeoSpec[] };
 

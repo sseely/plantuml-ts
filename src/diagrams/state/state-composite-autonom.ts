@@ -42,7 +42,7 @@ type ExtractAutonomSpec = Extract<GeoSpec, { kind: 'autonom' }>;
  *  BEFORE that pass is ever drawn — see `layout-ink-extent.ts
  *  #computeSvekResultGeometry`'s own doc comment) as a pure, non-mutating
  *  transform over our own `DotLayoutResult`. */
-function shiftDotLayoutResult(result: DotLayoutResult, dx: number, dy: number): DotLayoutResult {
+export function shiftDotLayoutResult(result: DotLayoutResult, dx: number, dy: number): DotLayoutResult {
   if (dx === 0 && dy === 0) return result;
   return {
     ...result,
