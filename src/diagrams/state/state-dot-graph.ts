@@ -31,8 +31,16 @@ export const INITIAL_ID = '__initial__';
 export const FINAL_ID = '__final__';
 
 /** Resolve a transition endpoint id, redirecting the anonymous `[*]` token
- *  to the shared start (`from` position) or end (`to` position) anchor. */
-function endpointId(raw: string, isFrom: boolean): string {
+ *  to the shared start (`from` position) or end (`to` position) anchor.
+ *  Exported: `./layout.ts#buildFlatTransitionGeos` (mission G4 S2) reuses
+ *  this SAME resolution for `TransitionGeo.from`/`to` -- previously that
+ *  function pushed the RAW, unresolved AST endpoint string (`'[*]'`
+ *  verbatim) instead, so `renderer.ts#svgEndpointId`'s `INITIAL_ID`/
+ *  `FINAL_ID` check could never match a `[*]`-originating/-terminating
+ *  flat-pipeline transition's `<path id="...">` value -- jar-verified
+ *  broken on gefefe-91-xoge233/moleco-69-sida106 (`id="[*]-to-IDLE"`
+ *  instead of jar's `id="*start*-to-IDLE"`). */
+export function endpointId(raw: string, isFrom: boolean): string {
   if (raw !== '[*]') return raw;
   return isFrom ? INITIAL_ID : FINAL_ID;
 }

@@ -40,6 +40,7 @@ import type { State, StateKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import type { DotInputNodeShape } from '../../core/graph-layout.js';
+import type { StateTextLine } from './state-geo-types.js';
 import { measureJsonState } from './state-json-sizing.js';
 
 // ---------------------------------------------------------------------------
@@ -255,4 +256,83 @@ export function measureState(
   const font: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const { dim, shape } = measureNormalKind(state, hideEmptyDescription, font, measurer);
   return { ...dim, shape };
+}
+
+// ---------------------------------------------------------------------------
+// Render-time text metrics (mission G4 S2, mechanism 5)
+// ---------------------------------------------------------------------------
+//
+// The renderer (renderer-box.ts/renderer-pseudostate.ts) has no
+// `StringMeasurer` of its own (a pure-function, DOM-free design constraint —
+// see StateNodeGeo.headerLines's own doc comment) — per-line measured widths
+// for jar's exact `textLength="..."` centering must be computed HERE, once,
+// at layout time, and threaded through StateNodeGeo, mirroring the class
+// engine's `ClassifierGeo.rows[].width` precedent.
+
+/** Header (display/name) lines, pre-measured — `kind:'normal'` leaf boxes.
+ *  Jar-verified jocela-05-niba392 (1 line), votoki-67-gufa610 (1 line,
+ *  centered against a WIDER body-dominated box). */
+export function measureTextLines(displayText: string, font: FontSpec, measurer: StringMeasurer): StateTextLine[] {
+  return splitCreoleLines(displayText).map((ln) => ({ text: ln, width: measurer.measure(ln, font).width }));
+}
+
+/**
+ * Body/description lines, pre-measured — `kind:'normal'` leaf boxes.
+ * Jar-verified votoki-67-gufa610 (2 lines), gefefe-91-xoge233 (`IDLE :`,
+ * a truly empty captured line — jar substitutes a literal single SPACE
+ * character for the row rather than drawing a zero-width empty `<text>`;
+ * `textLength="3.85"`, content U+00A0 NBSP, NOT a plain U+0020 space --
+ * confirmed byte-for-byte against the fixture's raw UTF-8, `\xc2\xa0` --
+ * SAME NBSP-substitution convention the class engine's own creole atom
+ * renderer already documents, `renderer-classifier-box.ts#renderRowAtoms`'s
+ * `atom.renderText`/`renderWidth` doc comment, `DriverTextSvg.java`'s
+ * whitespace-only-run branch). This is a render-time cosmetic substitution
+ * only — it does NOT affect `hasBody`/box-height decisions elsewhere
+ * (state-sizing.ts's own `measureNormalState`, which counts ARRAY entries,
+ * not string emptiness — a blank description line already contributes one
+ * full `theme.fontSize` of height either way).
+ */
+const NBSP = '\u00A0';
+export function measureBodyTextLines(
+  description: readonly string[] | undefined,
+  font: FontSpec,
+  measurer: StringMeasurer,
+): StateTextLine[] {
+  const lines = (description ?? []).flatMap(splitCreoleLines).map((ln) => (ln === '' ? NBSP : ln));
+  return lines.map((ln) => ({ text: ln, width: measurer.measure(ln, font).width }));
+}
+
+/** `EntityImagePseudoState`/`EntityImageDeepHistory`'s own "H"/"H*" glyph —
+ *  the SAME text for both shallow and deep history (only the box's shared
+ *  fixed 22x22 size differs from every other pseudostate, not this label).
+ *  @see ~/git/plantuml/.../svek/image/EntityImagePseudoState.java
+ *  @see ~/git/plantuml/.../svek/image/EntityImageDeepHistory.java */
+export function historyLabelText(kind: StateKind): string {
+  return kind === 'deepHistory' ? 'H*' : 'H';
+}
+
+/** Optional `StateNodeGeo` fields a leaf `state` spec/geo carries for
+ *  render-time text layout (mission G4 S2) — `headerLines`/`bodyLines` for
+ *  `kind:'normal'`, the single "H"/"H*" label for `kind:'history'`/
+ *  `'deepHistory'`, `color` (raw, unresolved) for every kind. Shared by
+ *  both the flat pipeline (`layout.ts#buildFlatStateGeos`) and the
+ *  composite pipeline (`state-composite-pass.ts#resolveMember`) so the two
+ *  don't independently re-derive the same per-kind dispatch. */
+export interface StateGeoTextFields {
+  headerLines?: readonly StateTextLine[];
+  bodyLines?: readonly StateTextLine[];
+  color?: string;
+}
+
+export function buildStateGeoTextFields(state: State, theme: Theme, measurer: StringMeasurer): StateGeoTextFields {
+  const font: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  const fields: StateGeoTextFields = {};
+  if (state.kind === 'normal') {
+    fields.headerLines = measureTextLines(state.display, font, measurer);
+    fields.bodyLines = measureBodyTextLines(state.description, font, measurer);
+  } else if (state.kind === 'history' || state.kind === 'deepHistory') {
+    fields.headerLines = measureTextLines(historyLabelText(state.kind), font, measurer);
+  }
+  if (state.color !== undefined) fields.color = state.color;
+  return fields;
 }

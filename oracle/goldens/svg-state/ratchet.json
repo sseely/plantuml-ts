@@ -1,3 +1,13 @@
 {
-  "fixtures": []
+  "fixtures": [
+    { "slug": "dutefi-86-kesa899", "addedAt": "2026-07-20", "source": "dot-cache" },
+    { "slug": "fuxavu-11-goco024", "addedAt": "2026-07-20", "source": "dot-cache" },
+    { "slug": "gizati-67-kora187", "addedAt": "2026-07-20", "source": "dot-cache" },
+    { "slug": "jocela-05-niba392", "addedAt": "2026-07-20", "source": "dot-cache" },
+    { "slug": "pujini-03-vasi565", "addedAt": "2026-07-20", "source": "dot-cache" },
+    { "slug": "sezoxa-56-jefi030", "addedAt": "2026-07-20", "source": "dot-cache" },
+    { "slug": "suzope-95-suvu383", "addedAt": "2026-07-20", "source": "dot-cache" },
+    { "slug": "votoki-67-gufa610", "addedAt": "2026-07-20", "source": "dot-cache" },
+    { "slug": "xuzapa-55-xoli880", "addedAt": "2026-07-20", "source": "dot-cache" }
+  ]
 }

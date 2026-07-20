@@ -59,6 +59,7 @@ dot-sync-report (frozen) · class census (294 set intact) · object census
 |---|---|---|
 | S0 | Harness: `scripts/svg-conformance-census.ts`'s `renderFixtureFor` dispatches `state` through a NEW `render-fixture-state.ts#renderFixtureState` helper (state's own dedicated `parseState -> layoutState -> renderState` pipeline — genuinely new, not a reuse like G3's object-through-class dispatch); `svg-parity-survey.ts` needed NO code change (already generic via `renderSync`'s production registry dispatch, additive `--out`/positional-type args from G2/N0). State ratchet harness stood up (`oracle/goldens/svg-state/` + `state.golden.ratchet.test.ts` + `parity-state.json`, 271/271 surveyed, 267/271 dotEqual=true). TRUE baseline: **0/271 zero-diff** — every fixture, including the single-state zero-transition trivial case, fails on the SAME root-level SVG shell family. Diagnosed and named FOUR independent, jar-verified mechanisms (none individually a bounded/cheap fix; stretch fix explicitly SKIPPED per this iteration's own instruction — see `plans/g4-state-svg/ledger.md` S0 for the full writeup): (1) generic `svgRoot()` shell instead of the CucaDiagram-family `assembleDocumentShell`; (2) no outer/per-entity `<g>` wrapping (renderState emits flat markup, `svg[childCount]` mismatch at 271/271, which short-circuits `compareSvg`'s recursion so NO deeper diff is currently measurable for ANY fixture); (3) inline-`<polygon>`-per-edge arrowheads (jar) vs `<marker>`-def arrowheads (port); (4) a document-margin/ink-extent gap (canvas dims differ even on the zero-transition trivial fixture). Ratchet stands up EMPTY (0 pinned) — first mission iteration to genuinely exercise every ratchet suite's "0 fixtures" graceful-degradation branch. | done |
 | S1 | Landed all four S0-named mechanisms TDD-first (SVG root shell `renderer-shell.ts`; outer/per-entity `<g>` wrap + uid plan `renderer-uid.ts`/`renderer-group.ts`; inline-`<polygon>` arrowheads `renderer-arrowhead.ts`; `SvekResult`-style document margin `layout-ink-extent.ts`), each jar-verified against S0's sampled fixtures. Census: `0/271` -> `0/271` but histogram shifts hard toward smaller diff counts (`1-3:0->30, 4-10:1->192, 11-30:270->32, 31+:0->17`) -- mechanism 2's own `childCount` short-circuit unblocking exactly as S0 predicted, immediately surfacing a FIFTH, newly-diagnosed mechanism (state box/shape content fidelity -- missing divider line, wrong `rx`/stroke-width/fill color, wrong text-layout convention, circle-vs-ellipse tag choice) that independently blocks every fixture from zero regardless of mechanisms 1-4's own correctness -- diagnosed per diagnosis.md, explicitly NOT forced this iteration (unbounded per-shape rewrite, comparable in scope to G2's own multi-iteration classifier-box work), queued for S2. 0 pins (expected, matches S0's own 0-pin baseline). See `plans/g4-state-svg/ledger.md` S1 for the full mechanism writeups (including two named remainders: composite `entity`-vs-`cluster` wrap split, composite ink-rule gap) and the S2+ queue. | done |
+| S2 | Landed mechanism 5 (state box/shape content fidelity) TDD-first, both scoped items: the simple-state box (`renderer-box.ts`, rx=12.5/stroke-width=0.5/fill-resolution/divider-line/header+body text) and every pseudostate shape (`renderer-pseudostate.ts`, `state-render-colors.ts` -- initial/final/fork/join/syncBar/choice/history/deepHistory), each jar-verified against dedicated samples (jocela/votoki/gefefe for the box; gefefe/bajelo/cekolo for pseudostates). Two small adjacent bugs fixed while verifying (`javaRound4` textLength rounding; NBSP substitution for an empty body line, matching class's own precedent) plus a companion fix surfaced by mechanism 5 (S1 mechanism 3's own `[*]`-endpoint-id resolution was broken in the flat pipeline, `layout.ts#buildFlatTransitionGeos` -- fixed by reusing `state-dot-graph.ts`'s own `endpointId`). Census: `0/271` -> `9/271` zero-diff (`1-3:30->18, 4-10:192->187, 11-30:32->37, 31+:17->20`), all 9 pinned (`conformant && dotEqual`, ratchet now 11 tests). Investigating S1's own items 3/4 (composite entity/cluster split, composite ink rule) surfaced a SIXTH, much larger mechanism -- composite states are NOT a dashed rect at all, jar draws a 3-4-layer half-rounded-header-path + solid-outline + divider + centered-text composition (reusing class's own already-ported `headerBackgroundPath` math) -- explicitly NOT forced this iteration (unbounded, comparable in scope to mechanism 5 itself), queued for S3. See `plans/g4-state-svg/ledger.md` S2 for the full mechanism writeups and the S3+ queue. | done |
 
 ## Standing rules
 
@@ -75,42 +76,35 @@ parallel implementation. graphviz-ts findings go in
 `getLayout()`) applies. Complexity playbook, TDD, ledger:
 `plans/g4-state-svg/ledger.md`.
 
-## Gates (S1, final)
+## Gates (S2, final)
 
-- `state` census: **0/271** zero-diff (`1-3:30, 4-10:192, 11-30:32,
-  31+:17, errors:0`) — histogram improved sharply from S0's `1-3:0,
-  4-10:1, 11-30:270, 31+:0`; still 0 zero-diff (mechanism 5, see below).
-- Class census 294-set: **intact**, unchanged (`0:294, 1-3:25, 4-10:102,
-  11-30:29, 31+:268, errors:0`).
-- Object census 22-set: **intact**, unchanged (`0:22, 1-3:5, 4-10:11,
-  11-30:11, 31+:31, errors:0`).
-- Description census 48-set: **intact**, unchanged (`0:48, 1-3:26,
-  4-10:73, 11-30:67, 31+:140, errors:1` across 355 component+usecase
-  fixtures — the 1 error is pre-existing, unrelated to this write-set).
+- `state` census: **9/271** zero-diff (`1-3:18, 4-10:187, 11-30:37,
+  31+:20, errors:0`) — up from S1's `0/271` (`1-3:30, 4-10:192, 11-30:32,
+  31+:17`); 9 pinned to the ratchet (`conformant && dotEqual`).
+- Class census 294-set: **intact**, unchanged.
+- Object census 22-set: **intact**, unchanged.
+- Description census 48-set: **intact**, unchanged (1 pre-existing,
+  unrelated error).
 - DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
   78/80 - state 267/267` — EXACTLY unchanged (verified BOTH before and
   after every mechanism landed this iteration).
-- `npm test -- --run`: 9917/9918 passing (2 skipped, 363 files), `npm run
+- `npm test -- --run`: 9925/9925 passing (363 files), `npm run
   typecheck` / `npm run lint` / `npm run build`: all clean.
 
-## Mission status (S1, 2026-07-20)
+## Mission status (S2, 2026-07-20)
 
-**OPEN.** All four S0-named mechanisms landed and jar-verified. Mechanism
-2's `childCount` short-circuit unblocked `compareSvg`'s recursion exactly
-as S0 predicted — the census histogram improved dramatically (most
-fixtures moved from the 11-30-diff bucket into 1-3/4-10), but 0 fixtures
-reached zero-diff: unblocking recursion immediately surfaced a FIFTH,
-previously-undiagnosable mechanism (state box/shape content fidelity —
-missing divider line, wrong `rx`/stroke-width/fill color, wrong
-text-layout convention, wrong shape tags) that independently blocks
-every fixture regardless of mechanisms 1-4's own correctness. This is
-NOT a mechanisms-1-4 regression (`jocela-05-niba392`'s shell/wrap/dims
-are now byte-exact; its ONE remaining diff is entirely inside mechanism
-5's territory) — it is the expected next layer S0 itself queued
-("family classification must be re-derived from scratch" once 1+2 land).
-Mechanism 5 is explicitly NOT forced this iteration (an unbounded,
-multi-shape content rewrite, not a same-iteration stretch fix) — named
-per diagnosis.md and queued as S2's primary scope, alongside two smaller
-named remainders (composite `entity`-vs-`cluster` wrap split, composite
-ink-rule gap) surfaced along the way. See `plans/g4-state-svg/ledger.md`
-S1 for full mechanism writeups and the S2+ queue.
+**OPEN.** Mechanism 5 (state box/shape content fidelity) landed in full —
+the simple-state leaf box AND every pseudostate shape are now jar-verified
+byte-exact where no other, unrelated mechanism blocks them. 9/271 fixtures
+reached genuine zero-diff (up from S1's 0/271) and are pinned to the
+ratchet. Investigating S1's own two named remainders (composite `entity`-
+vs-`cluster` wrap split, composite ink-rule gap) surfaced that BOTH were
+mis-scoped: the real blocker is a SIXTH mechanism (composite box rendering
+convention — jar draws a 3-4-layer half-rounded-header-path + solid-outline
++ divider + centered-text composition, not a dashed rect), diagnosed
+per diagnosis.md and explicitly NOT forced this iteration (unbounded,
+comparable in scope to mechanism 5 itself). This is the expected next
+"unmasking" layer (mechanism 5's own fix on `bajelo-54-dixe684` reduced its
+diff count from 11 to 5, ALL 5 now attributable to mechanism 6 alone).
+See `plans/g4-state-svg/ledger.md` S2 for full mechanism writeups and the
+S3+ queue.

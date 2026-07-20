@@ -377,19 +377,27 @@ describe('layoutState — normal state minimum width', () => {
 // TransitionGeo from/to fields
 // ---------------------------------------------------------------------------
 
-describe('layoutState — TransitionGeo preserves original [*] from/to', () => {
-  it('from field is [*] for initial transition', () => {
+// mission G4 S2: previously asserted the RAW, unresolved `'[*]'` AST token
+// leaking straight into TransitionGeo -- jar-verified broken (gefefe-91-
+// xoge233/moleco-69-sida106: `<path id="[*]-to-IDLE">` instead of jar's
+// `id="*start*-to-IDLE"`, since `renderer.ts#svgEndpointId` only recognizes
+// the shared `INITIAL_ID`/`FINAL_ID` anchor ids, never the literal AST
+// token). `buildFlatTransitionGeos` now resolves through the SAME
+// `endpointId` (state-dot-graph.ts) the DOT graph itself already used —
+// see that function's own doc comment.
+describe('layoutState — TransitionGeo resolves [*] to the shared start/end anchor id', () => {
+  it('from field resolves to the shared INITIAL_ID anchor for an initial transition', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('[*]', 'A')],
     };
     const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
-    expect(t?.from).toBe('[*]');
+    expect(t?.from).toBe('__initial__');
     expect(t?.to).toBe('A');
   });
 
-  it('to field is [*] for final transition', () => {
+  it('to field resolves to the shared FINAL_ID anchor for a final transition', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('A', '[*]')],
@@ -397,7 +405,7 @@ describe('layoutState — TransitionGeo preserves original [*] from/to', () => {
     const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
     expect(t?.from).toBe('A');
-    expect(t?.to).toBe('[*]');
+    expect(t?.to).toBe('__final__');
   });
 });
 

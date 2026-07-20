@@ -38,12 +38,12 @@ import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph } from '../../core/graph-layout.js';
 import type { DotInputNode, DotInputEdge, DotInputCluster, DotInputGraph, DotLayoutResult } from '../../core/graph-layout.js';
-import { CIRCLE_START_SIZE, CIRCLE_END_SIZE } from './state-sizing.js';
+import { CIRCLE_START_SIZE, CIRCLE_END_SIZE, buildStateGeoTextFields } from './state-sizing.js';
 import { measureAutonomWrapper, type AutonomOffset } from './state-composite-sizing.js';
 import { classifyDiagram, resolveEndpoint, type ClassifyResult } from './state-composite-classify.js';
 import { hasLocalContent } from './state-composite-detect.js';
 import { buildLeafNode } from './state-leaf-node.js';
-import type { TransitionGeo } from './state-geo-types.js';
+import type { TransitionGeo, StateTextLine } from './state-geo-types.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import { buildEdgeAttrs } from './state-composite-edge-label.js';
 import {
@@ -98,7 +98,16 @@ export interface DiagramCtx {
  *  ./state-composite-geo.ts materializes this into `StateNodeGeo[]` once a
  *  pass's `DotLayoutResult` (real positions) is available. */
 export type GeoSpec =
-  | { kind: 'state'; id: string; stateKind: StateKind; display: string }
+  | {
+      kind: 'state';
+      id: string;
+      stateKind: StateKind;
+      display: string;
+      /** mission G4 S2 -- see `StateNodeGeo.headerLines` doc (state-geo-types.ts). */
+      headerLines?: readonly StateTextLine[];
+      bodyLines?: readonly StateTextLine[];
+      color?: string;
+    }
   | {
       kind: 'autonom';
       id: string;
@@ -319,7 +328,7 @@ export function resolveMember(s: State, acc: PassAccumulator, ctx: DiagramCtx, p
   const isComposite = hasLocalContent(s);
   if (!isComposite) {
     acc.nodes.push(buildLeafNode(s, ctx));
-    return { kind: 'state', id: s.id, stateKind: s.kind, display: s.display };
+    return { kind: 'state', id: s.id, stateKind: s.kind, display: s.display, ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer) };
   }
   if (ctx.classify.kindOf.get(s.id) === 'autonom') {
     const spec = ctx.resolvedAutonom.get(s.id);

@@ -15,105 +15,37 @@
  */
 
 import type { StateGeometry, StateNodeGeo, TransitionGeo } from './layout.js';
-import type { StateKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
-import {
-  rect,
-  text,
-  path,
-  ellipse,
-  diamond,
-} from '../../core/svg.js';
+import { rect, text, path } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
 import { buildStateUidPlan } from './renderer-uid.js';
 import type { StateUidPlan } from './renderer-uid.js';
 import { wrapEntity, wrapStartEntity, wrapEndEntity, wrapLink } from './renderer-group.js';
 import { buildTransitionArrowhead, applyHeadTrim } from './renderer-arrowhead.js';
+import {
+  renderInitial,
+  renderFinal,
+  renderForkJoin,
+  renderChoiceJunction,
+  renderHistory,
+} from './renderer-pseudostate.js';
+import { renderNormal } from './renderer-box.js';
 
 // ---------------------------------------------------------------------------
 // Node shape renderers
 // ---------------------------------------------------------------------------
 
-function renderInitial(node: StateNodeGeo, theme: Theme): string {
-  const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2;
-  const r = node.width / 2;
-  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${theme.colors.border}"/>`;
-}
-
-function renderFinal(node: StateNodeGeo, theme: Theme): string {
-  const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2;
-  const outerR = node.width / 2;
-  const innerR = outerR * 0.5;
-  return (
-    `<circle cx="${cx}" cy="${cy}" r="${outerR}" fill="none" stroke="${theme.colors.border}" stroke-width="2"/>` +
-    `<circle cx="${cx}" cy="${cy}" r="${innerR}" fill="${theme.colors.border}"/>`
-  );
-}
-
-function renderForkJoin(node: StateNodeGeo, theme: Theme): string {
-  return rect(node.x, node.y, node.width, node.height, {
-    fill: theme.colors.border,
-  });
-}
-
-function renderChoiceJunction(node: StateNodeGeo, theme: Theme): string {
-  const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2;
-  const size = node.width / 2;
-  return diamond(cx, cy, size, {
-    fill: theme.colors.background,
-    stroke: theme.colors.border,
-  });
-}
-
-function renderHistory(node: StateNodeGeo, kind: StateKind, theme: Theme): string {
-  const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2;
-  const r = node.width / 2;
-  const label = kind === 'deepHistory' ? 'H*' : 'H';
-  return (
-    ellipse(cx, cy, r, r, { fill: 'none', stroke: theme.colors.border }) +
-    text(cx, cy + theme.fontSize / 3, label, {
-      textAnchor: 'middle',
-      fill: theme.colors.text,
-      fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
-    })
-  );
-}
-
-function renderNormal(node: StateNodeGeo, theme: Theme): string {
-  const box = rect(node.x, node.y, node.width, node.height, {
-    fill: theme.colors.background,
-    stroke: theme.colors.border,
-    strokeWidth: 1,
-    rx: 8,
-  });
-  const label = text(
-    node.x + node.width / 2,
-    node.y + node.height / 2 + theme.fontSize / 2,
-    node.display,
-    {
-      textAnchor: 'middle',
-      fill: theme.colors.text,
-      fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
-    },
-  );
-  return box + label;
-}
-
 /**
  * `kind:'json'` leaf (mission A4 Phase L iter 20) — a plain labeled box,
- * the closest visual analog available today. Faithful `shape=plaintext`
- * TABLE content (member rows, matching class engine's own json rendering)
- * is deferred to future visual-fidelity work — this renderer has no row-
- * drawing infrastructure at all yet, not even for a plain state's own
- * description/body lines (renderNormal only ever draws the name). Mirrors
+ * the closest visual analog available today (`renderer-box.ts#renderNormal`
+ * -- reused verbatim; a `kind:'json'` node's `headerLines` is never
+ * populated at layout time, so it always takes that function's own
+ * unmeasured-fallback path, UNCHANGED behavior pre/post mission G4 S2).
+ * Faithful `shape=plaintext` TABLE content (member rows, matching class
+ * engine's own json rendering) is deferred to future visual-fidelity work
+ * — this renderer has no row-drawing infrastructure at all yet. Mirrors
  * the syncBar case's own documented no-dedicated-renderer-yet gap below.
  */
 function renderJson(node: StateNodeGeo, theme: Theme): string {
@@ -156,9 +88,9 @@ function renderShape(node: StateNodeGeo, theme: Theme): string {
 
   switch (node.kind) {
     case 'initial':
-      return renderInitial(node, theme);
+      return renderInitial(node);
     case 'final':
-      return renderFinal(node, theme);
+      return renderFinal(node);
     case 'fork':
     case 'join':
     // syncBar (T2 addition, `=name=` transition endpoints -- see
@@ -166,12 +98,12 @@ function renderShape(node: StateNodeGeo, theme: Theme): string {
     // fork/join bar shape, the closest visual analog -- upstream itself
     // renders synchronization bars and fork/join with the same bar shape.
     case 'syncBar':
-      return renderForkJoin(node, theme);
+      return renderForkJoin(node);
     case 'choice':
       return renderChoiceJunction(node, theme);
     case 'history':
     case 'deepHistory':
-      return renderHistory(node, node.kind, theme);
+      return renderHistory(node, theme);
     case 'normal':
       return renderNormal(node, theme);
     case 'json':

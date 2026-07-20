@@ -91,7 +91,13 @@ function materializeSpecs(specs: readonly GeoSpec[], posMap: PosMap, outTransiti
     if (spec.kind === 'state') {
       const pos = posMap.get(spec.id);
       if (pos === undefined) continue;
-      out.push({ id: spec.id, kind: spec.stateKind, display: spec.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height, children: [] });
+      out.push({
+        id: spec.id, kind: spec.stateKind, display: spec.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height,
+        children: [],
+        ...(spec.headerLines !== undefined ? { headerLines: spec.headerLines } : {}),
+        ...(spec.bodyLines !== undefined ? { bodyLines: spec.bodyLines } : {}),
+        ...(spec.color !== undefined ? { color: spec.color } : {}),
+      });
     } else if (spec.kind === 'autonom') {
       const g = materializeAutonom(spec, posMap, outTransitions);
       if (g !== undefined) out.push(g);

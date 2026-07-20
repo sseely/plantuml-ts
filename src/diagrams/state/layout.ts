@@ -26,13 +26,14 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
 import type { DotLayoutResult } from '../../core/graph-layout.js';
-import { buildDotGraph, INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
+import { buildDotGraph, endpointId, INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
 import { layoutComposite } from './state-composite-geo.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
 
 export type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
 import { computeStateDocumentDims, computeStateInkShift } from './layout-ink-extent.js';
+import { buildStateGeoTextFields } from './state-sizing.js';
 
 /** A state (or top-level ast) is composite-free iff no state anywhere has
  *  local content (`hasLocalContent`, state-composite-detect.ts) OR its OWN
@@ -76,12 +77,20 @@ function buildPseudoNodeGeos(posMap: Map<string, DotLayoutResult['nodes'][number
   return geos;
 }
 
-function buildFlatStateGeos(ast: StateDiagramAST, posMap: Map<string, DotLayoutResult['nodes'][number]>): StateNodeGeo[] {
+function buildFlatStateGeos(
+  ast: StateDiagramAST,
+  posMap: Map<string, DotLayoutResult['nodes'][number]>,
+  theme: Theme,
+  measurer: StringMeasurer,
+): StateNodeGeo[] {
   const geos: StateNodeGeo[] = [];
   for (const s of ast.states) {
     const pos = posMap.get(s.id);
     if (pos === undefined) continue;
-    geos.push({ id: s.id, kind: s.kind, display: s.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height, children: [] });
+    geos.push({
+      id: s.id, kind: s.kind, display: s.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height,
+      children: [], ...buildStateGeoTextFields(s, theme, measurer),
+    });
   }
   geos.push(...buildPseudoNodeGeos(posMap));
   return geos;
@@ -95,7 +104,13 @@ function buildFlatTransitionGeos(ast: StateDiagramAST, result: DotLayoutResult):
     const edgeResult = edgePosMap.get(`edge-${i}`);
     if (edgeResult === undefined) continue;
     const label = attachTransitionLabel(t, edgeResult.points);
-    geos.push({ from: t.from, to: t.to, points: edgeResult.points, ...(label !== undefined ? { label } : {}) });
+    // mission G4 S2: resolve `'[*]'` through the SAME shared start/end
+    // anchor id `buildDotEdges` (state-dot-graph.ts) already uses for the
+    // DOT graph itself -- see `endpointId`'s own doc comment for the bug
+    // this replaces (the raw AST token leaking into the SVG `<path id>`).
+    const from = endpointId(t.from, true);
+    const to = endpointId(t.to, false);
+    geos.push({ from, to, points: edgeResult.points, ...(label !== undefined ? { label } : {}) });
   }
   return geos;
 }
@@ -112,7 +127,7 @@ function layoutFlat(ast: StateDiagramAST, theme: Theme, measurer: StringMeasurer
   return {
     totalWidth: result.width,
     totalHeight: result.height,
-    states: buildFlatStateGeos(ast, posMap),
+    states: buildFlatStateGeos(ast, posMap, theme, measurer),
     transitions: buildFlatTransitionGeos(ast, result),
   };
 }

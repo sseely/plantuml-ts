@@ -89,13 +89,17 @@ describe('renderState — minimal geometry', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderState — initial node', () => {
-  it('contains a <circle> with fill matching border color (AC #1)', () => {
+  // mission G4 S2 (mechanism 5): jar draws initial as an <ellipse>, never
+  // <circle> -- and its default fill/stroke is CircleStart.java's own
+  // #222222, independent of theme.colors.border (renderer-pseudostate.ts's
+  // own PSEUDO_ANCHOR_COLOR doc comment, jar-verified gefefe-91-xoge233).
+  it('contains an <ellipse> with the CircleStart default fill (AC #1)', () => {
     const node = makeNode({ kind: 'initial', width: 20, height: 20 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
-    expect(content).toContain('<circle');
-    expect(content).toContain(`fill="${defaultTheme.colors.border}"`);
+    expect(content).toContain('<ellipse');
+    expect(content).toContain('fill="#222222"');
   });
 
   it('circle cx/cy is centred on the node bounding box', () => {
@@ -112,30 +116,32 @@ describe('renderState — initial node', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderState — final node', () => {
-  it('contains exactly two <circle> elements in diagram content — bullseye (AC #2)', () => {
+  // mission G4 S2: jar draws final as two <ellipse> elements (CircleEnd.java),
+  // never <circle> -- jar-verified bajelo-54-dixe684.
+  it('contains exactly two <ellipse> elements in diagram content — bullseye (AC #2)', () => {
     const node = makeNode({ kind: 'final', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    // Count only circles in diagram content, not inside the <defs> markers
+    // Count only ellipses in diagram content, not inside the <defs> markers
     const content = contentAfterDefs(result);
-    const circleCount = (content.match(/<circle/g) ?? []).length;
-    expect(circleCount).toBe(2);
+    const ellipseCount = (content.match(/<ellipse/g) ?? []).length;
+    expect(ellipseCount).toBe(2);
   });
 
-  it('outer circle has fill="none" and inner has border fill', () => {
+  it('outer ellipse has fill="none" and inner has the CircleEnd default fill', () => {
     const node = makeNode({ kind: 'final', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
     expect(content).toContain('fill="none"');
-    expect(content).toContain(`fill="${defaultTheme.colors.border}"`);
+    expect(content).toContain('fill="#222222"');
   });
 
-  it('outer circle uses stroke matching border color', () => {
+  it('outer ellipse uses the CircleEnd default stroke (#222222, independent of theme.colors.border)', () => {
     const node = makeNode({ kind: 'final', x: 0, y: 0, width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain(`stroke="${defaultTheme.colors.border}"`);
+    expect(result).toContain('stroke="#222222"');
   });
 });
 
@@ -144,19 +150,22 @@ describe('renderState — final node', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderState — fork node', () => {
-  it('contains a <rect> with fill matching border color (AC #3)', () => {
+  // mission G4 S2: jar's EntityImageSynchroBar default fill is #555555,
+  // independent of theme.colors.border -- jar-verified cekolo-21-gini183.
+  it('contains a <rect> with the EntityImageSynchroBar default fill (AC #3)', () => {
     const node = makeNode({ kind: 'fork', width: 60, height: 8 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    // At least one rect with border fill (may also have the background rect)
-    expect(result).toContain(`fill="${defaultTheme.colors.border}"`);
+    // At least one rect with the bar's default fill (may also have the
+    // background rect)
+    expect(result).toContain('fill="#555555"');
   });
 
   it('join renders the same thin filled bar', () => {
     const node = makeNode({ kind: 'join', width: 60, height: 8 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain(`fill="${defaultTheme.colors.border}"`);
+    expect(result).toContain('fill="#555555"');
   });
 });
 
@@ -165,11 +174,13 @@ describe('renderState — fork node', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderState — normal state', () => {
+  // mission G4 S2: jar's leaf-state box rx/ry is 12.5 (EntityImageState.java),
+  // not 8 -- jar-verified jocela-05-niba392/votoki-67-gufa610.
   it('SVG contains rounded rect with rx attribute (AC #8)', () => {
     const node = makeNode({ kind: 'normal', display: 'Active' });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain('rx="8"');
+    expect(result).toContain('rx="12.5"');
   });
 
   it('SVG contains the display label text', () => {
@@ -226,12 +237,16 @@ describe('renderState — history node', () => {
     expect(result).toContain('>H*<');
   });
 
-  it('history ellipse has fill="none" — outline only', () => {
+  // mission G4 S2: jar's history/deepHistory ellipse shares the SAME
+  // fill/border/stroke-width as a plain leaf box (#F1F1F1/border/0.5), NOT
+  // an unfilled outline -- jar-verified cekolo-21-gini183 (`state-render-
+  // colors.ts`'s own module doc comment explains why).
+  it('history ellipse has the plain leaf-box default fill (#F1F1F1)', () => {
     const node = makeNode({ kind: 'history', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
-    expect(content).toContain('fill="none"');
+    expect(content).toContain('fill="#F1F1F1"');
   });
 
   it('history ellipse has a stroke attribute', () => {
@@ -241,12 +256,12 @@ describe('renderState — history node', () => {
     expect(result).toContain(`stroke="${defaultTheme.colors.border}"`);
   });
 
-  it('deepHistory ellipse has fill="none" — outline only', () => {
+  it('deepHistory ellipse has the plain leaf-box default fill (#F1F1F1)', () => {
     const node = makeNode({ kind: 'deepHistory', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
-    expect(content).toContain('fill="none"');
+    expect(content).toContain('fill="#F1F1F1"');
   });
 
   it('history text is centered (text-anchor=middle)', () => {

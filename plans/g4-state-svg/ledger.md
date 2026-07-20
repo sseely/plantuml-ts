@@ -763,3 +763,308 @@ is a new, sixth undiscovered class of gap.
    the true remaining surface until the box-content layer itself stops
    short-circuiting `compareSvg`'s recursion into transitions/labels/
    arrowheads for the SAME fixtures.
+
+## S2 — mechanism 5 landed (simple-state box + all pseudostates), 0→9 pins, mechanism 6 diagnosed
+
+### Summary
+
+Landed mechanism 5 (state box/shape content fidelity) TDD-first for BOTH
+scoped items: the simple-state (`kind:'normal'`) leaf box (rx/stroke-width/
+fill-resolution/divider-line/header+body text layout) and every pseudostate
+shape (initial/final/fork/join/syncBar/choice/history/deepHistory). Each
+jar-verified against dedicated samples, not guessed:
+
+```
+S1 (before): 0/271 -- 1-3:30, 4-10:192, 11-30:32, 31+:17, errors:0
+S2 (after):  9/271 -- 1-3:18, 4-10:187, 11-30:37, 31+:20, errors:0
+```
+
+9 fixtures reached genuine zero-diff AND `dotEqual:true`, pinned to the
+ratchet (`oracle/goldens/svg-state/ratchet.json`, 11 tests: 9× AC1 +
+AC2 + AC3). Investigating items 3/4 (composite entity/cluster split,
+composite ink rule) surfaced a SIXTH, much larger mechanism (composite box
+rendering convention) that supersedes both — diagnosed per diagnosis.md,
+explicitly NOT forced this iteration (genuinely unbounded, comparable in
+scope to mechanism 5 itself), queued for S3.
+
+### Simple-state box: LANDED, jar-verified 3 samples
+
+`src/diagrams/state/renderer-box.ts#renderNormal` (NEW file) replaces the
+old `rect(rx=8,fill=background,strokeWidth=1) + centered text` shape with
+the real `EntityImageState` recipe: `rx=ry=12.5`, fill from
+`state-render-colors.ts#resolveStateFill` (per-node `#color`/`#back:color`
+override, else the jar-verified default `#F1F1F1`), `stroke-width=0.5`, an
+ALWAYS-drawn full-width (no 1px inset, unlike class's own divider)
+horizontal `<line>` divider, header (name) line(s) CENTERED via
+`textLength`-based positioning, body (description) line(s) LEFT-aligned at
+`box.x+5`. Both header and body baselines use the SAME content-independent
+`ascent = fontSize - fontSize/4.5` formula class's own `class-layout-
+helpers.ts` uses (`state-render-colors.ts#textAscent`) — computed
+arithmetically since the renderer has no `StringMeasurer`; per-LINE
+measured widths are threaded from LAYOUT time instead
+(`state-sizing.ts#measureTextLines`/`measureBodyTextLines`, new
+`StateNodeGeo.headerLines`/`bodyLines` fields, mirroring class's own
+`ClassifierGeo.rows[].width` precedent) via a new shared builder,
+`state-sizing.ts#buildStateGeoTextFields`, called from BOTH the flat
+pipeline (`layout.ts#buildFlatStateGeos`) and the composite pipeline
+(`state-composite-pass.ts#resolveMember`'s leaf branch) so the two never
+independently re-derive the same per-kind dispatch.
+
+**Jar-verified byte-for-byte** (`compareSvg(...).pass === true`, own probe
+script, deleted before finishing):
+- `jocela-05-niba392` — title-only, `#red` inline override, NO body lines
+  (the divider STILL draws — `EntityImageState` draws it unconditionally;
+  only the separate, NOT-threaded `EntityImageStateEmptyDescription` shape
+  omits it, see "Deferred" below).
+- `votoki-67-gufa610` — 2-line body, name CENTERED against a wider,
+  body-dominated box.
+- `gefefe-91-xoge233` — box/text/divider byte-exact (blocked from overall
+  zero-diff by an UNRELATED, pre-existing `svg/g/g/path/@d` transition-
+  routing gap, S1's own already-named "not this mission's mechanisms"
+  family — not chased).
+
+**Two small bugs found and fixed while jar-verifying** (diagnosis.md "fix
+violations in the same file", directly adjacent to the mechanism being
+landed, not scope creep):
+- `textLength` floating-point noise (`105.70000000000002` vs jar's
+  `105.7`) — `javaRound4` (already-built, `core/number-format.ts`) applied
+  to every measured `textLength` in both new render modules.
+- An empty captured body line (`IDLE :`) rendered as a ZERO-width empty
+  `<text>` (`textLength="0"`); jar substitutes a literal U+00A0 NBSP
+  (confirmed byte-for-byte against the fixture's raw UTF-8, `\xc2\xa0`,
+  NOT a plain space) — `state-sizing.ts#measureBodyTextLines` now performs
+  the same substitution, matching the class engine's own already-documented
+  NBSP convention (`renderer-classifier-box.ts#renderRowAtoms`'s
+  `renderText`/`renderWidth` doc comment).
+
+### Pseudostates: LANDED, jar-verified per shape
+
+`src/diagrams/state/renderer-pseudostate.ts` (NEW file) + `state-render-
+colors.ts` (NEW file, shared fill/stroke constants + per-node `#color`
+override resolution + the ascent/descent formula):
+- **initial** (`CircleStart.java`, SIZE=20): `<ellipse>` (not `<circle>`),
+  fill=stroke=`#222222` default — jar-verified `gefefe-91-xoge233`.
+- **final** (`CircleEnd.java`, SIZE=22, inner delta=5): outer unfilled ring
+  + inner filled dot, SAME `#222222` default, SAME center — jar-verified
+  `bajelo-54-dixe684`.
+- **fork/join/syncBar** (`EntityImageSynchroBar.java`): plain filled bar,
+  `fill="#555555"`, `stroke="none"` — jar-verified `cekolo-21-gini183`.
+- **choice** (`EntityImageBranch.java`, SIZE*2=24 diamond): SAME
+  fill/border/stroke-width default as a plain leaf box (`#F1F1F1`/
+  `#181818`/`0.5`) PLUS `stroke-linejoin:miter;stroke-miterlimit:10` (jar
+  emits these on every sampled diamond; `compareSvg`'s attribute
+  comparator treats a missing attr as a real diff, so they are required,
+  not decorative) — jar-verified `cekolo-21-gini183`.
+- **history/deepHistory** (`EntityImagePseudoState.java`/
+  `EntityImageDeepHistory.java`, SIZE=22): the SURPRISE finding — jar's
+  ellipse shares the SAME `#F1F1F1`/`#181818`/`0.5` default as a plain leaf
+  box, NOT an unfilled outline (the pre-S2 code's own assumption) — both
+  `EntityImagePseudoState`/`EntityImageBranch` share `EntityImage
+  StateCommon.STYLE`'s `StyleSignatureBasic.of(root,element,stateDiagram,
+  state)` with the plain leaf box, unlike initial/final/fork/join which
+  have their OWN distinct default colors. Label ("H"/"H*") centered via the
+  SAME `textLength`-based convention as the leaf box's own header text —
+  jar-verified `cekolo-21-gini183` (which exercises EVERY pseudostate
+  stereotype in one fixture: 11 diffs → 3, all 3 attributable to the
+  UNRELATED, pre-existing `<<sdlreceive>>` approximation, see "Also
+  discovered" below).
+- All pseudostate render functions accept a per-node `#color`/`#back:color`
+  inline override (`resolveStateFill`), matching upstream's real
+  `Colors#getColor(BackGroundColor)` mechanism for every shape, not just
+  the leaf box.
+
+### A companion fix, surfaced by (not part of) mechanism 5: `[*]` endpoint-id resolution
+
+Jar-verifying `gefefe-91-xoge233`/`moleco-69-sida106` surfaced a
+PRE-EXISTING, S1-adjacent bug (mechanism 3's own territory, "arrowhead-
+drawing mechanism" — specifically `svgEndpointId`'s own `*start*`/`*end*`
+translation): `layout.ts#buildFlatTransitionGeos` pushed the RAW,
+unresolved AST endpoint token (`'[*]'` verbatim) into `TransitionGeo.from`/
+`to` instead of resolving it through the SAME shared start/end anchor id
+(`INITIAL_ID`/`FINAL_ID`) the DOT graph itself already uses
+(`state-dot-graph.ts#buildDotEdges`'s own local `endpointId` helper). This
+made `renderer.ts#svgEndpointId`'s `INITIAL_ID`/`FINAL_ID` check silently
+never match for ANY flat-pipeline `[*]`-originating/-terminating
+transition, producing `<path id="[*]-to-IDLE">` instead of jar's
+`id="*start*-to-IDLE"` — invisible before mechanism 5 landed (everything
+else about those fixtures was already failing for bigger reasons).
+**Origin**: `layout.ts#buildFlatTransitionGeos:90-101` (pre-fix). **Fix**:
+`endpointId` exported from `state-dot-graph.ts`, reused by
+`buildFlatTransitionGeos`. A stale unit test (`tests/unit/state/
+layout.test.ts`, "TransitionGeo preserves original [*] from/to") asserted
+the OLD, buggy behavior as a named requirement — updated to assert the
+correct, jar-verified resolution instead (not reverted).
+
+### Mechanism 6 (NEWLY DIAGNOSED, NOT LANDED) — composite box IS NOT a dashed rect
+
+Per diagnosis.md: instrumented (not guessed) — direct raw-string inspection
+of `bajelo-54-dixe684`'s jar `in.svg` around `Track_FSM`'s own `<g>`,
+undertaken specifically to assess whether S1's items 3 ("entity-vs-cluster
+wrap split") and 4 ("composite ink rule") were bounded enough to land this
+iteration.
+
+**Mechanism**: `renderer.ts#renderCompositeShape` draws a composite state
+as `rect(rx=8, stroke-dasharray='6,3', fill=background) + top label` — a
+SINGLE dashed outline. Jar's REAL composite box (both the `entity`/autonom
+case, `Track_FSM`, AND the `cluster`/non-autonom case, `Track_FSM.Run`) is
+FOUR-LAYERED and uses the EXACT SAME conventions the leaf box (mechanism 5)
+and class's own `headerBackgroundPath` already establish: (1) a half-
+rounded HEADER-strip `<path>` (`URectangle.halfRounded`'s own arc+line
+sequence — `renderer-classifier-box.ts#headerBackgroundPath`'s ALREADY-
+PORTED math, verified byte-exact for class since G2), filled `#F1F1F1`,
+positioned at the box's own top edge; (2) a FULL, SOLID (never dashed)
+`<rect fill="none" stroke="#181818" stroke-width="0.5" rx="12.5"
+ry="12.5">` outline spanning the composite's whole bounding box; (3) a
+horizontal `<line>` divider at the header/body boundary (the SAME leaf-box
+divider convention); (4) the composite's own name, CENTERED via
+`textLength` (confirmed algebraically: `x=207.04` == `box midX(243.22) -
+textLength/2(36.18)`, byte-exact). The non-autonom `cluster` case
+(`Track_FSM.Run`) additionally draws a SECOND, DOT-cluster-specific
+background `<rect fill="#F1F1F1" stroke="#F1F1F1" stroke-width="1">`
+beneath its own children (likely `DotInputCluster`'s own bgcolor fill,
+already-existing dot-emission machinery, not yet traced to its exact
+render-side counterpart).
+
+**Origin**: `renderer.ts#renderCompositeShape` (dashed-rect assumption,
+never verified against a real jar composite sample — S1's own `bajelo-
+54-dixe684` probe checked wrap CLASS dispatch and shell/margin mechanics,
+never the composite box's OWN drawn shape).
+
+**Causal chain**: `bajelo-54-dixe684`'s post-mechanism-5 diff (5 total) is
+ENTIRELY `svg/@viewBox`/`@width`/`@height` (dimension) + ONE `svg/g[1]
+[childCount]` (7 actual vs 5 expected — extra `<rect>`+extra `<text>` from
+the dashed-box convention vs jar's 4-element layered convention) — closing
+mechanism 5 made this the ENTIRE remaining gap for every composite-bearing
+fixture, exactly the same "unmasking" pattern mechanisms 2→5 and 4→5
+already exhibited.
+
+**Ruled out**: NOT a mechanism-5 regression (the box's rx/stroke/fill
+CONSTANTS mechanism 5 landed are correct in spirit — jar's composite outer
+rect DOES use `rx=12.5`/`stroke-width=0.5`/`#181818`, the SAME leaf-box
+values — the bug is the DRAWING CONVENTION: a `stroke-dasharray` single
+rect instead of the 3-4-layer header-path+outline+divider+text
+composition). NOT the SAME bug as the entity/cluster wrap-CLASS split
+(that's about which `<g class="...">` wraps the composite, orthogonal to
+what's INSIDE it — both bugs are real and independent, this one simply
+dominates the remaining diff count).
+
+**Fix**: NOT LANDED this iteration. Explicitly NOT forced — rationale:
+this is a genuine, multi-element rendering-convention port (reusing
+`headerBackgroundPath`'s arc math, a NEW solid-outline drawing path, the
+SAME divider+centered-text convention mechanism 5 already built for leaf
+boxes, PLUS the still-unbounded cluster-vs-autonom second-background-rect
+question) — comparable in scope to mechanism 5 itself, not a same-iteration
+stretch fix. Named here per diagnosis.md, supersedes S1's own vaguer
+"composite ink rule"/"entity-vs-cluster wrap split" framing (both are
+real, but this diagnosis is the actual dominant blocker) — S3's primary
+scope.
+
+### Also discovered, out of S2's write-set (named, not fixed)
+
+- **`<<sdlreceive>>` stereotype draws UNWRAPPED** (no `<g class="entity">`
+  at all — bare `rect`+`path`+`text` siblings), unlike every other
+  `kind:'normal'` state (always wrapped `entity`) — jar-verified
+  `cekolo-21-gini183`. `wrapClassFor` (mechanism 2, S1) has no stereotype
+  awareness (`StateNodeGeo` carries no stereotype field), so this port
+  still wraps it — a pre-existing, already-flagged-approximate shape
+  (`state-sizing.ts#SDL_MARGIN`'s own doc comment) gains one more named
+  divergence, not independently chased (single-fixture reach in the
+  16-sample set, explicitly out of this iteration's item list).
+- **Transition routing/positioning** (`svg/g/g/path/@d`,
+  `svg/g/g/polygon/@points`) remains the dominant residual on several
+  near-zero fixtures (e.g. `gefefe-91-xoge233`, box/text/divider all
+  byte-exact) — S1's own already-named "not this mission's mechanisms"
+  family, confirmed still present and unrelated to mechanism 5/6.
+
+### Ratchet / pins
+
+9 fixtures pinned (`dutefi-86-kesa899`, `fuxavu-11-goco024`, `gizati-67-
+kora187`, `jocela-05-niba392`, `pujini-03-vasi565`, `sezoxa-56-jefi030`,
+`suzope-95-suvu383`, `votoki-67-gufa610`, `xuzapa-55-xoli880`) — all
+`conformant && dotEqual:true` per a freshly-regenerated `parity-state.json`
+(271/271 surveyed, 9/271 conformant). `state.golden.ratchet.test.ts`:
+11 tests (9× AC1 + AC2 + AC3), all passing.
+
+### Census (state), before/after this iteration
+
+```
+Before (S1): 0/271 -- 1-3:30, 4-10:192, 11-30:32, 31+:17, errors:0
+After  (S2): 9/271 -- 1-3:18, 4-10:187, 11-30:37, 31+:20, errors:0
+```
+
+### Files changed (S2)
+
+- `src/diagrams/state/renderer-box.ts` — NEW (simple-state box).
+- `src/diagrams/state/renderer-pseudostate.ts` — NEW (all pseudostates).
+- `src/diagrams/state/state-render-colors.ts` — NEW (shared fill/stroke
+  constants, per-node color-override resolution, ascent/descent formula).
+- `src/diagrams/state/state-geo-types.ts` — `StateTextLine` type,
+  `StateNodeGeo.headerLines`/`bodyLines`/`color` fields.
+- `src/diagrams/state/state-sizing.ts` — `measureTextLines`/
+  `measureBodyTextLines`/`historyLabelText`/`buildStateGeoTextFields`
+  (shared flat+composite text-field builder).
+- `src/diagrams/state/layout.ts` — `buildFlatStateGeos` threads
+  `buildStateGeoTextFields`; `buildFlatTransitionGeos` resolves `[*]` via
+  `endpointId` (companion fix).
+- `src/diagrams/state/state-composite-pass.ts` — `GeoSpec`'s `'state'`
+  variant gains `headerLines`/`bodyLines`/`color`; `resolveMember`'s leaf
+  branch threads `buildStateGeoTextFields`.
+- `src/diagrams/state/state-composite-geo.ts` — `materializeSpecs`'s
+  `'state'` branch threads the new spec fields onto `StateNodeGeo`.
+- `src/diagrams/state/state-dot-graph.ts` — `endpointId` exported
+  (companion fix).
+- `src/diagrams/state/renderer.ts` — `renderInitial`/`renderFinal`/
+  `renderForkJoin`/`renderChoiceJunction`/`renderHistory`/`renderNormal`
+  now delegate to the two new modules; `renderJson` doc comment updated.
+- `oracle/goldens/svg-state/ratchet.json` — 9 fixtures added.
+- `oracle/goldens/svg-state/<9 slugs>/{in.puml,golden.svg}` — NEW.
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated (271/271
+  surveyed, 9/271 conformant, unchanged dotEqual set).
+- `tests/unit/state/renderer.test.ts` — 13 assertions updated to match the
+  new jar-verified shapes (ellipse not circle, `#222222`/`#555555`/
+  `#F1F1F1` constants, `rx="12.5"`); a `historyLabelText`-based fallback
+  added to `renderHistory` so hand-built test geometries (no `headerLines`)
+  still render a plain centered label, keeping those assertions meaningful.
+- `tests/unit/state/layout.test.ts` — 2 assertions updated for the `[*]`
+  endpoint-id companion fix.
+
+### Gates (S2, final)
+
+- `state` census: `9/271` -- `1-3:18, 4-10:187, 11-30:37, 31+:20,
+  errors:0`.
+- Class census 294-set: **intact**, unchanged.
+- Object census 22-set: **intact**, unchanged.
+- Description census 48-set: **intact**, unchanged (1 pre-existing,
+  unrelated error).
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified BEFORE and AFTER
+  every mechanism landed this iteration.
+- `npm test -- --run`: 9925/9925 passing (363 files, +7 vs S1's 9918 —
+  net new/updated assertions in the two updated test files plus the new
+  ratchet pins).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+
+### S3+ queue
+
+1. **Mechanism 6** (composite box rendering convention) — port
+   `headerBackgroundPath`'s half-rounded-path math into state, a NEW
+   solid-outline draw path (not dashed), reuse the divider+centered-text
+   convention mechanism 5 already built, resolve the cluster-vs-autonom
+   second-background-rect question. Supersedes S1's "composite ink rule"/
+   "entity-vs-cluster wrap split" items.
+2. **Composite ink-extent** — once mechanism 6's real box shape lands,
+   `layout-ink-extent.ts#addStateBoxInk`'s composite reuse (S1's own
+   best-effort default) needs re-deriving against the NEW shape, not the
+   dashed-rect approximation it currently targets.
+3. **`<<sdlreceive>>` unwrapped-entity gap** — `wrapClassFor` needs
+   stereotype awareness (a new `StateNodeGeo` field) to match jar's
+   unwrapped rendering for this ONE stereotype.
+4. **Notes never render** — unchanged from S1, still a genuinely new
+   geometry+render write-set expansion.
+5. **Transition routing/positioning** (`svg/g/g/path/@d`) — the dominant
+   family among the 30/47/49-fixture-reach rows in the post-S2 family
+   report; unrelated to mechanisms 5/6, needs its own diagnosis pass.
+6. Re-run the census and `--families` report FRESH again once mechanism 6
+   lands — composite-bearing fixtures currently dominate the `svg/@viewBox`/
+   `@width`/`@height` family (233/224/210-fixture reach), so the true
+   remaining non-composite surface is still partly obscured.
