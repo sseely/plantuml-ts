@@ -3,6 +3,15 @@
  *
  * Pure function: StateGeometry + Theme → SVG string.
  * No DOM, no async.
+ *
+ * mission G4 S1: routes through the CucaDiagram-family document shell
+ * (`renderer-shell.ts#assembleStateShell`, mechanism 1) with one outer
+ * content `<g>` and per-entity/per-link `<g>` wrapping (`renderer-
+ * group.ts`, mechanism 2), inline-`<polygon>` transition arrowheads
+ * (`renderer-arrowhead.ts`, mechanism 3), and the real `SvekResult`-style
+ * document margin (`layout.ts#applyStateDocumentMargin` /
+ * `layout-ink-extent.ts`, mechanism 4) — see `plans/g4-state-svg/
+ * ledger.md` S1 for the full jar-verified mechanism writeups.
  */
 
 import type { StateGeometry, StateNodeGeo, TransitionGeo } from './layout.js';
@@ -16,6 +25,12 @@ import {
   ellipse,
   diamond,
 } from '../../core/svg.js';
+import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
+import { INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
+import { buildStateUidPlan } from './renderer-uid.js';
+import type { StateUidPlan } from './renderer-uid.js';
+import { wrapEntity, wrapStartEntity, wrapEndEntity, wrapLink } from './renderer-group.js';
+import { buildTransitionArrowhead, applyHeadTrim } from './renderer-arrowhead.js';
 
 // ---------------------------------------------------------------------------
 // Node shape renderers
@@ -105,8 +120,12 @@ function renderJson(node: StateNodeGeo, theme: Theme): string {
   return renderNormal(node, theme);
 }
 
-function renderComposite(node: StateNodeGeo, theme: Theme): string {
-  // Dashed outer rect for composite state container
+/** Composite state's OWN shape only (dashed outer rect + top label) —
+ *  children are NOT recursed here; {@link renderNodeWrapped} handles
+ *  recursion so each child gets its own `<g>` wrap (mission G4 S1
+ *  mechanism 2), unlike the pre-S1 `renderComposite` this replaces (which
+ *  flattened children into the same unwrapped string). */
+function renderCompositeShape(node: StateNodeGeo, theme: Theme): string {
   const outerBox = rect(node.x, node.y, node.width, node.height, {
     fill: theme.colors.background,
     stroke: theme.colors.border,
@@ -114,7 +133,6 @@ function renderComposite(node: StateNodeGeo, theme: Theme): string {
     strokeDasharray: '6,3',
     rx: 8,
   });
-  // Label at top of the composite box
   const label = text(
     node.x + node.width / 2,
     node.y + theme.fontSize + 4,
@@ -126,15 +144,14 @@ function renderComposite(node: StateNodeGeo, theme: Theme): string {
       fontSize: theme.fontSize,
     },
   );
-  // Render children inside the composite
-  const childrenSvg = node.children.map((child) => renderNode(child, theme)).join('');
-  return outerBox + label + childrenSvg;
+  return outerBox + label;
 }
 
-function renderNode(node: StateNodeGeo, theme: Theme): string {
-  // Composite states take priority: they contain children and get a dashed wrapper
+/** One node's own shape markup — children NOT recursed (see {@link
+ *  renderCompositeShape}'s doc comment). */
+function renderShape(node: StateNodeGeo, theme: Theme): string {
   if (node.children.length > 0) {
-    return renderComposite(node, theme);
+    return renderCompositeShape(node, theme);
   }
 
   switch (node.kind) {
@@ -144,12 +161,10 @@ function renderNode(node: StateNodeGeo, theme: Theme): string {
       return renderFinal(node, theme);
     case 'fork':
     case 'join':
-    // syncBar (T2 addition, `=name=` transition endpoints — see
-    // ast.ts's StateKind) has no dedicated renderer yet: T3/T4 owns
-    // renderer.ts's real rewrite. Reusing the fork/join bar shape is the
-    // closest visual analog — upstream itself renders synchronization
-    // bars and fork/join with the same bar shape (LeafType.SYNCHRO_BAR /
-    // STATE_FORK_JOIN both go through GeneralImageBuilder's bar case).
+    // syncBar (T2 addition, `=name=` transition endpoints -- see
+    // ast.ts's StateKind) has no dedicated renderer yet: reuses the
+    // fork/join bar shape, the closest visual analog -- upstream itself
+    // renders synchronization bars and fork/join with the same bar shape.
     case 'syncBar':
       return renderForkJoin(node, theme);
     case 'choice':
@@ -164,6 +179,54 @@ function renderNode(node: StateNodeGeo, theme: Theme): string {
     // #lizard forgives -- faithful one-branch-per-StateKind dispatch; each
     // case is a single delegating return, not real decision complexity.
   }
+}
+
+/**
+ * mission G4 S1 mechanism 2: the `<g class="entity"|"start_entity"|
+ * "end_entity">` wrap dispatch, jar-verified against `moleco-69-sida106`
+ * (start_entity/entity), `cekolo-21-gini183` (every pseudostate stereotype
+ * in one fixture -- choice wraps `entity`; fork/join bars and history/
+ * deepHistory pseudostates draw UNWRAPPED, no `<g>` at all).
+ *
+ * Composite states (`children.length > 0`) always wrap `entity` here -- see
+ * `renderer-group.ts`'s own "NOT MODELED" doc-comment note for the
+ * jar-verified `entity`-vs-`cluster` (autonom vs non-autonom) split this
+ * simplification does not yet capture.
+ */
+function wrapClassFor(node: StateNodeGeo): 'entity' | 'start_entity' | 'end_entity' | undefined {
+  if (node.children.length > 0) return 'entity';
+  switch (node.kind) {
+    case 'initial':
+      return 'start_entity';
+    case 'final':
+      return 'end_entity';
+    case 'fork':
+    case 'join':
+    case 'syncBar':
+    case 'history':
+    case 'deepHistory':
+      return undefined;
+    case 'choice':
+    case 'normal':
+    case 'json':
+      return 'entity';
+    // #lizard forgives -- faithful one-branch-per-StateKind dispatch.
+  }
+}
+
+/** Renders one node (recursing into composite children) with its jar
+ *  `<g>` wrap applied — the mechanism-2 replacement for the pre-S1
+ *  `renderNode`'s flat, unwrapped recursion. */
+function renderNodeWrapped(node: StateNodeGeo, theme: Theme, uidPlan: StateUidPlan): string {
+  const ownShape = renderShape(node, theme);
+  const childrenMarkup = node.children.map((c) => renderNodeWrapped(c, theme, uidPlan)).join('');
+  const inner = ownShape + childrenMarkup;
+  const wrapClass = wrapClassFor(node);
+  if (wrapClass === undefined) return inner;
+  const uid = uidPlan.nodeUid.get(node.id) ?? '';
+  if (wrapClass === 'start_entity') return wrapStartEntity(node.id, uid, inner);
+  if (wrapClass === 'end_entity') return wrapEndEntity(node.id, uid, inner);
+  return wrapEntity(node.id, uid, inner);
 }
 
 // ---------------------------------------------------------------------------
@@ -203,28 +266,68 @@ function buildPathD(points: ReadonlyArray<{ x: number; y: number }>): string {
   return parts.join(' ');
 }
 
-function renderTransition(transition: TransitionGeo, theme: Theme): string {
-  const d = buildPathD(transition.points);
+/** `Link#idCommentForSvg`-ish `<path id="...">` value — jar names the
+ *  pseudo-start/end endpoints `*start*`/`*end*` in this attribute (byte-
+ *  compared, unlike `data-qualified-name`) regardless of this port's own
+ *  internal `__initial__`/`__final__` ids (`state-dot-graph.ts`).
+ *  Jar-verified `moleco-69-sida106` (`id="*start*-to-Main_Libre"`),
+ *  `bajelo-54-dixe684` (`id="Track_FSM-to-*end*"`). */
+function svgEndpointId(nodeId: string): string {
+  if (nodeId === INITIAL_ID) return '*start*';
+  if (nodeId === FINAL_ID) return '*end*';
+  return nodeId;
+}
+
+/** Path + inline arrowhead + optional label — the wrapped `<g class=
+ *  "link">`'s inner content, split out of {@link renderTransitionWrapped}
+ *  to stay under this project's per-function NLOC cap. mission G4 S1
+ *  mechanism 3: inline `<polygon>` arrowhead instead of a `<marker>`
+ *  reference -- `ExtremityArrow`'s decorationLength-based path trim
+ *  (`applyHeadTrim`) must run BEFORE `buildPathD` so the connecting line
+ *  stops at the arrow's outer edge, matching jar exactly. */
+function buildTransitionInnerMarkup(transition: TransitionGeo, theme: Theme): string {
+  const arrowhead = buildTransitionArrowhead(transition, theme.colors.arrow, 1);
+  const points = applyHeadTrim(transition.points, arrowhead.trim);
+  const d = buildPathD(points);
   if (d === '') return '';
 
   const pathEl = path(d, {
     stroke: theme.colors.arrow,
-    strokeWidth: 1.5,
-    markerEnd: 'url(#arrow-dependency)',
+    strokeWidth: 1,
+    id: `${svgEndpointId(transition.from)}-to-${svgEndpointId(transition.to)}`,
   });
 
-  if (transition.label === undefined) {
-    return pathEl;
-  }
+  const labelEl =
+    transition.label === undefined
+      ? ''
+      : text(transition.label.x, transition.label.y, transition.label.text, {
+          fontFamily: theme.fontFamily,
+          fontSize: theme.fontSize,
+          fill: theme.colors.text,
+        });
 
-  const { text: labelText, x, y } = transition.label;
-  const labelEl = text(x, y, labelText, {
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-    fill: theme.colors.text,
-  });
+  return pathEl + arrowhead.markup + labelEl;
+}
 
-  return pathEl + labelEl;
+function renderTransitionWrapped(
+  transition: TransitionGeo,
+  theme: Theme,
+  uidPlan: StateUidPlan,
+  index: number,
+): string {
+  const inner = buildTransitionInnerMarkup(transition, theme);
+  if (inner === '') return '';
+  const uid = uidPlan.edgeUid[index] ?? '';
+  return wrapLink(
+    {
+      from: transition.from,
+      to: transition.to,
+      uid,
+      fromUid: uidPlan.resolveNodeUid(transition.from),
+      toUid: uidPlan.resolveNodeUid(transition.to),
+    },
+    inner,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -235,29 +338,28 @@ function renderTransition(transition: TransitionGeo, theme: Theme): string {
  * Render a state diagram geometry into an SVG string.
  */
 export function renderState(geo: StateGeometry, theme: Theme): RenderFragment {
+  const uidPlan = buildStateUidPlan(geo);
+
   const children: string[] = [];
-
-  // Background
-  children.push(
-    rect(0, 0, geo.totalWidth, geo.totalHeight, {
-      fill: theme.colors.background,
-    }),
-  );
-
-  // States
   for (const node of geo.states) {
-    children.push(renderNode(node, theme));
+    children.push(renderNodeWrapped(node, theme, uidPlan));
   }
+  geo.transitions.forEach((transition, index) => {
+    children.push(renderTransitionWrapped(transition, theme, uidPlan, index));
+  });
 
-  // Transitions
-  for (const transition of geo.transitions) {
-    children.push(renderTransition(transition, theme));
-  }
-
+  // mission G4 S1 mechanism 1: background is communicated via the shell's
+  // own root `style="...background:...;"` attribute (`renderer-shell.ts`
+  // / `core/klimt/document-shell.ts#assembleDocumentShell`) -- jar draws
+  // NO explicit full-canvas `<rect>` for it (verified: every sampled state
+  // fixture's `<defs/>` is immediately followed by the content `<g>`, no
+  // background rect). The pre-S1 renderer's own manual background `<rect>`
+  // is removed accordingly.
   return {
     body: children.join(''),
     width: geo.totalWidth,
     height: geo.totalHeight,
-    background: theme.colors.background,
+    background: resolveColorToSvgHex(theme.colors.background),
+    stateShell: true,
   };
 }

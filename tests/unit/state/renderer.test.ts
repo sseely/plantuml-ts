@@ -62,20 +62,25 @@ describe('renderState — minimal geometry', () => {
     expect(result.startsWith('<svg')).toBe(true);
   });
 
-  it('embeds width and height from geometry in svg root', () => {
+  it('embeds width and height from geometry in svg root (mission G4 S1: px-suffixed, CucaDiagram shell)', () => {
     const geo = makeGeo({ totalWidth: 400, totalHeight: 250 });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain('width="400"');
-    expect(result).toContain('height="250"');
+    expect(result).toContain('width="400px"');
+    expect(result).toContain('height="250px"');
   });
 
-  it('renders background rect covering full canvas', () => {
+  it('embeds background via the root style attribute, not a full-canvas <rect> (mission G4 S1 mechanism 1: jar draws no background rect for state)', () => {
     const geo = makeGeo({ totalWidth: 300, totalHeight: 200 });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    // Background rect has x=0 y=0 matching totalWidth/totalHeight
-    expect(result).toContain('x="0"');
-    expect(result).toContain('y="0"');
-    expect(result).toContain(`fill="${defaultTheme.colors.background}"`);
+    expect(result).toContain(`background:${defaultTheme.colors.background};`);
+    expect(result).not.toContain('<rect width="300" height="200"');
+  });
+
+  it('carries the CucaDiagram-family root shell (mission G4 S1 mechanism 1)', () => {
+    const geo = makeGeo({ totalWidth: 300, totalHeight: 200 });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).toContain('data-diagram-type="STATE"');
+    expect(result).toContain('zoomAndPan="magnify"');
   });
 });
 
@@ -321,11 +326,12 @@ describe('renderState — transitions', () => {
     expect(result).toContain('<path');
   });
 
-  it('transition path uses arrow marker', () => {
+  it('transition path uses an inline arrowhead polygon, not a marker ref (mission G4 S1 mechanism 3)', () => {
     const t = makeTransition();
     const geo = makeGeo({ transitions: [t] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain('marker-end="url(#arrow-dependency)"');
+    expect(result).not.toContain('marker-end');
+    expect(result).toContain('<polygon');
   });
 
   it('transition with label renders text element', () => {

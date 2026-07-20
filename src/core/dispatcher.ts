@@ -53,6 +53,16 @@ export interface RenderFragment {
    */
   classShell?: true;
   /**
+   * mission G4 S1 ("SVG root shell" mechanism 1): set ONLY by
+   * `state/renderer.ts#renderState` -- tells `assembleSvg` (src/index.ts) to
+   * reassemble via `state/renderer-shell.ts#assembleStateShell` (jar's
+   * state-diagram root-attribute/prolog/defs conventions, the SAME shared
+   * `core/klimt/document-shell.ts#assembleDocumentShell` mechanics
+   * `classShell`/`klimtShell` already delegate to) instead of the generic
+   * `svgRoot` (core/svg.ts). Never set by any other engine's fragment.
+   */
+  stateShell?: true;
+  /**
    * G2 N1: set by `core/annotations/chrome.ts#applyChrome` whenever it
    * added its OWN single bare `<g>` wrap around a decorated fragment's body
    * (i.e. `decorated === true` inside that function). A klimt-shaped
@@ -63,7 +73,9 @@ export interface RenderFragment {
    * `fragment.body` in exactly one bare `<g>` itself for the UNANNOTATED
    * case (nothing else would), but must NOT wrap a second time when chrome
    * already did -- this flag is the signal that distinguishes the two.
-   * Every other engine ignores it (harmless, unread).
+   * `stateShell`'s `assembleStateShell` reads it identically (mission G4
+   * S1, mirrors `assembleClassShell`'s own mechanism). Every other engine
+   * ignores it (harmless, unread).
    */
   bodyWrapped?: true;
   /**

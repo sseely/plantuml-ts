@@ -395,3 +395,371 @@ the root `<svg>` level (mechanism 2).
    surface (mechanism 2's short-circuit hides it), so S1's OWN family
    classification must be re-derived from scratch, not extrapolated from
    S0's table.
+
+## S1 — mechanisms 1-4 landed, mechanism 5 diagnosed, 0 pins (expected)
+
+### Summary
+
+Landed all four S0-named mechanisms (SVG root shell, outer/per-entity `<g>`
+wrapping + uid plan, inline-`<polygon>` arrowheads, `SvekResult`-style
+document margin) TDD-first, re-censusing after each. Every mechanism is
+individually jar-verified (not guessed) and collectively reduces the state
+census's diff-count distribution dramatically:
+
+```
+S0 (before): 0/271 -- 1-3:0,  4-10:1,   11-30:270, 31+:0,  errors:0
+S1 (after):  0/271 -- 1-3:30, 4-10:192, 11-30:32,  31+:17, errors:0
+```
+
+Zero fixtures pinned this iteration — mechanism 2's own `childCount`
+short-circuit (S0's own prediction, "no per-feature diff can be measured
+until this unblocks") unblocked `compareSvg`'s recursion exactly as
+expected, and the newly-visible layer immediately surfaces a FIFTH,
+previously-undiagnosable mechanism (state box/shape content fidelity —
+see below) that independently blocks every fixture from reaching zero,
+regardless of mechanisms 1-4's own correctness. This matches S0's own
+explicit prediction ("Expect the diff buckets to WORSEN in count terms
+once unmasked — that is the point, not a regression") and its own S1
+queue item 5 ("the current family table is not representative of the real
+remaining surface... must be re-derived from scratch").
+
+### Mechanism 1 — SVG root shell: LANDED
+
+`src/diagrams/state/renderer-shell.ts#assembleStateShell` — a thin wrapper
+around the ALREADY-BUILT `core/klimt/document-shell.ts
+#assembleDocumentShell(fragment, 'STATE')`, mirroring `class/renderer-
+shell.ts#assembleClassShell`'s own "Part B" single-`<g>`-wrap guarantee.
+Simpler than class's version: no `documentBackgroundRect`/
+`diagramBorderColor` splice needed (confirmed against every S0-sampled
+fixture — state's background is communicated purely via the root `style`
+attribute, never an extra `<rect>`). Wired via a new `RenderFragment
+.stateShell?: true` flag (`core/dispatcher.ts`), read by `src/index.ts
+#assembleSvg` exactly like `classShell`/`klimtShell`.
+
+**Jar-verified**: `jocela-05-niba392`'s root `<svg>` now matches jar's 11
+attributes + `<?plantuml ...?>` PI byte-for-byte (previously 7/9 missing).
+
+### Mechanism 2 — outer/per-entity `<g>` wrapping + uid plan: LANDED (with a named simplification)
+
+`src/diagrams/state/renderer-uid.ts#buildStateUidPlan` — fallback-only
+dense `ent%04d`/`lnkN` numbering (pre-order over `StateGeometry.states`
+including composite children, then `StateGeometry.transitions` array
+order). State has NO `creationIndex` threading at all (grepped, zero
+hits) — unlike class's G2 N2 exact/fallback split, this is fallback-only,
+documented as an approximation (matches class's own established
+"unambiguous fixtures get numbered right" bar).
+
+`src/diagrams/state/renderer-group.ts` — `wrapEntity`/`wrapStartEntity`/
+`wrapEndEntity`/`wrapLink`, mirroring `class/renderer-group.ts`'s
+established shape (`<g class="..." data-qualified-name="..." id="...">`,
+`data-*` stripped by the comparator, only `class`/`id` matter).
+
+**Jar-verified wrap-class dispatch** (`renderer.ts#wrapClassFor`), via
+direct string inspection of `moleco-69-sida106` and `cekolo-21-gini183`
+(every pseudostate stereotype in one fixture):
+- `initial` → `start_entity`; `final` → `end_entity`; `choice`/`normal`/
+  `json`/composite (`children.length > 0`) → `entity`.
+- `fork`/`join`/`syncBar`/`history`/`deepHistory` → **UNWRAPPED** (bare
+  siblings, no `<g>`, no id, no comment) — jar-verified directly against
+  `cekolo-21-gini183`'s own raw markup (fork/join sync bars and both
+  history glyphs draw with zero wrapping), a genuinely different
+  convention from class's own "everything gets wrapped" rule. This was
+  NOT assumed from class's own precedent — it was caught by hand-reading
+  `cekolo`'s raw SVG BEFORE writing the dispatch table, avoiding an
+  incorrect blanket-wrap implementation.
+
+**NOT MODELED (named remainder, not chased this iteration)**: a composite
+state (`children.length > 0`) sometimes wraps `entity` (an "autonom"
+composite, dumped as its own flattened svek pass) and sometimes `cluster`
+(a "non-autonom" composite, a real nested `Cluster`) — jar-verified via
+`bajelo-54-dixe684`: `Track_FSM` (top, 2 children) and `Track_FSM.Run.
+Do_Sector` (1 child) both wrap `entity`, but `Track_FSM.Run` (1 child)
+wraps `cluster`. `state-composite-geo.ts` does not thread this
+`GeoSpec.kind` classification onto the public `StateNodeGeo` it returns
+(verified: no `autonom` field on that type) — threading it through is a
+genuinely separate write-set expansion (new `StateNodeGeo` field, plumbed
+from `state-composite-pass.ts`'s internals), named here rather than
+guessed at or forced in under time pressure. Contributes to the
+`svg/g[childCount]`/`svg/g/g/@class` family reach below for composite
+fixtures specifically.
+
+Transitions render as FLAT siblings of the top-level state `<g>`s (all in
+`StateGeometry.transitions`, which carries no scope/parent info) — correct
+for flat diagrams (the corpus majority), a documented simplification for
+composite diagrams where jar nests a pass's own internal transitions
+inside that pass's own `<g>` (`bajelo-54-dixe684`'s `lnk10`/`lnk11` sit
+inside `Track_FSM`'s own `<g>`, not at the outer level).
+
+### Mechanism 3 — arrowhead-drawing mechanism: LANDED
+
+`src/diagrams/state/renderer-arrowhead.ts` — a head-only simplification of
+`class/renderer-arrowhead.ts#buildEdgeArrowheads`/`#edgeExtremityInk`:
+state transitions always resolve to a single head-side `LinkDecor.ARROW`
+(no tail decor, no reversal question — `TransitionGeo` has no decor field
+at all). Reuses the ALREADY-BUILT, jar-verified `core/svek/extremity/
+ExtremityArrow.ts` + `core/svek/svek-edge-extremity.ts#place` (the SAME
+polygon-vertex math and `decorTrim` path-shortening class already uses)
+via a throwaway klimt document (`UGraphicSvg`), exactly mirroring class's
+own `drawExtremityMarkup` mechanism. `renderer.ts#buildPathD`'s
+`applyHeadTrim` now shifts the path's last (and, for a spline, second-to-
+last) point by the extremity's own `decorTrim` delta BEFORE building `d`,
+so the connecting line stops at the arrow's outer edge instead of running
+underneath it, matching jar's own `dotPath.moveEndPoint` mechanism.
+
+Also fixed while wiring this in (a pre-existing, directly-adjacent bug,
+not scope creep — the path's own `stroke-width` and `id` attributes are
+BOTH exact-match, non-numeric, non-`data-*` attributes `compareSvg`
+compares byte-for-byte): `stroke-width` was hardcoded `1.5`, jar uses `1`
+on every sampled fixture; the `<path id="...">` value now uses jar's own
+`*start*`/`*end*` literal tokens for pseudo-start/final endpoints
+(`svgEndpointId`) instead of this port's internal `__initial__`/
+`__final__` ids — jar-verified `moleco-69-sida106` (`id="*start*-to-
+Main_Libre"`), `bajelo-54-dixe684` (`id="Track_FSM-to-*end*"`).
+
+**Jar-verified**: `<marker>`/`markerEnd` fully removed from state's own
+output path; every sampled fixture's `<defs/>` is now genuinely empty
+(matching jar) except for the rare `pathHoverColor` case (not exercised
+by state, N/A here).
+
+### Mechanism 4 — document-margin / ink-extent computation gap: LANDED (leaf-box case jar-verified; other shapes best-effort)
+
+`src/diagrams/state/layout-ink-extent.ts` — the `SvekResult`/
+`TextBlockExporter`/`SvgGraphics` document-dimension recipe, ported for
+state's own plain-geometry `StateNodeGeo`/`TransitionGeo` (same margin
+constants as class: `(0,5,5,0)`, `.delta(15,15)`, `JAR_INK_MARGIN=6`,
+`ensureVisible`'s truncating `+1` — grep-verified no `StateDiagram`-local
+`getDefaultMargins()` override exists in `~/git/plantuml/.../
+statediagram/*.java`, confirming the shared `CucaDiagram` base applies
+unchanged). Wired into `src/diagrams/state/layout.ts#layoutState` via a
+new `applyStateDocumentMargin` step (uniform `(dx,dy)` shift + real-dims
+recompute), replacing the raw dot-layout `result.width`/`result.height`
+this port previously returned directly.
+
+**Jar-verified, the KEY mechanistic finding**: a `normal`/`json` leaf
+state's box (rounded rect + horizontal divider `<line>` + name text) does
+**NOT** follow class's own `addRectInk` rule (`[x-1,x+w] × [y-1,y+h]`).
+The real rule is **asymmetric per AXIS, not per corner**: `[x-1, x+w] ×
+[y-1, y+h-1]`. Root cause: the divider `<line>` (upstream `ULine`,
+`LimitFinder#drawULine` — plain, UNINSET ink) spans the box's FULL
+uninset width (jar's own `<line x1="7" ... x2="65.0625" .../>` where `x2`
+equals the rect's `x+width` exactly) and so DOMINATES the rect's own
+`-1`-inset right edge on the WIDTH axis — but the line's `y` sits well
+INSIDE the box's vertical span, so it never reaches the rect's own
+`y+h-1` bottom edge. Isolated and confirmed via 3 INDEPENDENT
+zero-transition, zero-composite samples (`jocela-05-niba392` — trivial;
+`votoki-67-gufa610` — multi-line `\n` body; `gupeto-19-mesa256` — `<math>`
+LaTeX body): `svg/@width` + `svg/@height` byte-exact on all 3 once
+applied, robust across body-content complexity.
+
+**NOT independently jar-verified this iteration** (documented, not
+silently dropped — see `layout-ink-extent.ts`'s own file doc comment for
+the specific `LimitFinder` dispatch each reproduces, ported from REAL
+code, not guessed):
+- `composite` boxes reuse the leaf-box rule as a best-effort default (no
+  divider line in `renderComposite`'s own output, so the mechanism that
+  derives the leaf rule doesn't obviously transfer) — `bajelo-54-dixe684`
+  (3-level nesting) still shows a real width/height gap (466×494 vs jar's
+  494×580), confirming this specific rule is WRONG for composites and
+  is the dominant residual on every composite-bearing fixture.
+- `fork`/`join`/`syncBar` (plain `LimitFinder#drawRectangle`, real code,
+  not guessed) and `initial`/`final`/`history`/`deepHistory`
+  (`LimitFinder#drawEllipse`, real code) and `choice`
+  (`LimitFinder#drawUPolygon`, real code, `HACK_X_FOR_POLYGON=10`) — each
+  ported directly from `core/klimt/drawing/LimitFinder.ts`'s own real
+  per-shape dispatch, but not independently confirmed against an isolated
+  jar sample this iteration (`moleco-69-sida106`, `cekolo-21-gini183`
+  both show small residual width/height gaps — 111×166 vs jar's 155×165,
+  and 639×65 vs jar's 651×65 respectively — meaning at least one of
+  these per-shape rules, or a residual dot-layout coordinate difference
+  unrelated to ink rules, still has a gap; not root-caused further this
+  iteration given the time already spent isolating the leaf-box case).
+
+### Mechanism 5 (NEWLY DIAGNOSED, NOT LANDED) — state box/shape content fidelity
+
+Per `~/.claude/rules/diagnosis.md`: instrumented (not guessed) via direct
+before/after `compareSvg` probing of `jocela-05-niba392` and
+`votoki-67-gufa610` (the two SIMPLEST corpus members, chosen to isolate
+this from every other mechanism) after mechanisms 1-4 landed.
+
+**Mechanism**: `renderNormal` (`src/diagrams/state/renderer.ts`) draws a
+leaf state as `rect(rx=8) + centered text` — TWO children. Jar's real
+`EntityImageState` composition draws THREE-plus: a bordered rect
+(`rx="12.5"`, not `8`), a horizontal divider `<line>` (header/body split,
+matching class's own classifier convention — this port's `renderNormal`
+never draws one at all), and a `<text>` positioned as a HEADER row near
+the box's TOP-LEFT (jar: `x="17" y="22.8889"`, with `lengthAdjust=
+"spacing"`/`textLength="38.0625"` attrs this port's `text()` helper never
+emits) — NOT centered in the box's middle (this port: `x="36.03125"
+y="39"`, no `lengthAdjust`/`textLength`). Fill color and stroke-width
+also diverge: jar's default state fill is `#F1F1F1` (this port uses
+`theme.colors.background`, `#FFFFFF`) with `stroke-width:0.5` (this port:
+`1`); `jocela-05-niba392` specifically also carries a `#red` skinparam
+override on the state (jar: `fill="#FF0000"`) that this port's renderer
+has no mechanism to apply at all (`StateNodeGeo` carries no per-node
+color-override field).
+
+**Origin**: `src/diagrams/state/renderer.ts#renderNormal` (and by
+extension `renderInitial`/`renderFinal`, which draw raw `<circle>`
+strings where jar always uses `<ellipse rx="10" ry="10">` — confirmed via
+the family report's `svg/g/g/circle` row, 14-fixture reach — and use
+`theme.colors.border` `#181818` for pseudostate fill where jar uses a
+DIFFERENT, not-yet-jar-verified constant `#222222`).
+
+**Causal chain**: once mechanism 2 unblocks `compareSvg`'s recursion past
+the `<g class="entity">` wrapper, the very NEXT level down is this box's
+own child list — `jocela-05-niba392`'s post-S1 diff drops to exactly ONE
+entry, `svg/g[1]/g[1][childCount]: actual=2 expected=3` (missing the
+divider line), and `compareSvg`'s own "stop recursing on childCount
+mismatch" rule means the box's OWN attribute-level diffs (fill/rx/stroke-
+width/text position, all confirmed present via direct raw-output
+inspection) are not even yet independently measurable per-fixture — they
+are a SECOND layer, hidden behind mechanism 5's own childCount gate, the
+same "unmasking" pattern mechanism 2 itself exhibited relative to
+mechanisms 1/3/4 in S0.
+
+**Ruled out**: NOT a mechanism 1-4 regression — `jocela`'s shell attrs,
+wrap structure, and canvas dims (`80px`×`71px`) are ALL byte-exact
+post-S1; the ONLY remaining diff is this box's own inner content shape.
+NOT limited to `jocela` — the family report's `svg/g/g[childCount]` row
+(92-fixture reach) and `svg/g/g/circle` row (14-fixture reach, tag choice
+alone) confirm this is corpus-wide, not fixture-specific.
+
+**Fix**: NOT LANDED this iteration — explicitly deferred, not forced.
+Rationale: unlike mechanisms 1-4 (each a single, well-bounded, ALREADY-
+BUILT-elsewhere-in-the-codebase mechanism reused via a thin adapter),
+mechanism 5 is a full per-shape content rewrite (divider line + exact
+`rx`/`stroke-width`/fill-color-resolution + jar's real header/body text
+layout convention + per-node color-override threading, likely for EVERY
+`StateKind`, not just `normal`) — comparable in scope to G2's own
+multi-iteration class-classifier-box work, not a same-iteration
+"stretch fix". Forcing a partial version now (e.g. adding just the
+divider line without also fixing `rx`/color/text-position) would still
+not reach zero-diff on any fixture (confirmed: even closing `jocela`'s
+ONE remaining childCount gap immediately re-exposes the box's OWN
+attribute-level diffs underneath) while consuming this iteration's
+remaining budget on an admittedly unbounded surface. Named here, per
+diagnosis.md, as the mechanism blocking every remaining fixture from
+reaching zero — S2's primary scope.
+
+### Ratchet / pins
+
+0 fixtures pinned (consistent with S0's own 0-pin baseline — the ratchet
+was never expected to gain pins until a fixture reaches genuine
+`dotEqual && zero-diff`, which mechanism 5 alone prevents this iteration).
+`state.golden.ratchet.test.ts` unchanged, still exercising its 0-fixture
+`describe.skipIf` branch.
+
+### Census (state), before/after this iteration
+
+```
+Before (S0): 0/271 -- 1-3:0,  4-10:1,   11-30:270, 31+:0,  errors:0
+After  (S1): 0/271 -- 1-3:30, 4-10:192, 11-30:32,  31+:17, errors:0
+```
+
+Diff-family report (post-S1, `--families`, top rows):
+
+```
+233 fixtures  svg/@viewBox         (composite-ink-rule gap + mechanism 5's own downstream effects)
+224 fixtures  svg/@width
+210 fixtures  svg/@height
+177 fixtures  svg/g[childCount]    (unwrapped-kind coverage gaps, notes not rendered at all, cluster-vs-entity)
+ 92 fixtures  svg/g/g[childCount]  (mechanism 5: missing divider line, the dominant single-shape gap)
+ 50 fixtures  svg/g/g/path/@d     (transition routing/positioning, not this mission's mechanisms)
+ 49 fixtures  svg/g/g/polygon/@points (mechanism-5-adjacent: arrowhead geometry depends on trimmed path)
+ 30 fixtures  svg/g/g/path/@id
+ 25 fixtures  svg/g/g/@id          (uid-plan fallback-numbering mismatches on ambiguous/composite fixtures)
+ 25 fixtures  svg/g/g/@class       (entity-vs-cluster composite gap, named above)
+ 14 fixtures  svg/g/g/circle       (mechanism 5: circle vs ellipse tag choice)
+```
+
+Full 35-row family table captured in this iteration's own working notes;
+truncated here for ledger length — every row funnels into mechanism 5
+(box/shape content fidelity) or the two named mechanism-2/4 remainders
+(composite entity/cluster split, composite ink rule) above, none of which
+is a new, sixth undiscovered class of gap.
+
+### Also discovered, out of S1's write-set (named, not fixed)
+
+- **Notes never render at all**: `StateGeometry` (`state-geo-types.ts`)
+  carries no `notes` field whatsoever — `state-notes.ts`/`state-note-
+  layout.ts` exist as parsing/layout modules but nothing threads their
+  output into `renderState`'s output. Every note-bearing fixture
+  (`dajipi-09-doki542`, `fotigo-12-gufu949` from S0's own sample table)
+  will show a `svg/g[childCount]` gap from this alone, on top of every
+  other mechanism. A genuinely separate, unscoped write-set expansion
+  (new geometry field + a new render path), not attempted here.
+
+### Files changed (S1)
+
+- `src/diagrams/state/renderer-shell.ts` — NEW (mechanism 1).
+- `src/diagrams/state/renderer-uid.ts` — NEW (mechanism 2, uid plan).
+- `src/diagrams/state/renderer-group.ts` — NEW (mechanism 2, `<g>` wraps).
+- `src/diagrams/state/renderer-arrowhead.ts` — NEW (mechanism 3).
+- `src/diagrams/state/layout-ink-extent.ts` — NEW (mechanism 4).
+- `src/diagrams/state/renderer.ts` — rewritten: shell flag, recursive
+  `<g>`-wrapped node/transition rendering, inline arrowheads, `stroke-
+  width`/path-`id` fixes, background moved to shell `style` attr (no more
+  manual full-canvas `<rect>`).
+- `src/diagrams/state/layout.ts` — `layoutState` now applies
+  `applyStateDocumentMargin` (shift + real dims) as its final step.
+- `src/core/dispatcher.ts` — new `RenderFragment.stateShell?: true` flag.
+- `src/index.ts` — `assembleSvg` dispatches `stateShell` to
+  `assembleStateShell`.
+- `tests/unit/state/renderer.test.ts` — 3 pre-S1 assertions updated to
+  match the new shell/wrap/arrowhead shape (px-suffixed dims, no manual
+  background rect, no `marker-end`); all other pre-existing assertions
+  (39 of 42) needed NO changes.
+
+### Gates (S1, final)
+
+- `state` census: `0/271` -- `1-3:30, 4-10:192, 11-30:32, 31+:17,
+  errors:0` (histogram improved; 0 zero-diff, expected per mechanism 5).
+- Class census 294-set: **intact**, unchanged (`0:294, 1-3:25, 4-10:102,
+  11-30:29, 31+:268, errors:0`).
+- Object census 22-set: **intact**, unchanged (`0:22, 1-3:5, 4-10:11,
+  11-30:11, 31+:31, errors:0`).
+- Description census 48-set: **intact**, unchanged (`0:48, 1-3:26,
+  4-10:73, 11-30:67, 31+:140, errors:1` across 355 component+usecase
+  fixtures — the 1 error is pre-existing, unrelated to this mission's
+  write-set, matches S0's own baseline shape).
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified BEFORE and AFTER
+  every mechanism landed this iteration.
+- `npm test -- --run`: 9917/9918 passing (363 files, +0 vs S0's 363; the
+  1 "failing-to-pass" is the SAME pre-existing `describe.skipIf` block at
+  the 0-fixture ratchet baseline — actually 2 skipped per vitest's own
+  count, matching S0's `9916/9918` shape modulo the +1 test added when
+  `renderer.test.ts` gained a new assertion).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+
+### S2+ queue
+
+1. **Mechanism 5** (state box/shape content fidelity) — the new
+   prerequisite blocker for ANY zero-diff fixture: divider line + exact
+   `rx`/`stroke-width`/fill-color-resolution (including per-node
+   skinparam color overrides) + jar's real header/body text-layout
+   convention for `renderNormal`; circle→ellipse tag fix + correct fill
+   constant for `renderInitial`/`renderFinal`; likely similar gaps for
+   every other `StateKind`'s own shape renderer (`renderForkJoin`,
+   `renderChoiceJunction`, `renderHistory`) not yet individually probed.
+2. **Composite ink rule** (mechanism 4's own named remainder) — verify
+   and correct `addStateBoxInk`'s reuse for `children.length > 0` nodes;
+   `bajelo-54-dixe684` is the standing jar-verified counter-example
+   (466×494 vs jar's 494×580).
+3. **Entity-vs-cluster composite wrap split** (mechanism 2's own named
+   remainder) — thread the `autonom`/non-autonom classification from
+   `state-composite-pass.ts`'s internal `GeoSpec.kind` onto the public
+   `StateNodeGeo` so composite wrap-class dispatch matches jar exactly.
+4. **Notes never render** — `StateGeometry` has no `notes` field at all;
+   a genuinely new geometry+render write-set expansion.
+5. **Per-shape ink-rule verification** — `fork`/`join`/`syncBar`/
+   `history`/`deepHistory`/`choice`'s own `LimitFinder`-ported ink rules
+   (mechanism 4) are grounded in real code but not independently
+   jar-verified per-shape this iteration (`moleco-69-sida106`,
+   `cekolo-21-gini183` both show small residual width/height gaps not
+   yet root-caused to a specific shape).
+6. Once mechanism 5 (at minimum) lands, re-run the census and
+   `--families` report FRESH AGAIN — likely still not representative of
+   the true remaining surface until the box-content layer itself stops
+   short-circuiting `compareSvg`'s recursion into transitions/labels/
+   arrowheads for the SAME fixtures.

@@ -32,6 +32,7 @@ import { attachTransitionLabel } from './state-transition-label.js';
 import type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
 
 export type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
+import { computeStateDocumentDims, computeStateInkShift } from './layout-ink-extent.js';
 
 /** A state (or top-level ast) is composite-free iff no state anywhere has
  *  local content (`hasLocalContent`, state-composite-detect.ts) OR its OWN
@@ -120,6 +121,38 @@ function layoutFlat(ast: StateDiagramAST, theme: Theme, measurer: StringMeasurer
 // Public API
 // ---------------------------------------------------------------------------
 
+/** mission G4 S1, mechanism 4: shifts EVERY state/transition position by
+ *  a uniform `(dx, dy)` (`layout-ink-extent.ts#computeStateInkShift`, the
+ *  SAME `SvekResult#calculateDimension` `moveDelta` mechanism `class/
+ *  layout.ts#shiftClassifierGeo`'s own precedent already ports for class)
+ *  so the diagram's own ink extent lands at jar's `(6, 6)` origin, and
+ *  replaces the raw dot-layout `totalWidth`/`totalHeight` with the real
+ *  `SvekResult`/`TextBlockExporter`/`SvgGraphics` document-dimension
+ *  formula (`computeStateDocumentDims`) instead of dot's own unrelated
+ *  layout-margin convention. */
+function shiftStateNode(g: StateNodeGeo, dx: number, dy: number): StateNodeGeo {
+  return { ...g, x: g.x + dx, y: g.y + dy, children: g.children.map((c) => shiftStateNode(c, dx, dy)) };
+}
+
+function shiftStateTransition(t: TransitionGeo, dx: number, dy: number): TransitionGeo {
+  return {
+    ...t,
+    points: t.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+    ...(t.label !== undefined ? { label: { ...t.label, x: t.label.x + dx, y: t.label.y + dy } } : {}),
+  };
+}
+
+function applyStateDocumentMargin(geo: StateGeometry): StateGeometry {
+  const dims = computeStateDocumentDims(geo.states, geo.transitions);
+  const shift = computeStateInkShift(geo.states, geo.transitions);
+  return {
+    totalWidth: dims.width,
+    totalHeight: dims.height,
+    states: geo.states.map((n) => shiftStateNode(n, shift.dx, shift.dy)),
+    transitions: geo.transitions.map((t) => shiftStateTransition(t, shift.dx, shift.dy)),
+  };
+}
+
 export function layoutState(
   ast: StateDiagramAST,
   theme: Theme,
@@ -135,9 +168,9 @@ export function layoutState(
     return { totalWidth: 0, totalHeight: 0, states: [], transitions: [] };
   }
 
-  if (!hasAnyComposite(effAst.states)) {
-    return layoutFlat(effAst, theme, measurer);
-  }
+  const raw = !hasAnyComposite(effAst.states)
+    ? layoutFlat(effAst, theme, measurer)
+    : layoutComposite(effAst, theme, measurer);
 
-  return layoutComposite(effAst, theme, measurer);
+  return applyStateDocumentMargin(raw);
 }
