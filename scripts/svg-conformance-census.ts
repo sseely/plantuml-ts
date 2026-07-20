@@ -2,7 +2,7 @@
 /**
  * SVG conformance census — dual-measurer mission deliverable.
  *
- * Renders every cached component/usecase/class/object fixture (`test-
+ * Renders every cached component/usecase/class/object/state fixture (`test-
  * results/dot-cache/`, captured from the jar under
  * `-DPLANTUML_DETERMINISTIC_TEXT=true` — see `oracle/patches/0002-oracle-
  * deterministic-text.patch`). component/usecase route through the
@@ -14,18 +14,14 @@
  * G3/O0) — object diagrams have no separate engine upstream
  * (`ClassDiagramFactory` registers the object/map commands alongside the
  * class ones; see `tests/unit/object/renderer.test.ts`'s own doc comment),
- * so reusing the identical helper is correct, not a shortcut. `renderFixtureFor`
- * dispatches on `type`. Each pass injects ONE measurer instance into BOTH the
- * layout and render stages, and compares the result against the cached
- * golden via `compareSvg(..., 'deterministic')`.
- *
- * Bypasses `renderSync`/`descriptionPlugin.render` deliberately: the public
- * `SyncPlugin#render(geo, theme)` contract has no measurer parameter (by
- * design — production always draws with `jarMeasurer`, see `renderer.ts`'s
- * own doc comment), so a script that wants BOTH stages measuring in the SAME
- * system must call the lower-level functions directly — the same bypass
- * pattern `scripts/dot-sync-report.ts` already established for oracle-DOT
- * emission.
+ * so reusing the identical helper is correct, not a shortcut. `state` routes
+ * through its OWN dedicated engine (`parseState` -> `layoutState` ->
+ * `renderState`, via `render-fixture-state.ts#renderFixtureState` — G4/S0):
+ * unlike object, state diagrams DO have a separate upstream package
+ * (`statediagram/`), so this is a genuinely new pipeline dispatch, not a
+ * reuse. `renderFixtureFor` dispatches on `type`. Each pass injects ONE
+ * measurer instance into BOTH the layout and render stages, and compares
+ * the result against the cached golden via `compareSvg(..., 'deterministic')`.
  *
  * Two passes over the same corpus:
  *   - `deterministic`: measurer = `DeterministicMeasurer` (this task) — the
@@ -44,8 +40,8 @@
  * exact 4-stage algorithm (see that function's own doc comment) using the
  * same already-exported building blocks.
  *
- * Usage: npx tsx scripts/svg-conformance-census.ts [component] [usecase] [class] [object]
- *   (defaults to component + usecase; class/object must be requested
+ * Usage: npx tsx scripts/svg-conformance-census.ts [component] [usecase] [class] [object] [state]
+ *   (defaults to component + usecase; class/object/state must be requested
  *   explicitly)
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -75,6 +71,7 @@ import { withStdlib } from '../src/core/tim/StdlibStore.js';
 import { buildStdlibAssetsStore } from './stdlib-assets-store.js';
 import { normalizeSvg } from '../tests/oracle/svg-conformance/normalize.js';
 import { renderFixtureClass } from '../tests/oracle/svg-conformance/render-fixture-class.js';
+import { renderFixtureState } from '../tests/oracle/svg-conformance/render-fixture-state.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE_DIR = join(REPO, 'test-results', 'dot-cache');
@@ -190,20 +187,27 @@ function renderFixtureDescription(markup: string, measurer: StringMeasurer): str
 }
 
 /**
- * N0 (G2), extended O0 (G3): dispatches to the CLASS pipeline for `class`
- * AND `object` fixtures, else the pre-existing description pipeline
+ * N0 (G2), extended O0 (G3), extended S0 (G4): dispatches to the CLASS
+ * pipeline for `class` AND `object` fixtures, to the STATE pipeline for
+ * `state` fixtures, else the pre-existing description pipeline
  * (component/usecase). `parseDescription` silently "succeeds" on class/
- * object markup -- it just drops the native syntax (member compartments,
- * nested classifiers inside `package{}` blocks, `object`/`map` declarations)
- * -- so class/object fixtures MUST route through their own parser/layout/
- * renderer or every downstream family/error measurement is meaningless
- * (diagnosed N0, re-confirmed for object at O0: object diagrams have no
- * separate engine upstream -- see `renderFixtureClass`'s own doc comment).
+ * object/state markup -- it just drops the native syntax (member
+ * compartments, nested classifiers inside `package{}` blocks, `object`/`map`
+ * declarations, state transitions) -- so each of these fixture types MUST
+ * route through its own parser/layout/renderer or every downstream family/
+ * error measurement is meaningless (diagnosed N0, re-confirmed for object at
+ * O0, re-confirmed for state at S0: state diagrams DO have a dedicated
+ * upstream engine, `statediagram/`, unlike object's reuse of `classdiagram/`
+ * -- see `renderFixtureState`'s own doc comment).
  */
 function renderFixtureFor(type: string, markup: string, measurer: StringMeasurer): string {
-  return type === 'class' || type === 'object'
-    ? renderFixtureClass(markup, measurer, { includeStore: censusIncludeStore() })
-    : renderFixtureDescription(markup, measurer);
+  if (type === 'class' || type === 'object') {
+    return renderFixtureClass(markup, measurer, { includeStore: censusIncludeStore() });
+  }
+  if (type === 'state') {
+    return renderFixtureState(markup, measurer, { includeStore: censusIncludeStore() });
+  }
+  return renderFixtureDescription(markup, measurer);
 }
 
 // ---------------------------------------------------------------------------
