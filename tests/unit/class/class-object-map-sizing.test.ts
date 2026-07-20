@@ -372,6 +372,51 @@ describe('headerRows — object with stereotype (majake-62-pero492: foo3 <<azert
   });
 });
 
+// G3/O2: multi-stacked stereotypes (`object X <<Bar>> <<Foo>>`) -- upstream
+// draws ONE guillemet-wrapped `<text>` PER label, stacked (`Stereotype
+// #getLabels()`), the SAME shape `class-stereotype.ts#buildStereoRows`
+// already ports for CLASS -- object's own `headerRows` previously only
+// ever wrapped+drew the classifier's raw (comma/greedy-regex-collided)
+// stereotype BLOB as ONE line. Jar-verified fafozi-27-reja300's node2
+// (`object "Object1" as node2 <<Bar>> <<Foo>>`, no fields/braces): TWO
+// independent `<text>` rows, each centered against its OWN raw width vs
+// boxWidth (NOT a shared block-width centering) -- `«Bar»` narrower
+// (32.025) centers 1.0125px right of `«Foo»` (34.05) despite BOTH stacking
+// at the SAME box x-origin.
+describe('headerRows — object, multi-stacked stereotype (fafozi-27-reja300: node2 <<Bar>> <<Foo>>)', () => {
+  it('draws ONE row per label, each independently centered, stacked at fontSize stride', () => {
+    const ast = makeAST([
+      objectClassifier('node2', 'Object1', { stereotype: 'Bar>> <<Foo' }),
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.width).toBeCloseTo(62.2125, 3);
+    expect(c.rows).toHaveLength(3);
+    const barRow = c.rows[0]!;
+    const fooRow = c.rows[1]!;
+    const nameRow = c.rows[2]!;
+    expect(barRow.text).toBe('«Bar»');
+    expect(barRow.fontSize).toBe(12);
+    expect(barRow.width).toBeCloseTo(32.025, 3);
+    // (62.2125 - 32.025) / 2 = 15.09375 -- jar's text x=132.4237 minus rect x=117.33
+    expect(barRow.indent).toBeCloseTo(15.09375, 3);
+    // baselineOffset(12pt), row 0 -- jar's text y=19.3333 minus rect y=10
+    expect(barRow.y).toBeCloseTo(9.3333, 3);
+    expect(fooRow.text).toBe('«Foo»');
+    expect(fooRow.width).toBeCloseTo(34.05, 3);
+    // (62.2125 - 34.05) / 2 = 14.08125 -- jar's text x=131.4113 minus rect x=117.33
+    expect(fooRow.indent).toBeCloseTo(14.08125, 3);
+    // fontSize(12) stride + baselineOffset -- jar's text y=31.3333 minus rect y=10
+    expect(fooRow.y).toBeCloseTo(21.3333, 3);
+    expect(nameRow.width).toBeCloseTo(48.2125, 3);
+    // (62.2125 - 48.2125) / 2 = 7 -- jar's text x=124.33 minus rect x=117.33
+    expect(nameRow.indent).toBeCloseTo(7, 3);
+    // stereoHeight(2*12=24) + OBJECT_NAME_PADDING(2) + baselineOffset(14) --
+    // jar's text y=46.8889 minus rect y=10
+    expect(nameRow.y).toBeCloseTo(36.8889, 3);
+  });
+});
+
 describe('headerRows — map, no stereotype (bepafe-03-teda035: CapitalCity)', () => {
   it('centers the name row within the map\'s final (data-row-dominated) width', () => {
     const ast = makeAST([

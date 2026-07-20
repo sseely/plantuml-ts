@@ -15,6 +15,7 @@ import {
   computeClassDocumentDims,
   computeClassInkShift,
   computeClassBorderRectDims,
+  computeClassRawInkDims,
 } from '../../../src/diagrams/class/layout-ink-extent.js';
 import type { ClassifierGeo, EdgeGeo, NamespaceGeo } from '../../../src/diagrams/class/layout.js';
 import type { NoteGeo } from '../../../src/diagrams/class/note-layout.js';
@@ -201,6 +202,61 @@ describe('computeClassDocumentDims', () => {
     const dims = computeClassDocumentDims([], [], [], notes);
     expect(dims.width).toBe(0);
     expect(dims.height).toBe(0);
+  });
+});
+
+// G3/O2: object classifiers whose field/body compartment is entirely
+// suppressed (`dividerYs: []` -- "hide members"/"hide empty members" on an
+// object with no visible members left) lose the invisible-`UEmpty`-
+// reservation ink contribution `addRectInk` models for a POPULATED object,
+// so their own visible-rect ink is 1px narrower on the WIDTH axis only
+// (`addRectInkEmptyBody`'s own doc comment has the full jar-verified
+// mechanism, traced to `EntityImageObject#drawU`/`BodierLikeClassOrObject
+// #getBody`'s `LeafType.OBJECT` arm + `LimitFinder#drawRectangle`'s native
+// `-1`/`-1` inset).
+describe('computeClassRawInkDims — object empty-body ink (G3/O2)', () => {
+  it('two hidden-members object classifiers -- jar-verified kexica-21-gega428 ' +
+    '(global "hide members"): rawWidth 96.3625 (NOT addRectInk\'s 97.3625), ' +
+    'rawHeight unaffected', () => {
+    const classifiers: ClassifierGeo[] = [
+      makeClassifierGeo({ id: 'A', kind: 'object', x: 7, y: 7, width: 23.3625, height: 18, dividerYs: [] }),
+      makeClassifierGeo({ id: 'B', kind: 'object', x: 65, y: 7, width: 23.3625, height: 18, dividerYs: [] }),
+    ];
+    const dims = computeClassRawInkDims(classifiers, [], [], []);
+    expect(dims.width).toBeCloseTo(96.3625, 4);
+    expect(dims.height).toBe(34);
+  });
+
+  it('"hide empty members" only narrows the genuinely-empty sibling -- ' +
+    'jar-verified janoma-30-dovo501 (A keeps its populated-field ink at ' +
+    'dividerYs:[18], B is the empty one)', () => {
+    const populated = makeClassifierGeo({
+      id: 'A', kind: 'object', x: 7, y: 7, width: 31.425, height: 40,
+      dividerYs: [18],
+    });
+    const emptyBody = makeClassifierGeo({
+      id: 'B', kind: 'object', x: 73.03125, y: 18, width: 23.3625, height: 18, dividerYs: [],
+    });
+    const withEmptyRule = computeClassRawInkDims([populated, emptyBody], [], [], []);
+    const withGeneralRuleOnly = computeClassRawInkDims(
+      [populated, { ...emptyBody, kind: 'class' }],
+      [], [], [],
+    );
+    // The empty-body sibling's own rule shaves exactly 1px off the raw
+    // width relative to treating it with the general (addRectInk) rule --
+    // jar-verified rawWidth 104.39375 (this rule) vs 105.39375 (general).
+    expect(withEmptyRule.width).toBeCloseTo(104.39375, 4);
+    expect(withGeneralRuleOnly.width - withEmptyRule.width).toBe(1);
+    expect(withEmptyRule.height).toBe(withGeneralRuleOnly.height);
+  });
+
+  it('does NOT apply the empty-body rule to non-object kinds (class/interface/' +
+    'enum keep addRectInk even with dividerYs: [])', () => {
+    const asClass = makeClassifierGeo({ id: 'C', kind: 'class', x: 65, y: 7, width: 23.3625, height: 18, dividerYs: [] });
+    const asObject = makeClassifierGeo({ id: 'C', kind: 'object', x: 65, y: 7, width: 23.3625, height: 18, dividerYs: [] });
+    const classDims = computeClassRawInkDims([asClass], [], [], []);
+    const objectDims = computeClassRawInkDims([asObject], [], [], []);
+    expect(classDims.width - objectDims.width).toBe(1);
   });
 });
 

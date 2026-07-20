@@ -19,13 +19,63 @@ import { parseColor } from './paint.js';
 const STEREOTYPE_SELECTOR_SUFFIX = '.stereotype';
 
 /**
+ * Diagram-type style-selector names (`SName` values PlantUML's style engine
+ * registers per diagram type, e.g. `classDiagram`/`componentDiagram` —
+ * `net/sourceforge/plantuml/style/SName.java`) that a bare `<style>` block
+ * may target directly (`classDiagram { BackGroundColor ... }`) or nest a
+ * `document { ... }` selector under (`classDiagram { document { ... } }`).
+ * Covers every diagram type this mission's DOT gate spans (G2 N7); the
+ * `json`/`yaml`/`hcl` entries below predate this list and are kept as their
+ * own tier for the same reason (untouched, no fixture forced reordering
+ * them). G3/O2: also the recognized PREFIX for a diagram-type-nested
+ * element bucket (`objectDiagram { object { ... } }` -> selector path
+ * "objectdiagram.object") -- see {@link collectElementStyleBuckets}'s own
+ * doc comment for the jar-verified mechanism.
+ */
+const DIAGRAM_TYPE_SELECTOR_NAMES = [
+  'classdiagram',
+  'componentdiagram',
+  'usecasediagram',
+  'statediagram',
+  'objectdiagram',
+] as const;
+
+/**
+ * Resolves a StyleMap selector path to the {@link ELEMENT_BUCKET_SNAMES}
+ * bucket it feeds, or `undefined` if it targets neither a bare bucket name
+ * nor a `<diagramType>.<bucket>` nesting. G3/O2: `EntityImageObject`'s own
+ * StyleSignature chain is `root -> element -> objectDiagram -> object`
+ * (`EntityImageObject#getStyleSignature`, upstream Java) -- a `<style>`
+ * block may write the `object`/`map`/`json` bucket bare OR nested under its
+ * owning diagram-type selector (`objectDiagram { object { BackgroundColor
+ * ... } } }`), and both forms feed the SAME bucket. Jar-verified
+ * `figeze-77-fozi735`: `objectDiagram { object { FontColor blue;
+ * BackgroundColor yellow } }` wins over a `root { FontColor Red;
+ * BackgroundColor palegreen }` block for every object-kind classifier's
+ * fill/text color -- the nested form was previously unrecognized entirely
+ * (fell through to `applyStyleMap`'s generic/class handling, which has no
+ * rule for it either, so it was silently dropped).
+ */
+function resolveElementBucketSelector(selector: string): string | undefined {
+  if (ELEMENT_BUCKET_SNAMES.has(selector)) return selector;
+  for (const diagramType of DIAGRAM_TYPE_SELECTOR_NAMES) {
+    const prefix = `${diagramType}.`;
+    if (!selector.startsWith(prefix)) continue;
+    const sname = selector.slice(prefix.length);
+    if (ELEMENT_BUCKET_SNAMES.has(sname)) return sname;
+  }
+  return undefined;
+}
+
+/**
  * Collect per-element (SName) color/font-size buckets from element-scoped
  * style blocks (e.g. `database { BackgroundColor X }`, G1 I4b: `component {
  * FontSize N }` / `component { stereotype { FontSize N } }`). Color values
  * run through `parseColor` so a gradient becomes a
  * {@link import('./paint.js').Gradient} Paint, consistent with the
- * skinparam path (T4). Only selectors that are known bucket SNames (bare, or
- * `<sname>.stereotype`) are collected; all others are left for
+ * skinparam path (T4). Selectors are resolved via {@link
+ * resolveElementBucketSelector} (bare bucket name, `<diagramType>.<bucket>`
+ * nesting, or `<sname>.stereotype`); all others are left for
  * `applyStyleMap`'s existing generic/class handling.
  */
 export function collectElementStyleBuckets(
@@ -33,7 +83,8 @@ export function collectElementStyleBuckets(
 ): Record<string, ElementColors> {
   const elements: Record<string, ElementColors> = {};
   for (const [selector, props] of styleMap.entries()) {
-    if (ELEMENT_BUCKET_SNAMES.has(selector)) {
+    const bucketName = resolveElementBucketSelector(selector);
+    if (bucketName !== undefined) {
       const bucket: ElementColors = {};
       const bg = props.get('backgroundcolor');
       if (bg !== undefined) bucket.background = parseColor(bg);
@@ -47,7 +98,7 @@ export function collectElementStyleBuckets(
         if (Number.isFinite(size)) bucket.fontSize = size;
       }
       if (Object.keys(bucket).length > 0) {
-        elements[selector] = { ...elements[selector], ...bucket };
+        elements[bucketName] = { ...elements[bucketName], ...bucket };
       }
       continue;
     }
@@ -63,29 +114,10 @@ export function collectElementStyleBuckets(
     }
   }
   // #lizard forgives -- pre-existing (unchanged by G2 N7); two independent
-  // bucket-collection branches (bare SName + `.stereotype` suffix) push this
-  // over the CCN/NLOC threshold, not this iteration's change.
+  // bucket-collection branches (bare/nested SName + `.stereotype` suffix)
+  // push this over the CCN/NLOC threshold, not this iteration's change.
   return elements;
 }
-
-/**
- * Diagram-type style-selector names (`SName` values PlantUML's style engine
- * registers per diagram type, e.g. `classDiagram`/`componentDiagram` —
- * `net/sourceforge/plantuml/style/SName.java`) that a bare `<style>` block
- * may target directly (`classDiagram { BackGroundColor ... }`) or nest a
- * `document { ... }` selector under (`classDiagram { document { ... } }`).
- * Covers every diagram type this mission's DOT gate spans (G2 N7); the
- * `json`/`yaml`/`hcl` entries below predate this list and are kept as their
- * own tier for the same reason (untouched, no fixture forced reordering
- * them).
- */
-const DIAGRAM_TYPE_SELECTOR_NAMES = [
-  'classdiagram',
-  'componentdiagram',
-  'usecasediagram',
-  'statediagram',
-  'objectdiagram',
-] as const;
 
 /**
  * `document { BackgroundColor }` canvas-background selector precedence,

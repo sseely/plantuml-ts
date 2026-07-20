@@ -72,6 +72,19 @@ function resolveElementBackground(theme: Theme, sname: string): string | undefin
   return undefined;
 }
 
+/** G3/O2: `theme.colors.elements[sname].font` -- the SAME generic
+ *  `ELEMENT_BUCKET_SNAMES` bucket {@link resolveElementBackground} reads,
+ *  for the `fontcolor` field `collectElementStyleBuckets` already extracts
+ *  (unchanged there; only THIS consumption was missing). Jar-verified
+ *  `figeze-77-fozi735`: `<style> objectDiagram { object { FontColor blue }
+ *  } </style>` tints every object-kind row's text, independent of a `root
+ *  { FontColor Red }` block that would otherwise apply. */
+function resolveElementFont(theme: Theme, sname: string): string | undefined {
+  const bucket = theme.colors.elements?.[sname]?.font;
+  if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
+  return undefined;
+}
+
 function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // Upstream has no `enum`/`interface` StyleSignature for the box fill --
   // `EntityImageClassHeader#getStyleSignature` (and the lollipop-interface
@@ -266,13 +279,35 @@ export function renderRowText(
   // header name AND a member row alike) -- but NEVER a stereotype label row
   // (`isStereoLabelRow`'s own doc comment above). See `style-cascade-class
   // .ts#resolveClassTagCascadeEntry`'s own doc comment.
-  const tagFontColor = isStereoLabelRow
-    ? undefined
-    : resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.fontColor;
+  // G3/O2: `object`/`map`/`json` read their OWN `theme.colors.elements
+  // [kind].font` bucket FIRST (`<style> objectDiagram { object { FontColor
+  // ... } } }`/bare `object { FontColor ... }`, the OBJECT-specific
+  // override -- `EntityImageObject`/`Map`/`Json#getStyleSignature` has NO
+  // `classDiagram`/`class` token, so a class-only `.tagname` cascade must
+  // never apply). Falls through to the SAME `classCascade(Header)FontColor`
+  // terminal chain the class branch uses below ONLY as a root/element-level
+  // default -- jar-verified `lapato-45-neje847` (regression guard): a bare
+  // `<style> root { FontColor Red } </style>` with NO objectDiagram/object
+  // block still tints object row text red, because `classCascadeFontColor`'s
+  // OWN `resolveStyleCascade` query set starts with `root`/`element` (the
+  // FIRST two tokens of EVERY StyleSignature chain, shared identically by
+  // class/object/map/json) -- exactly the SAME "falls through to the class
+  // default only because of a shared prefix, not a shared cascade" shape
+  // `classifierFill`'s own doc comment already establishes for
+  // BackgroundColor (`classDefaultBackground`). A `<style> classDiagram {
+  // ... } }`/`class { ... }`-SCOPED override incorrectly leaking into
+  // object text through this SAME shared fallback is a pre-existing,
+  // un-narrowed edge case (no fixture in the corpus isolates it), not
+  // introduced by this iteration.
   const fontColor =
-    tagFontColor ??
-    ((isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
-      : theme.colors.graph.classCascadeFontColor) ?? '#000000');
+    geo.kind === 'object' || geo.kind === 'map' || geo.kind === 'json'
+      ? resolveElementFont(theme, geo.kind) ??
+        (isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
+          : theme.colors.graph.classCascadeFontColor) ??
+        '#000000'
+      : (isStereoLabelRow ? undefined : resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.fontColor) ??
+        ((isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
+          : theme.colors.graph.classCascadeFontColor) ?? '#000000');
   if (row.atoms !== undefined) {
     return renderRowAtoms(row.atoms, geo.x + row.indent, geo.y + row.y, theme, fontColor);
   }

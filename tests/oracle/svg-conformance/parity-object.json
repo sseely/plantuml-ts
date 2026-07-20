@@ -85,10 +85,7 @@
       "slug": "figeze-77-fozi735",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 7.8889,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@fill",
-      "maxDeltaPath": "svg/g[1]/g[2]/text[2]/@y"
+      "verdict": "conformant"
     },
     {
       "slug": "fikojo-87-tine499",
@@ -169,10 +166,7 @@
       "slug": "janoma-30-dovo501",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 7.888900000000007,
-      "firstDiff": "svg/g[1]/g[2]/text[2]/@lengthAdjust",
-      "maxDeltaPath": "svg/g[1]/g[2]/text[2]/@y"
+      "verdict": "conformant"
     },
     {
       "slug": "jaxere-74-cole479",
@@ -232,9 +226,7 @@
       "slug": "kexica-21-gega428",
       "type": "object",
       "dotEqual": true,
-      "verdict": "structural-match",
-      "maxDelta": 0.5,
-      "maxDeltaPath": "svg/g[1]/g[2]/rect[1]/@x"
+      "verdict": "conformant"
     },
     {
       "slug": "kiluja-96-pado371",

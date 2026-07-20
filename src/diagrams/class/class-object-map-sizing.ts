@@ -49,6 +49,7 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import type { ClassifierGeo } from './layout.js';
 import type { MeasuredClassifier } from './class-layout-helpers.js';
 import { javaRound4 } from '../../core/number-format.js';
+import { splitStereotypeLabels, measureStereoLabelWidths } from './class-stereotype.js';
 
 // ---------------------------------------------------------------------------
 // Shared object/map/json header sizing (name + optional stereotype, stacked)
@@ -90,16 +91,31 @@ export function titleDimension(nameDim: Dim, stereoDim: Dim): Dim {
   return { width: Math.max(nameDim.width, stereoDim.width), height: nameDim.height + stereoDim.height };
 }
 
-/** The (un-padded) stereotype line dimension, zero when absent — mirrors
- *  upstream's `stereoDim = new XDimension2D(0, 0)` fallback. No margin is
- *  applied to the stereo TextBlock in either EntityImageObject or
- *  EntityImageMap (unlike the name block, which gets a style/fixed margin). */
+/**
+ * The (un-padded) stacked stereotype BLOCK dimension, zero when absent --
+ * mirrors upstream's `stereoDim = new XDimension2D(0, 0)` fallback. No
+ * margin is applied to the stereo TextBlock in either EntityImageObject or
+ * EntityImageMap (unlike the name block, which gets a style/fixed margin).
+ *
+ * G3/O2: `classifier.stereotype` carries the RAW, possibly multi-bracket
+ * blob the parser's own greedy-regex-collision quirk captures for stacked
+ * stereotypes (`object X <<Bar>> <<Foo>>` -> `"Bar>> <<Foo"`,
+ * `class-object-stacked-stereo.test.ts`'s own doc comment) -- split via
+ * {@link splitStereotypeLabels} (the SAME helper `class-stereotype.ts
+ * #buildStereoRows` already uses for CLASS) into one label per stacked
+ * line: width = the WIDEST individual label (each line centers against
+ * boxWidth independently, {@link headerRows} below), height = `labels.length
+ * * STEREO_FONT_SIZE` (one stacked line per label, `Stereotype#getLabels()`'s
+ * own shape) -- jar-verified `fafozi-27-reja300`'s node2 (`<<Bar>> <<Foo>>`,
+ * no fields): box height 58 = stereoHeight(24, 2 lines) + nameHeight(18) +
+ * fieldsHeight(16, OBJECT_EMPTY_FIELDS).
+ */
 export function measureStereo(classifier: Classifier, theme: Theme, measurer: StringMeasurer): Dim {
   if (classifier.stereotype === undefined) return { width: 0, height: 0 };
-  return measurer.measure(wrapGuillemet(classifier.stereotype), {
-    family: theme.fontFamily,
-    size: STEREO_FONT_SIZE,
-  });
+  const labels = splitStereotypeLabels(classifier.stereotype);
+  if (labels.length === 0) return { width: 0, height: 0 };
+  const widths = measureStereoLabelWidths(labels, theme.fontFamily, measurer, undefined, STEREO_FONT_SIZE);
+  return { width: Math.max(...widths), height: labels.length * STEREO_FONT_SIZE };
 }
 
 /**
@@ -185,25 +201,28 @@ export function headerRows(
   const rows: ClassifierGeo['rows'] = [];
   const nameFontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const stereoFontSpec = { family: theme.fontFamily, size: STEREO_FONT_SIZE };
-  let stereoHeight = 0;
-  if (classifier.stereotype !== undefined) {
-    const stereoText = wrapGuillemet(classifier.stereotype);
-    const stereoDim = measurer.measure(stereoText, stereoFontSpec);
-    // javaRound4: matches jar's `%.4f`-formatted textLength -- reused for
-    // BOTH the drawn width AND the centering indent below, same "round
-    // once, reuse" precedent as class-stereotype.ts's own rawTextWidth.
-    const stereoWidth = javaRound4(stereoDim.width);
-    const stereoBaseline = STEREO_FONT_SIZE - measurer.getDescent(stereoFontSpec, stereoText);
-    stereoHeight = stereoDim.height;
+  // G3/O2: one stacked line PER label (`Stereotype#getLabels()` shape) --
+  // see `measureStereo`'s own doc comment for the split mechanism and the
+  // `fafozi-27-reja300` jar citation. Each line centers against `boxWidth`
+  // independently using its OWN raw width (not a shared block width) --
+  // `getDescent` is content-independent (every `StringMeasurer`
+  // implementation, `baselineOffsetFor`'s own doc comment), so the
+  // baseline offset is computed once and reused per stacked line.
+  const stereoLabels = classifier.stereotype === undefined ? [] : splitStereotypeLabels(classifier.stereotype);
+  const stereoWidths = measureStereoLabelWidths(stereoLabels, theme.fontFamily, measurer, undefined, STEREO_FONT_SIZE);
+  const stereoBaselineOffset = STEREO_FONT_SIZE - measurer.getDescent(stereoFontSpec, '');
+  stereoLabels.forEach((label, i) => {
+    const width = stereoWidths[i]!;
     rows.push({
-      text: stereoText,
-      y: stereoBaseline,
-      indent: (boxWidth - stereoWidth) / 2,
+      text: wrapGuillemet(label),
+      y: i * STEREO_FONT_SIZE + stereoBaselineOffset,
+      indent: (boxWidth - width) / 2,
       italic: true,
-      width: stereoWidth,
+      width,
       fontSize: STEREO_FONT_SIZE,
     });
-  }
+  });
+  const stereoHeight = stereoLabels.length * STEREO_FONT_SIZE;
   const nameWidth = javaRound4(measurer.measure(classifier.display, nameFontSpec).width);
   const nameBaseline = theme.fontSize - measurer.getDescent(nameFontSpec, classifier.display);
   rows.push({
@@ -212,13 +231,6 @@ export function headerRows(
     indent: (boxWidth - nameWidth) / 2,
     width: nameWidth,
   });
-  // #lizard forgives -- 37 NLOC, CCN 2: a single optional stereo-row
-  // branch plus the always-present name row, each a flat 6-8-field object
-  // literal (PlacementStrategyY1Y2's centering/baseline math, faithfully
-  // ported per this project's porting discipline) -- splitting either
-  // row's literal into its own helper would only relocate the NLOC, not
-  // reduce it, and would separate the two rows' shared `stereoHeight`
-  // dependency from its single point of use.
   return rows;
 }
 

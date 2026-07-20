@@ -102,6 +102,29 @@ unchanged (render-only fix, `component 262/262`, `usecase 90/90`, `class
 `plans/g3-object-svg/ledger.md` O1 for the full mechanism writeup and the
 O2+ queue.
 
+## Current state (G3/O2, 2026-07-19)
+
+**13 fixtures pinned.** O2 fixed three independent mechanisms: (1) a
+suppressed-fields (`hide members`/`hide empty members`) object classifier's
+ink-extent contribution is 1px narrower on the WIDTH axis only, jar-verified
+via `LimitFinder#drawRectangle`'s native inset (`kexica-21-gega428`,
+`janoma-30-dovo501`); (2) multi-stacked stereotypes (`object X <<Bar>>
+<<Foo>>`) now draw N independent stacked stereo lines (reusing `class-
+stereotype.ts#splitStereotypeLabels`), matching the class engine's own
+pre-existing mechanism exactly; (3) `<style> objectDiagram { object { ... }
+} }` nested-selector recognition + `theme.colors.elements[kind].font`
+consumption for row text color, falling through to the shared root/element-
+level `classCascadeFontColor` chain when unset (`figeze-77-fozi735`). A
+regression from mechanism 3's first implementation attempt (bypassing the
+root-level fallback entirely) was caught by a full census re-run and fixed
+before this iteration closed — see `plans/g3-object-svg/ledger.md` O2 for
+the full mechanism writeups, the regression diagnosis, and the O3+ queue.
+Corpus effect: **10/80 -> 13/80** zero-diff (+3: `janoma-30-dovo501`,
+`kexica-21-gega428`, `figeze-77-fozi735`). Class 292-set and description
+48-set both re-verified intact at every checkpoint; DOT gate unchanged
+(`component 262/262`, `usecase 90/90`, `class 708/708`, `object 78/80`,
+`state 267/267`).
+
 ## Add rule
 
 A fixture may be added to `ratchet.json` only when **both** hold:

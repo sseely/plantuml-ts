@@ -436,3 +436,406 @@ silently dropped.
 - `.agent-notes/O1-lizard-forgive-call-consumption.md` — NEW (2
   observations: the lizard-forgive placement quirk; the pre-existing
   `renderer-classifier-box.ts` file-size overage).
+
+## O2 — empty-body ink-extent, multi-stacked stereo, style-block FontColor/BackgroundColor cascade, 13 fixtures pinned
+
+### Family classification re-triage (`svg-conformance-census.ts object --families`, post-O1)
+
+Re-ran `--families` for a fresh reach measurement. Confirmed the O1 baseline
+(`10/80`, `1-3:6, 4-10:18, 11-30:12, 31+:34`) and cross-checked bucket
+membership against the 41/80 `svg/g/g/path/@d` (gvts-attributed) family via a
+disposable per-fixture triage script (deleted before finishing, per this
+iteration's own boundary): every 4-10/11-30-bucket fixture's diff set was
+individually inspected for path/@d overlap before drilling, so the family
+table below reflects actually-tractable (non-gvts) mechanisms only.
+
+### Mechanism 1 (priority 1): object empty-body ink-extent (`addRectInkEmptyBody`)
+
+**Mechanism**: `EntityImageObject#drawU` draws its outer bordered
+`URectangle` UNCONDITIONALLY (`ug.apply(stroke).draw(rect)`), then calls
+`fields.drawU(...)` UNCONDITIONALLY too — but when `showFields == false`
+("hide members"/"hide empty members" applied to a now-empty compartment),
+`BodierLikeClassOrObject#getBody`'s OBJECT branch returns
+`TextBlockUtils.empty(0, 0)` — a genuinely zero-size block, contributing NO
+ink of its own. For a POPULATED object (the corpus's overwhelmingly common
+case, already byte-exact since O0/O1), some OTHER ink source (not yet
+traced to its exact upstream origin, out of this iteration's need) reaches
+the box's un-inset max corner `(x+w, y+h)`, which is what `addRectInk`'s
+existing `(x-1,y-1)-(x+w,y+h)` rule already models correctly (jar-verified
+since G2 N5). With NO body content at all, the classifier's ink comes
+SOLELY from the visible bordered rect's own native `LimitFinder
+#drawRectangle` inset — jar-verified directly from the Java source
+(`klimt/drawing/LimitFinder.java:184-188`): `addPoint(x-1,y-1)`,
+`addPoint(x+w-1,y+h-1)` — symmetric `-1` on BOTH corners, 1px narrower than
+`addRectInk` on the WIDTH axis. This is a DIFFERENT rule from `addRectInk`
+by exactly 1px on the max-X corner only.
+
+**Origin**: `src/diagrams/class/layout-ink-extent.ts#addClassifierInk`
+(pre-fix: unconditional `addRectInk` call for every classifier kind).
+
+**Causal chain**: jar-verified against 2 independent title-bearing samples
+(a title/chrome forces the raw pre-margin box width to become externally
+visible via `core/annotations/chrome.ts#decorateEntityImage`'s `xImage =
+(dimTotal.width - original.width) / 2` centering split — WITHOUT a title,
+this 1px ink delta never surfaces as a visible diff, since the final canvas
+width/positions are computed straight from the (still-correct) box
+WIDTH/HEIGHT themselves, not the internal ink-extent bookkeeping):
+- `kexica-21-gega428` (`title hide members` / `hide members` / `object A {
+  foo }` / `object B`): BOTH classifiers have `dividerYs: []` (global hide
+  members). Direct `layoutClass` probe: `rawWidth 97.3625` (pre-fix) vs the
+  jar-implied `96.3625` (back-derived algebraically from the chrome
+  centering formula and the fixture's real `<text x>` values) — EXACTLY 1px
+  narrower, matching the `addRectInkEmptyBody` prediction precisely (box A
+  contributes the min corner, unaffected; box B — the max-side contributor
+  — loses exactly 1px via the new rule).
+- `janoma-30-dovo501` (`title hide empty members` / `hide empty members` /
+  `object A { foo }` / `object B`): "hide empty members" narrows ONLY the
+  genuinely-empty sibling (B, `dividerYs: []`) — A (has "foo", populated,
+  `dividerYs: [18]`) keeps the ORIGINAL `addRectInk` rule and its ink
+  contribution is UNCHANGED. Same 0.5px horizontal chrome-centering
+  residual on BOTH A's and B's rendered `<text x>`/`<rect x>` before the
+  fix (a single shared `rawWidth` feeds the ONE `xImage` split for the
+  whole diagram), zero residual after.
+
+Height is DELIBERATELY unaffected (`addRectInkEmptyBody` keeps `y+h`, not
+`y+h-1`) — both fixtures show ZERO height/`viewBox[3]`/y-coordinate diffs
+throughout, before AND after the fix, meaning whatever provides the
+max-Y-corner ink for a populated classifier (most plausibly the header
+name/stereo text's own ink, drawn unconditionally regardless of
+`showFields`) already supplies the correct un-inset max-Y bound
+independent of the fields compartment's own presence/absence — this
+asymmetry is real (not a modeling gap), confirmed empirically via BOTH
+samples showing the SAME zero-height-diff pattern.
+
+**Ruled out**: NOT a DOT-emission bug — re-verified object DOT gate
+unchanged (78/80) after the fix; this is a render-only ink-bookkeeping
+change (`buildInkBox`, never touches the DOT graph builder). NOT a
+classifier-WIDTH bug — the rendered `<rect width>` for every affected
+classifier already matched jar exactly BEFORE this fix (isolated to the
+INTERNAL, invisible `rawWidth` ink-extent value chrome centering consumes,
+never the classifier's own drawn dimensions). Gated STRICTLY to `kind ===
+'object'` (not map/json, not class/interface/enum): `EntityImageClass`'s
+own hidden-fields path returns `null` (the body TextBlock is skipped
+entirely, `BodierLikeClassOrObject#getBody`'s `isBodyEnhanced()` arm) — a
+structurally different upstream mechanism this rule does not model, so
+extending to class would be unverified guesswork, not a jar-confirmed
+port. Map/json were NOT extended either — their own `getBody` branches
+(`showFields && showMethods==false` / `showMethods && showFields==false` /
+both-false) share the SAME terminal `TextBlockUtils.empty(0,0)` shape as
+object's OBJECT-type arm, so the SAME 1px narrowing PLAUSIBLY applies to
+them too, but zero corpus fixture combines a title/chrome with a fully
+empty-and-suppressed map/json body to verify it — named as a probable,
+unverified extension for a future iteration, not implemented speculatively
+(project's own "don't extend past what's verified" discipline).
+
+**Fix**: new `addRectInkEmptyBody(box, x, y, w, h)`
+(`layout-ink-extent.ts`): `addPoint(x-1,y-1); addPoint(x+w-1,y+h)`.
+`addClassifierInk` branches on `c.kind === 'object' && c.dividerYs.length
+=== 0` (fields compartment entirely suppressed) before falling to the
+pre-existing `addRectInk` call.
+
+**Tests**: `tests/unit/class/layout-ink-extent.test.ts` (+3 tests, all
+against `computeClassRawInkDims` directly): the `kexica-21-gega428` 2-
+empty-object case (rawWidth 96.3625 exact, height unaffected), the
+`janoma-30-dovo501` mixed-populated/empty case (1px width delta between the
+new rule and the general `addRectInk` rule applied to the SAME classifier,
+height identical either way), and a kind-gating guard (an identical
+`dividerYs: []` classifier under `kind: 'class'` does NOT get the narrower
+rule — 1px width difference between the two kinds proves the gate is
+live).
+
+**Census delta**: object `10/80 -> 12/80` zero-diff (+2: `janoma-30-dovo501`,
+`kexica-21-gega428`). Full-corpus regression check: class census re-run
+**unchanged** (`292/718`) — the new rule is gated on `kind === 'object'`,
+zero overlap with class/interface/enum. Description census (48-set) +
+ratchet unaffected (different engine). DOT gate unchanged (`component
+262/262 - usecase 90/90 - class 708/708 - object 78/80 - state 267/267`).
+
+### Mechanism 2 (priority 3, "if cheap"): multi-stacked stereotype header rows
+
+**Mechanism**: `object X <<Bar>> <<Foo>>` — jar's `Stereotype#getLabels()`
+draws ONE guillemet-wrapped `<text>` PER label, stacked vertically
+(`EntityImageObject#getLayout`'s `ULayoutGroup`/`PlacementStrategyY1Y2`
+generalizes trivially to N stereo blocks, not just 0-or-1). This port's
+CLASS engine already has the correct N-line mechanism, jar-verified and
+byte-exact since well before this mission (`class-stereotype.ts
+#buildStereoRows`/`splitStereotypeLabels` — proven by `fafozi-27-reja300`'s
+own `node1` classifier, `class "Class1" as node1 <<Bar>> <<Foo>>`, already
+zero-diff on this exact stacking shape). Object's OWN `headerRows`
+(`class-object-map-sizing.ts`) never reused that mechanism — it only ever
+wrapped+drew the classifier's RAW stereotype string (the parser's own
+greedy-regex-collision blob, `"Bar>> <<Foo"` for a 2-stacked declaration —
+see `class-object-stacked-stereo.test.ts`'s own doc comment) as ONE
+guillemet-wrapped line, producing a single garbled `«Bar>> <<Foo»` text
+element instead of two independent stacked `«Bar»`/`«Foo»` rows.
+
+**Origin**: `src/diagrams/class/class-object-map-sizing.ts` `measureStereo`
++ `headerRows` (pre-fix: single-stereotype-string assumption throughout).
+
+**Causal chain**: jar-verified `fafozi-27-reja300`'s `node2` (`object
+"Object1" as node2 <<Bar>> <<Foo>>`, no fields/braces) against the real
+golden SVG: TWO independent `<text>` rows, `«Bar»` (textLength 32.025) at
+relative `(indent 15.09375, y 9.3333)` and `«Foo»` (textLength 34.05) at
+relative `(indent 14.08125, y 21.3333)` — EACH row centers against `boxWidth`
+INDEPENDENTLY using its OWN raw label width (NOT a shared block-width
+centering: `«Bar»`, narrower, centers 1.0125px right of `«Foo»` despite
+both stacking at the same box origin) — `(boxWidth - rawWidth) / 2` per
+row, the SAME formula O0's own single-line fix already established,
+simply repeated per label. Vertical stride is exactly `STEREO_FONT_SIZE`
+(12) per row, `y = i * 12 + (12 - descent)`. The name row's own Y offset
+generalizes to `stereoHeight = labelCount * 12` (was hardcoded to a single
+`stereoDim.height`) — jar-verified: `Object1`'s name row sits at relative Y
+36.8889 = `24 (2*12) + 2 (OBJECT_NAME_PADDING) + 10.8889 (14pt
+baselineOffset)`, exactly matching the generalized formula.
+
+**Ruled out**: NOT a parser bug — `classifier.stereotype` already carries
+the correct raw multi-bracket blob (`class-object-stacked-stereo.test.ts`,
+pinned since Phase L of a prior mission); the gap was purely in HOW
+`class-object-map-sizing.ts` consumed that string (as one opaque unit
+rather than splitting it). NOT a box-WIDTH bug for the general case — box
+width already matched jar exactly for `node2` (62.2125, dominated by the
+name "Object1" being wider than either stereo label) BEFORE this fix;
+isolated to the stereo row(s)' own `<text>` attributes.
+
+**Fix**: `measureStereo` now calls `class-stereotype.ts#splitStereotypeLabels`
+to split the raw blob into N labels, then `measureStereoLabelWidths`
+(SAME helper class's own `buildStereoRows` already uses, `STEREO_FONT_SIZE`
+passed explicitly since it coincidentally equals `CLASS_STEREOTYPE_FONT_SIZE`
+but the two constants stay independently named per this file's own
+"coincidentally-equal" precedent) — returns `{width: max(labelWidths),
+height: labels.length * STEREO_FONT_SIZE}`. `headerRows` now loops over the
+split labels, emitting one row per label (`y = i*STEREO_FONT_SIZE +
+baselineOffset`, `indent = (boxWidth - ownWidth)/2` per row), replacing the
+prior single-branch `if (stereotype !== undefined)` block. Both functions
+reuse `class-stereotype.ts`'s exported helpers directly rather than
+reimplementing the split/measure logic a second time (DRY — this project's
+own `code-principles.md`).
+
+**Tests**: `tests/unit/class/class-object-map-sizing.test.ts` (+1 test:
+`fafozi-27-reja300`'s `node2` — box width, all 3 rows' text/width/indent/y,
+jar-verified against the real golden numbers).
+
+**Census delta**: no NEW zero-diff fixture from this mechanism alone
+(`fafozi-27-reja300` moved 3 diffs -> 1 diff: `svg/@viewBox[2]`/`svg/@width`
+off by exactly 1px, traced to a `x=117.33` (jar) vs `x=117.33125` (ours)
+node-position float residual — a graphviz-ts numeric-layout artifact,
+gvts-attributed, NOT a header-row regression; every stereo/name row
+position now matches jar EXACTLY where DOT positions are exact, e.g.
+`node1`'s own class-side rendering, confirming the mechanism itself is
+correct). Benefits any FUTURE corpus fixture with 2+ stacked stereotypes on
+an object/map/json classifier, even though none currently reaches
+zero-diff in this corpus. Full-corpus regression check: class census
+re-run **unchanged** (`292/718`) — `measureStereo`/`headerRows` are
+exclusively reached by `kind: 'object'|'map'|'json'` classifiers (class's
+own `node1` in the SAME fixture renders via the entirely separate
+`class-stereotype.ts#buildStereoRows` path, untouched). DOT gate unchanged.
+
+### Mechanism 3 (priority 1, near-zero harvest): `<style> objectDiagram { object { ... } } }` nested-selector + FontColor consumption
+
+**Mechanism** (two independent gaps, one fixture): `figeze-77-fozi735`
+combines a `<style> root { FontColor Red; BackgroundColor palegreen }
+objectDiagram { object { FontColor blue; BackgroundColor yellow } }
+</style>` block. `EntityImageObject#getStyleSignature()` is `{root, element,
+objectDiagram, object}` — a `<style>` block may target ANY level of that
+chain, including nesting the `object` bucket under its owning
+`objectDiagram` selector. Two separate, independently-diagnosed gaps
+combined to produce this fixture's 6-diff footprint:
+
+1. **Parse-side**: `collectElementStyleBuckets` (`style-map-element.ts`)
+   only ever recognized a BARE `ELEMENT_BUCKET_SNAMES` selector (e.g.
+   `object { ... }`) — the nested form's `parseStyleBlock`-produced
+   selector path `"objectdiagram.object"` matched neither the bare-bucket
+   check nor the `.stereotype`-suffix check, so it was silently dropped
+   entirely (fell through to `applyStyleMap`'s existing generic/class
+   handling, which has no rule for it either).
+2. **Render-side**: `renderer-classifier-box.ts#renderRowText` computed its
+   `fontColor` PURELY from the class-only `.tagname`/`classCascade
+   (Header)FontColor` chain, for EVERY classifier kind uniformly —
+   `theme.colors.elements[kind]?.font` (the bucket O1's OWN BackgroundColor
+   fix already populates via `ELEMENT_BUCKET_SNAMES`, `.font` field
+   unchanged, already extracted) was never consulted for TEXT color at
+   all, unlike `classifierFill`'s existing object/map/json BackgroundColor
+   branch.
+
+**Origin**: `src/core/style-map-element.ts#collectElementStyleBuckets`
+(gap 1); `src/diagrams/class/renderer-classifier-box.ts#renderRowText`
+(gap 2).
+
+**Causal chain**: jar-verified `figeze-77-fozi735` directly: every
+object-kind classifier's box fill AND text fill both read `yellow`/`blue`
+(the `objectDiagram { object { ... } }` override), NOT `palegreen`/`Red`
+(the broader `root { ... }` block) — confirming the nested form must both
+PARSE (gap 1) and take PRIORITY over root-level (gap 2's fix must be a
+"object-specific bucket wins, falls through to root/element-level cascade
+only when unset" tier, not a flat override).
+
+**Ruled out — REGRESSION CAUGHT MID-ITERATION**: the FIRST implementation
+of gap 2's fix made object/map/json BYPASS the class cascade ENTIRELY
+(`resolveElementFont(...) ?? '#000000'`), mirroring `classifierFill`'s own
+`resolveElementBackground(...) ?? classDefaultBackground(...)` shape too
+literally — this LOOKED like the right precedent, but `classDefaultBackground`
+itself reads `classCascadeBackground`, whose OWN `resolveStyleCascade` query
+set (`CLASS_SNAMES = ['root','element','classdiagram','class']`) STARTS
+with `root`/`element` (the FIRST two tokens of every StyleSignature chain,
+shared identically by class/object/map/json) — so `classifierFill`'s
+"bypass" was never actually a full bypass, it still transitively inherited
+root-level rules through `classDefaultBackground`'s own fallback chain. My
+FIRST font fix genuinely dropped that root-level inheritance. Caught by a
+full `svg-conformance-census.ts object` re-run (not by the isolated unit
+test suite, which only exercised the object-specific-bucket-set case):
+`lapato-45-neje847` (`<style> root { FontColor Red } </style>`, NO
+objectDiagram/object override at all) regressed from 0 diffs to 4 (every
+object row's text fill dropped from the correctly-inherited red to the
+hardcoded `#000000` default) — net census effect of the FIRST fix attempt
+was ZERO (figeze gained, lapato lost, same total). Diagnosed via direct
+`layoutClass`/render inspection (not guessed): traced `renderRowText`'s
+`fontColor` computation for the regressed fixture, confirmed
+`resolveElementFont` correctly returns `undefined` (no object-specific
+bucket set) but the FIRST fix's `?? '#000000'` never gave `classCascade
+(Header)FontColor` a chance to supply the root-level value.
+
+**Fix (gap 1)**: `collectElementStyleBuckets` now resolves each selector via
+a new `resolveElementBucketSelector(selector)` helper: returns the selector
+itself if it's a bare `ELEMENT_BUCKET_SNAMES` member, else strips a
+`DIAGRAM_TYPE_SELECTOR_NAMES` prefix (`objectdiagram.`/`classdiagram.`/
+etc — the SAME constant `resolveDocumentBackground` already uses for its
+own diagram-type-scoped `document` selector precedence) and checks the
+remainder against `ELEMENT_BUCKET_SNAMES`; both forms feed the SAME bucket.
+`DIAGRAM_TYPE_SELECTOR_NAMES` moved above `collectElementStyleBuckets`
+(pure relocation, its own doc comment updated in place — no behavior
+change to `resolveDocumentBackground`'s existing consumption).
+
+**Fix (gap 2, corrected)**: `renderRowText`'s `fontColor` for `kind ===
+'object'|'map'|'json'` is now `resolveElementFont(theme, geo.kind) ??
+(isHeader ? classCascadeHeaderFontColor ?? classCascadeFontColor :
+classCascadeFontColor) ?? '#000000'` — the object-specific bucket wins when
+set, falling through to the SAME shared root/element-level
+`classCascade(Header)FontColor` chain the class branch already computes
+(new `resolveElementFont` helper, mirrors `resolveElementBackground`
+exactly). A `<style> classDiagram {...} }`/`class {...}`-SCOPED override
+incorrectly leaking into object text through this SAME shared fallback (an
+edge case already latent in `classifierFill`'s own BackgroundColor
+precedent, per that function's doc comment) is a pre-existing, un-narrowed
+gap, not introduced or worsened here.
+
+**Tests**: `tests/unit/core/style-map-element.test.ts` (+2 tests: a
+`"objectdiagram.object"` selector routes into the `object` bucket; an
+unrecognized `"objectdiagram.widget"` selector is ignored). `tests/unit/
+object/renderer.test.ts` (+4 tests: an `elements.object.font` override
+tints header+member row text; class classifiers stay untinted; the
+regression-guard pair — a bare `classCascadeFontColor` root-level override
+still tints object text with NO object-specific bucket set, AND an
+object-specific bucket wins when BOTH are set simultaneously).
+
+**Census delta**: object `12/80 -> 13/80` zero-diff (+1: `figeze-77-fozi735`;
+net effect after the regression-and-fix cycle above). Full-corpus regression
+check: class census re-run **unchanged** (`292/718`) at every step
+(including the intermediate regressed state, which was caught and fixed
+before any gate was declared final) — both fixes are gated on `kind ===
+'object'|'map'|'json'` (gap 2) or additive-only selector recognition (gap
+1, a NEW selector shape, zero change to any EXISTING selector's handling).
+DOT gate unchanged.
+
+### Assessed and deferred (near-zero harvest, re-examined per this
+### iteration's explicit instruction)
+
+- **`linuxu-41-cogo780`'s `~`-leading-char strip** (`object "~#1: Person" as
+  p1`, jar strips the `~` from the rendered header text but NOT from the
+  measured box width elsewhere): re-attempted with fresh eyes, going
+  FURTHER than O1's own search — traced EVERY `VisibilityModifier
+  .isVisibilityCharacter` call site in upstream (`LinkArg.java`,
+  `Display.java#manageGuillemet`'s sole caller, `CommandCreateEntityObject
+  Multilines.java:144` — sets a diagram-level flag only, never strips,
+  `CommandAddData.java:89` — same, `Member.java:133-137` — MEMBER-only,
+  never the classifier's own display, `TextBlockMap.java:82` — map KEY
+  cells only), `Display.create0`'s full call chain (no visibility handling
+  anywhere), `Entity#getDisplay()` (plain getter, no processing),
+  `CommandCreateEntityObject.executeArg` (no VISIBILITY regex group at all,
+  unlike `CommandCreateClass`'s own dedicated `VISIBILITY` capture group).
+  Genuinely NOT root-caused — no candidate mechanism found anywhere in the
+  object-entity-creation or Display-processing call graph. Left named, not
+  fixed, per `diagnosis.md`'s "do not guess to make progress" discipline.
+- **Legacy tag-scoped `objectBackgroundColor<<X>>`** (`majake-62-pero492`'s
+  `foo3`): re-assessed whether O1's own precedent (`classBorderThickness
+  ByStereo`, a narrow single-key stereotype-qualified VALUE lookup) extends
+  cheaply. Traced the REAL upstream mechanism this time (`SkinParam
+  #getColors`'s `param.name()+"color"+stereotype` key shape does NOT match
+  — that's for the generic, unprefixed `backgroundcolor<<X>>` `ColorParam`,
+  not per-element-prefixed keys like `objectBackgroundColor`): the actual
+  mechanism is `style/FromSkinparamToStyle.java`'s CONSTRUCTOR, which
+  UNIVERSALLY parses `<<stereo>>` out of ANY skinparam key (via
+  `StringTokenizer(key, "<>")`) and converts it into a stereotype-qualified
+  STYLE rule — i.e. `objectBackgroundColor<<azerty>>` becomes EXACTLY the
+  same kind of rule as `<style> object.azerty { BackgroundColor ... }
+  </style>` would, a GENERIC skinparam-to-style-cascade transformation
+  applying to literally every skinparam key, not a narrow special case.
+  `classBorderThicknessByStereo` was ALREADY the narrow, deliberately-scoped
+  exception (per its own doc comment), not a cheaply-extensible precedent —
+  confirms O1's original deferral was correct, now with the actual upstream
+  mechanism identified rather than merely presumed too broad.
+- **`gatefi-65-curu360`** (`map0`/`map1`, empty maps side-by-side, O1 left
+  UNRESOLVED pending "dedicated instrumentation"): instrumented via direct
+  `layoutClass` probe. Both maps' OWN box widths (49px) match jar exactly.
+  The GAP between them differs: ours 35px vs jar's 51px (a 16px node-
+  SEPARATION delta, not a box-width or ink-extent issue) — jar's node
+  positions (`rect x=7`/`x=107`) vs ours (`x=7`/`x=91`) diverge purely in
+  the DOT-assigned horizontal spacing between two adjacent same-width empty
+  nodes. Reclassified as `gvts-blocked` (graphviz-ts numeric-layout
+  divergence, same root category as the 41/80 `path/@d` family) — NOT a
+  render-side bug, out of scope, closes O1's own open question.
+
+### Gates (O2, final)
+
+- `object` census: `13/80` zero-diff (`1-3:6, 4-10:15, 11-30:12, 31+:34,
+  errors:0`) — O1 baseline was `10/80` (`1-3:6, 4-10:18, 11-30:12,
+  31+:34`).
+- Object ratchet: **15 tests** (13 AC1 + 1 AC2 + 1 AC3), +3 vs O1's 12 (3
+  newly-pinned fixtures: `figeze-77-fozi735`, `janoma-30-dovo501`,
+  `kexica-21-gega428`).
+- Class census 292-set: **intact**, unchanged at every checkpoint
+  (including the intermediate regressed state during Mechanism 3's
+  diagnosis, re-verified after the fix).
+- Description census 48-set: **intact** (ratchet re-run green, 51/51
+  tests).
+- DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
+  78/80 - state 267/267` — EXACTLY unchanged.
+- `npm test -- --run`: 9857/9857 passing, 360 files (unchanged file count;
+  +13 tests vs O1's 9844: 3 ink-extent unit tests, 1 multi-stacked-stereo
+  unit test, 2 style-map-element unit tests, 4 object-renderer FontColor
+  unit tests, 3 newly-pinned ratchet AC1 cases).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+
+### Files changed (O2)
+
+- `src/diagrams/class/layout-ink-extent.ts` — `addRectInkEmptyBody` (new);
+  `addClassifierInk`'s object empty-body gate.
+- `src/diagrams/class/class-object-map-sizing.ts` — `measureStereo`/
+  `headerRows` generalized to N stacked stereotype labels (reuses
+  `class-stereotype.ts#splitStereotypeLabels`/`measureStereoLabelWidths`).
+- `src/core/style-map-element.ts` — `resolveElementBucketSelector` (new);
+  `DIAGRAM_TYPE_SELECTOR_NAMES` relocated above `collectElementStyleBuckets`
+  (pure move); `collectElementStyleBuckets` routes through the new
+  resolver.
+- `src/diagrams/class/renderer-classifier-box.ts` — `resolveElementFont`
+  (new, mirrors `resolveElementBackground`); `renderRowText`'s object/map/
+  json FontColor branch (falls through to `classCascade(Header)FontColor`).
+- `tests/unit/class/layout-ink-extent.test.ts` — +3 tests.
+- `tests/unit/class/class-object-map-sizing.test.ts` — +1 test.
+- `tests/unit/core/style-map-element.test.ts` — +2 tests.
+- `tests/unit/object/renderer.test.ts` — +4 tests.
+- `oracle/goldens/svg-object/{janoma-30-dovo501,kexica-21-gega428,
+  figeze-77-fozi735}/` — NEW (3 pinned goldens, copied from
+  `test-results/dot-cache/object/`).
+- `oracle/goldens/svg-object/ratchet.json` — +3 entries.
+- `tests/oracle/svg-conformance/parity-object.json` — 3 entries' `verdict`
+  updated to `"conformant"` (manual, targeted edit — NOT a full `svg-
+  parity-survey.ts` regeneration; that tool's per-fixture subprocess-spawn
+  timeout (`SVG_PARITY_TIMEOUT_MS`, default 10s) is flaky under this
+  environment's concurrency-6 default, confirmed by 2 independent runs both
+  falsely marking 2 ALREADY-conformant, ALREADY-pinned fixtures
+  (`vozomu-86-rodo657`/`zagodo-28-ranu153`) as `timeout`/`dotEqual:false` —
+  a tooling artifact, not a real regression (the ratchet's own AC1 checks,
+  which call `compareSvg` directly with no subprocess/timeout involved,
+  confirmed both fixtures genuinely still zero-diff throughout). Named here
+  for a future iteration to investigate (raise the default timeout or lower
+  default concurrency) rather than silently worked around every time.

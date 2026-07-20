@@ -76,6 +76,32 @@ describe('collectElementStyleBuckets (T5 / D4)', () => {
     );
     expect(buckets.spotclass).toEqual({ background: 'blue', font: 'red' });
   });
+
+  // G3/O2: `<style> objectDiagram { object { BackgroundColor yellow;
+  // FontColor blue } } </style>` -- EntityImageObject's own StyleSignature
+  // chain is `root -> element -> objectDiagram -> object`
+  // (`EntityImageObject#getStyleSignature`), so a `<style>` block MAY
+  // nest the element bucket under its owning diagram-type selector, not
+  // just write the bucket bare -- jar-verified `figeze-77-fozi735`
+  // (`objectDiagram { object { FontColor blue; BackgroundColor yellow } }`
+  // wins over a `root { FontColor Red; BackgroundColor palegreen }` block
+  // for every object-kind classifier's fill/text color). Selector path
+  // "objectdiagram.object" (parseStyleBlock's dot-joined nesting) routes
+  // into the SAME `object` bucket a bare `object { ... }` block would.
+  it('routes a diagram-type-nested element block ("objectdiagram.object") ' +
+    'into the SAME bucket as a bare "object" selector (G3/O2)', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'objectdiagram.object': { backgroundcolor: 'yellow', fontcolor: 'blue' } }),
+    );
+    expect(buckets.object).toEqual({ background: 'yellow', font: 'blue' });
+  });
+
+  it('does NOT route an unrecognized nested selector into any bucket', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'objectdiagram.widget': { backgroundcolor: '#000000' } }),
+    );
+    expect(Object.keys(buckets)).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -196,6 +196,86 @@ describe('skinparam {object,map,json}BackgroundColor (G3/O1)', () => {
   });
 });
 
+// G3/O2: `<style> objectDiagram { object { FontColor blue } } </style>`
+// (or a bare `object { FontColor blue }` block) -- the SAME `object`/`map`/
+// `json` ELEMENT_BUCKET_SNAMES bucket O1's own BackgroundColor fix
+// populates ALSO carries `font` (`collectElementStyleBuckets`'s existing
+// `fontcolor` extraction, unchanged) -- `renderRowText` previously never
+// consulted `theme.colors.elements[kind]?.font` at all, only the CLASS-only
+// `classCascade(Header)FontColor`/`.tagname` chain, so this tint had NO
+// effect on ANY object/map/json row text. Jar-verified `figeze-77-fozi735`.
+describe('theme.colors.elements.{object,map,json}.font (G3/O2)', () => {
+  it("tints an object classifier's header + member row text", () => {
+    const t = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        elements: { ...defaultTheme.colors.elements, object: { font: '#0000FF' } },
+      },
+    };
+    const ast = parseClass(src(['object Foo {', 'field', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('fill="#0000FF"');
+    expect(svg).not.toContain('fill="#000000"');
+  });
+
+  it("does NOT tint a plain class classifier's row text (independent of class's own cascade)", () => {
+    const t = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        elements: { ...defaultTheme.colors.elements, object: { font: '#0000FF' } },
+      },
+    };
+    const ast = parseClass(src(['class C {', 'field', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).not.toContain('fill="#0000FF"');
+  });
+
+  // Regression guard (jar-verified `lapato-45-neje847`): a bare `<style>
+  // root { FontColor Red } </style>` with NO objectDiagram/object override
+  // must still tint object row text -- the FIRST implementation of this
+  // fix bypassed the class cascade ENTIRELY for object/map/json, losing
+  // the root/element-level fallback `classCascadeFontColor` provides and
+  // regressing this already-zero-diff fixture (caught by a full census
+  // re-run, not by this test suite in isolation -- backfilled here so the
+  // regression can never resurface silently).
+  it('falls through to classCascadeFontColor for a root-level (non-object-specific) ' +
+    'style override -- no elements.object bucket set at all', () => {
+    const t = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: { ...defaultTheme.colors.graph, classCascadeFontColor: '#FF0000', classCascadeHeaderFontColor: '#FF0000' },
+      },
+    };
+    const ast = parseClass(src(['object Foo {', 'field', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('fill="#FF0000"');
+    expect(svg).not.toContain('fill="#000000"');
+  });
+
+  it('an object-specific elements.object.font bucket wins over classCascadeFontColor ' +
+    'when BOTH are set (object-specific override has priority)', () => {
+    const t = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: { ...defaultTheme.colors.graph, classCascadeFontColor: '#FF0000', classCascadeHeaderFontColor: '#FF0000' },
+        elements: { ...defaultTheme.colors.elements, object: { font: '#0000FF' } },
+      },
+    };
+    const ast = parseClass(src(['object Foo']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('fill="#0000FF"');
+    expect(svg).not.toContain('fill="#FF0000"');
+  });
+});
+
 describe('renderClass() — multiple object classifiers', () => {
   it('draws no orange badge for object kind (badge removed -- see the renderClass() test above)', () => {
     const ast = parseClass(src(['object Bar']));
