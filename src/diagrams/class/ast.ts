@@ -231,6 +231,20 @@ export interface Classifier {
   /** Set to true by hide/show post-processing when the circle badge should be suppressed. */
   hideCircle?: boolean;
   /**
+   * G3/O4: `hide <entity|TYPE_KEYWORD> stereotype(s)` -- the GENDER/PORTION
+   * form (`EntityPortion.STEREOTYPE`, `CucaDiagram#showPortion`), distinct
+   * from the LABEL-pattern `hide|show [<<pattern>>] stereotype(s)` command
+   * ({@link HideStereotypeDirective}/`isStereotypeLabelHidden`) -- jar-
+   * verified `kocupi-02-ripa662` (`hide object stereotypes`). Consumed ONLY
+   * by object/map/json's own `measureStereo`/`headerRows`
+   * (`class-object-map-sizing.ts`) -- class/interface/enum/etc read
+   * `visibleStereotypeLabels` (the label-pattern mechanism) exclusively and
+   * never consult this flag, matching upstream: `EntityImageClassHeader`
+   * has no `showPortion(STEREOTYPE, ...)` call at all, only `EntityImage
+   * Object`/`Map`/`Json` do.
+   */
+  hideStereotype?: boolean;
+  /**
    * G2 N26: entity-qualified `hide <entity> members|fields|attributes|
    * methods` (`CommandHideShowByGender`'s GENDER=entity-id form, applied
    * post-parse by `class-directives.ts#applyHideShowEntityDirectives`) --
@@ -439,11 +453,16 @@ export interface Classifier {
    * tree-list line still gets pushed onto `members` via the existing
    * per-line parse (harmless, backward-compatible dead data): `class-body-
    * enhanced.ts#isEnhancedBody`'s detection over THIS field is what decides
-   * whether `measureGenericClassifier` uses the classic fields/methods
-   * split ({@link members}) or the new block-based layout (this field),
-   * never both. Absent for `kind: 'object'`/`'map'`/`'json'` (their own,
-   * separate body grammars) and for a classifier built by hand (unit
-   * tests bypassing the parser).
+   * whether `measureGenericClassifier`/`measureObjectClassifier` uses the
+   * classic fields/methods (or field-only, for object) split ({@link
+   * members}) or the new block-based layout (this field), never both.
+   * G3/O4 (correction): ALSO captured for `kind: 'object'` -- upstream's
+   * OBJECT body ALWAYS routes through the SAME `BodyEnhanced1` renderer
+   * class does only when a separator is present (`BodierLikeClassOrObject
+   * #getBody`'s own doc citation below), jar-verified `linazi-45-gevo553`.
+   * Still absent for `kind: 'map'`/`'json'` (their own, separate body
+   * grammars, zero corpus reach for a separator inside either) and for a
+   * classifier built by hand (unit tests bypassing the parser).
    * @see ~/git/plantuml/.../cucadiagram/BodierAbstract.java#rawBody
    * @see ~/git/plantuml/.../cucadiagram/BodierLikeClassOrObject.java#isBodyEnhanced
    */
@@ -1079,7 +1098,32 @@ export interface HideShowEntityDirective {
   kind: 'hideshowentity';
   action: 'hide' | 'show';
   entityId: string;
-  target: 'circle' | 'members' | 'fields' | 'methods';
+  target: 'circle' | 'members' | 'fields' | 'methods' | 'stereotype';
+}
+
+/**
+ * `hide|show <TYPE_KEYWORD> circle|circles|circled|members|member|fields|
+ * field|attributes|attribute|methods|method` (upstream
+ * `CommandHideShowByGender`, GENDER = a diagram-wide type-keyword filter --
+ * the SAME command as {@link HideShowEntityDirective}, just the OTHER
+ * GENDER alternative that parser's own doc comment named as deferred, G3/O3,
+ * `beruju-17-jigi548`: `hide object fields`). Applies to EVERY classifier of
+ * the matching KIND, diagram-wide (no entity id) -- `classifierKind` is
+ * restricted to the 6 upstream `TYPE_KEYWORDS` entries with a genuine 1:1
+ * {@link ClassifierKind} mapping in this port (`class`/`abstract`/
+ * `interface`/`enum`/`annotation`/`object`); upstream's remaining keywords
+ * (`protocol`/`struct`/`exception`/`metaclass`/`dataclass`/`record`) have no
+ * distinct `ClassifierKind` value here, so `parseHideShowKindDirective`
+ * simply never matches those tokens (falls through, same "unrecognized,
+ * dropped" posture as any other unmatched hide/show line). `target` is the
+ * SAME vocabulary {@link HideShowEntityDirective.target} uses.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+ */
+export interface HideShowKindDirective {
+  kind: 'hideshowkind';
+  action: 'hide' | 'show';
+  classifierKind: 'class' | 'abstract' | 'interface' | 'enum' | 'annotation' | 'object';
+  target: 'circle' | 'members' | 'fields' | 'methods' | 'stereotype';
 }
 
 /**
@@ -1136,6 +1180,13 @@ export interface ClassDiagramAST {
    * (class-directives.ts#applyHideShowEntityDirectives).
    */
   hideEntityDirectives?: HideShowEntityDirective[];
+  /**
+   * `hide`/`show <TYPE_KEYWORD> circle|members|fields|methods` directives
+   * (G3/O3) -- see {@link HideShowKindDirective}. Additive/optional for the
+   * same reason as `hideEntityDirectives` -- absent is equivalent to `[]`
+   * everywhere this is read (class-directives.ts#applyHideShowKindDirectives).
+   */
+  hideKindDirectives?: HideShowKindDirective[];
   /**
    * `hide`/`show <visibility> members|fields|methods` directives (G2 N12) --
    * see {@link HideShowVisibilityDirective}. Additive/optional for the same

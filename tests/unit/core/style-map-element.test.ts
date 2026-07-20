@@ -76,6 +76,66 @@ describe('collectElementStyleBuckets (T5 / D4)', () => {
     );
     expect(buckets.spotclass).toEqual({ background: 'blue', font: 'red' });
   });
+
+  // G3/O2: `<style> objectDiagram { object { BackgroundColor yellow;
+  // FontColor blue } } </style>` -- EntityImageObject's own StyleSignature
+  // chain is `root -> element -> objectDiagram -> object`
+  // (`EntityImageObject#getStyleSignature`), so a `<style>` block MAY
+  // nest the element bucket under its owning diagram-type selector, not
+  // just write the bucket bare -- jar-verified `figeze-77-fozi735`
+  // (`objectDiagram { object { FontColor blue; BackgroundColor yellow } }`
+  // wins over a `root { FontColor Red; BackgroundColor palegreen }` block
+  // for every object-kind classifier's fill/text color). Selector path
+  // "objectdiagram.object" (parseStyleBlock's dot-joined nesting) routes
+  // into the SAME `object` bucket a bare `object { ... }` block would.
+  it('routes a diagram-type-nested element block ("objectdiagram.object") ' +
+    'into the SAME bucket as a bare "object" selector (G3/O2)', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'objectdiagram.object': { backgroundcolor: 'yellow', fontcolor: 'blue' } }),
+    );
+    expect(buckets.object).toEqual({ background: 'yellow', font: 'blue' });
+  });
+
+  it('does NOT route an unrecognized nested selector into any bucket', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'objectdiagram.widget': { backgroundcolor: '#000000' } }),
+    );
+    expect(Object.keys(buckets)).toHaveLength(0);
+  });
+});
+
+// G3/O4: `<style> object { header { BackgroundColor red; FontColor green;
+// FontSize 20 } } }` -- EntityImageObject/Map/Json's own `getStyleHeader()`
+// nested `header` sub-selector (`theme.ts#ElementColors`'s `headerBackground`/
+// `headerFont`/`headerFontSize` field doc comment) -- jar-verified
+// `soxufi-98-nita528`.
+describe('collectElementStyleBuckets -- nested "<sname>.header" selector (G3/O4)', () => {
+  it('routes "object.header" into the SAME object bucket, under the header* fields', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({
+        object: { backgroundcolor: 'yellow', fontcolor: 'blue' },
+        'object.header': { backgroundcolor: 'red', fontcolor: 'green', fontsize: '20' },
+      }),
+    );
+    expect(buckets.object).toEqual({
+      background: 'yellow', font: 'blue',
+      headerBackground: 'red', headerFont: 'green', headerFontSize: 20,
+    });
+  });
+
+  it('does NOT route "widget.header" (widget is not an ELEMENT_BUCKET_SNAMES member)', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'widget.header': { backgroundcolor: 'red' } }),
+    );
+    expect(Object.keys(buckets)).toHaveLength(0);
+  });
+
+  it('leaves an "object.header" block with no recognized declarations a no-op', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'object.header': { linecolor: 'red' } }),
+    );
+    expect(buckets.object).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

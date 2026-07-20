@@ -2,17 +2,22 @@
 /**
  * SVG conformance census — dual-measurer mission deliverable.
  *
- * Renders every cached component/usecase/class fixture (`test-results/
- * dot-cache/`, captured from the jar under `-DPLANTUML_DETERMINISTIC_TEXT=
- * true` — see `oracle/patches/0002-oracle-deterministic-text.patch`).
- * component/usecase route through the description engine's LOW-LEVEL
- * pipeline (`parseDescription` -> `layoutDescription` -> `renderDescription`,
- * via `renderFixtureDescription`); `class` routes through its OWN pipeline
- * (`parseClass` -> `layoutClass` -> `renderClass`, via `render-fixture-
- * class.ts#renderFixtureClass` — G2/N0) — `renderFixtureFor` dispatches on
- * `type`. Each pass injects ONE measurer instance into BOTH the layout and
- * render stages, and compares the result against the cached golden via
- * `compareSvg(..., 'deterministic')`.
+ * Renders every cached component/usecase/class/object fixture (`test-
+ * results/dot-cache/`, captured from the jar under
+ * `-DPLANTUML_DETERMINISTIC_TEXT=true` — see `oracle/patches/0002-oracle-
+ * deterministic-text.patch`). component/usecase route through the
+ * description engine's LOW-LEVEL pipeline (`parseDescription` ->
+ * `layoutDescription` -> `renderDescription`, via
+ * `renderFixtureDescription`); `class` AND `object` both route through the
+ * CLASS engine's OWN pipeline (`parseClass` -> `layoutClass` ->
+ * `renderClass`, via `render-fixture-class.ts#renderFixtureClass` — G2/N0,
+ * G3/O0) — object diagrams have no separate engine upstream
+ * (`ClassDiagramFactory` registers the object/map commands alongside the
+ * class ones; see `tests/unit/object/renderer.test.ts`'s own doc comment),
+ * so reusing the identical helper is correct, not a shortcut. `renderFixtureFor`
+ * dispatches on `type`. Each pass injects ONE measurer instance into BOTH the
+ * layout and render stages, and compares the result against the cached
+ * golden via `compareSvg(..., 'deterministic')`.
  *
  * Bypasses `renderSync`/`descriptionPlugin.render` deliberately: the public
  * `SyncPlugin#render(geo, theme)` contract has no measurer parameter (by
@@ -39,8 +44,9 @@
  * exact 4-stage algorithm (see that function's own doc comment) using the
  * same already-exported building blocks.
  *
- * Usage: npx tsx scripts/svg-conformance-census.ts [component] [usecase] [class]
- *   (defaults to component + usecase; class must be requested explicitly)
+ * Usage: npx tsx scripts/svg-conformance-census.ts [component] [usecase] [class] [object]
+ *   (defaults to component + usecase; class/object must be requested
+ *   explicitly)
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -184,15 +190,18 @@ function renderFixtureDescription(markup: string, measurer: StringMeasurer): str
 }
 
 /**
- * N0 (G2): dispatches to the CLASS pipeline for `class` fixtures, else the
- * pre-existing description pipeline (component/usecase). `parseDescription`
- * silently "succeeds" on class markup -- it just drops native class syntax
- * (member compartments, nested classifiers inside `package{}` blocks) --
- * so class fixtures MUST route through their own parser/layout/renderer or
- * every downstream family/error measurement is meaningless (diagnosed N0).
+ * N0 (G2), extended O0 (G3): dispatches to the CLASS pipeline for `class`
+ * AND `object` fixtures, else the pre-existing description pipeline
+ * (component/usecase). `parseDescription` silently "succeeds" on class/
+ * object markup -- it just drops the native syntax (member compartments,
+ * nested classifiers inside `package{}` blocks, `object`/`map` declarations)
+ * -- so class/object fixtures MUST route through their own parser/layout/
+ * renderer or every downstream family/error measurement is meaningless
+ * (diagnosed N0, re-confirmed for object at O0: object diagrams have no
+ * separate engine upstream -- see `renderFixtureClass`'s own doc comment).
  */
 function renderFixtureFor(type: string, markup: string, measurer: StringMeasurer): string {
-  return type === 'class'
+  return type === 'class' || type === 'object'
     ? renderFixtureClass(markup, measurer, { includeStore: censusIncludeStore() })
     : renderFixtureDescription(markup, measurer);
 }

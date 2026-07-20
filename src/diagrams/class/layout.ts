@@ -148,6 +148,17 @@ export interface ClassifierGeo {
      */
     fontFamily?: string;
     fontSize?: number;
+    /**
+     * G3/O4: `skinparam style strictuml` -- `EntityImageObject#getUnderlinedName`
+     * (`Display#underlinedName`, jar's own UML-instance-notation convention:
+     * an object's name is ALWAYS underlined, and a `name : type` header
+     * splits into an underlined name segment + a plain `: type` segment,
+     * `jotaga-99-fatu830`'s own citation). OBJECT-kind header rows only --
+     * `EntityImageMap`/`Json`/`ClassHeader` never call `underlinedName()`
+     * (jar-verified absent from all three). Absent = no underline (the
+     * common case, `theme.strictUml` unset).
+     */
+    underline?: boolean;
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
   /**

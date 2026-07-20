@@ -1,0 +1,5 @@
+@startuml
+object x
+x : v2 = Z() 
+' x : v3 = a
+@enduml

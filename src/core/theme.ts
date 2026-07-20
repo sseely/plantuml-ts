@@ -37,6 +37,25 @@ export interface ElementColors {
    *  most defensible reading of the style system's own architecture, not a
    *  guess from nothing. */
   stereotypeFontSize?: number;
+  /** `<style> <sname> { header { BackgroundColor/FontColor/FontSize } } }`
+   *  -- G3/O4, `EntityImageObject`/`Map`/`Json`'s own `getStyleHeader()`
+   *  nested `header` sub-selector (`StyleSignatureBasic.of(root, element,
+   *  objectDiagram, <sname>, header)`), scoped to the same three kinds
+   *  `stereotypeFontSize` above already narrows to via `ELEMENT_BUCKET_
+   *  SNAMES` gating at the parse site (`style-map-element.ts#collect
+   *  ElementStyleBuckets`). `headerBackground` draws a SEPARATE half-
+   *  rounded rect over ONLY the title/header area
+   *  (`renderer-classifier-box.ts#buildHeaderPrimitive`) whenever it
+   *  differs from the bare bucket's own `background` -- mirrors jar's own
+   *  `headerBackcolor != null && !backcolor.equals(headerBackcolor)` gate
+   *  (`EntityImageObject.java:199`). `headerFont`/`headerFontSize` win over
+   *  the bare bucket's `font`/`fontSize` for the NAME row text ONLY
+   *  (member rows keep the bare bucket's own values) -- jar-verified
+   *  `soxufi-98-nita528`. Absent = no header-specific override (the
+   *  common case). */
+  headerBackground?: Paint;
+  headerFont?: Paint;
+  headerFontSize?: number;
 }
 
 export interface Theme {
@@ -112,6 +131,11 @@ export interface Theme {
    *  `Fission.ts`'s doc comment) — word-wrap is a no-op unless a diagram
    *  explicitly sets this skinparam. */
   wrapWidth?: number;
+  /** `skinparam tabSize N` -- `SkinParam#getTabSize()` (default 8, no style
+   *  cascade). Threaded to object-field text runs containing a literal
+   *  `\t` (`AtomText#getTabSize`/`drawU`'s tab-stop expansion) -- G3/O4.
+   *  Absent = upstream default (8). */
+  tabSize?: number;
   colors: {
     background: string;
     /** Default fill for action/node shapes (separate from canvas background). */
@@ -841,6 +865,7 @@ export type ThemeOverride = {
   nodeSep?: number;
   rankSep?: number;
   wrapWidth?: number;
+  tabSize?: number;
   colors?: {
     background?: string;
     nodeBackground?: string;
@@ -903,6 +928,7 @@ const OPTIONAL_SCALAR_KEYS = [
   'nodeSep',
   'rankSep',
   'wrapWidth',
+  'tabSize',
 ] as const;
 
 /** Copy the top-level optional scalars, preferring `partial` then `base`. */

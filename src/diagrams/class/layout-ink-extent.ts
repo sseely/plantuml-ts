@@ -184,6 +184,45 @@ function addRectInk(box: InkBox, x: number, y: number, w: number, h: number): vo
   addPoint(box, x + w, y + h);
 }
 
+/**
+ * G3/O2: `EntityImageObject#drawU`'s outer bordered `URectangle` when the
+ * classifier's field/body compartment is ENTIRELY suppressed (`showFields
+ * == false` -- "hide members"/"hide empty members" on an object with no
+ * visible members left, `class-object-map-sizing.ts#measureObjectClassifier`'s
+ * `dividerYs: []` case). {@link addRectInk}'s own "+1px past the rect's
+ * own inset" dominance comes from a SEPARATE invisible-`UEmpty` reservation
+ * that `EntityImageObject`'s populated-fields branch draws alongside the
+ * name/stereo header (`BodierLikeClassOrObject#getBody`'s `LeafType.OBJECT`
+ * arm: `BodyFactory.create1(...)` when `showFields`, vs a genuinely
+ * zero-size `TextBlockUtils.empty(0, 0)` when NOT) -- with NO body
+ * compartment drawn at all, that reservation never exists, so the
+ * classifier's ink comes SOLELY from the visible rect's own native
+ * `LimitFinder#drawRectangle` inset: `addPoint(x-1,y-1)`,
+ * `addPoint(x+w-1,y+h-1)` (`klimt/drawing/LimitFinder.java:184-188`) --
+ * symmetric `-1` on BOTH corners, 1px narrower than {@link addRectInk} on
+ * the WIDTH axis specifically.
+ *
+ * Height is deliberately UNCHANGED here (`y+h`, not `y+h-1`) -- jar-verified
+ * against 2 independent title-bearing samples (`kexica-21-gega428`: global
+ * `hide members`, BOTH classifiers empty-bodied; `janoma-30-dovo501`: `hide
+ * empty members`, only the genuinely-empty sibling affected) -- both show
+ * the SAME 0.5px horizontal chrome-centering residual (`core/annotations
+ * /chrome.ts#decorateEntityImage`'s `xImage = (dimTotal.width -
+ * original.width) / 2` split a 1px `rawWidth` delta in half) with ZERO
+ * accompanying height/y diff, meaning whatever ELSE reaches the box's max-Y
+ * corner (the header name/stereo text's own ink, drawn unconditionally
+ * regardless of `showFields`) already supplies the un-inset max-Y bound
+ * this rule's own asymmetry leaves alone. Object-kind-gated only (not
+ * class/interface/enum): `EntityImageClass`'s equivalent hidden-fields path
+ * returns `null` (skipped draw entirely, `BodierLikeClassOrObject#getBody`'s
+ * `isBodyEnhanced()` arm), a structurally different upstream mechanism this
+ * rule does not model.
+ */
+function addRectInkEmptyBody(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x - 1, y - 1);
+  addPoint(box, x + w - 1, y + h);
+}
+
 /** `LimitFinder#drawUPath` — plain bounding box, no inset. Used for
  *  namespace cluster outlines (rounded-corner `UPath`, not a `URectangle`
  *  upstream — `Cluster.java`/`svek/GroupPngMakerActivity`-family draw). */
@@ -293,7 +332,15 @@ function addClassifierInk(box: InkBox, c: ClassifierGeo): void {
     addPlainInk(box, c.x, c.y, c.width, c.height);
     return;
   }
-  addRectInk(box, c.x, c.y, c.width, c.height);
+  // G3/O2: `kind: 'object'` with its field/body compartment entirely
+  // suppressed (`dividerYs: []` -- see `addRectInkEmptyBody`'s own doc
+  // comment for the jar-verified mechanism and why this is gated to
+  // `object` specifically, not class/interface/enum).
+  if (c.kind === 'object' && c.dividerYs.length === 0) {
+    addRectInkEmptyBody(box, c.x, c.y, c.width, c.height);
+  } else {
+    addRectInk(box, c.x, c.y, c.width, c.height);
+  }
   if (c.kind === 'lollipop') addLollipopRowInk(box, c);
   // G2 N32: `class Foo<T>`'s generic type-parameter tag box is drawn
   // OUTSIDE the classifier's own rect (above-right, `class-stereotype.ts

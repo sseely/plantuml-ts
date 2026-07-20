@@ -141,6 +141,65 @@ describe('json — bepafe-03-teda035 shape (nested braces on one line)', () => {
     expect(jsonGeo.width).toBeCloseTo(143.025, 3);
     expect(jsonGeo.height).toBeCloseTo(144, 5);
   });
+
+  // G3/O0: headerRows centering fix (class-object-map-sizing.ts) applies to
+  // json's header identically (shared with object/map) -- jar-verified:
+  // "A"'s golden `<text x="275.8313" y="19.8889" textLength="9.3625">A</text>`
+  // against rect x=209/y=7.
+  it('centers the name row within the final box width and sets textLength', () => {
+    const ast = parse(BEPAFE_JSON_SOURCE);
+    const geo = layoutClass(ast, theme, measurer);
+    const jsonGeo = geo.classifiers.find((c) => c.kind === 'json')!;
+    const nameRow = jsonGeo.rows[0]!;
+    expect(nameRow.text).toBe('A');
+    expect(nameRow.width).toBeCloseTo(9.3625, 3);
+    // (143.025 - 9.3625) / 2 = 66.83125 -- jar's text x=275.8313 minus rect x=209
+    expect(nameRow.indent).toBeCloseTo(66.83125, 3);
+    // JSON_NAME_MARGIN(2) + baselineOffset(14) -- jar's text y=19.8889 minus rect y=7
+    expect(nameRow.y).toBeCloseTo(12.8889, 3);
+  });
+
+  // G3/O1: data-row baseline+textLength -- `TextBlockCucaJSon#getTextBlock`
+  // draws BOTH a member's key AND a scalar value flush-left within its own
+  // margin-5,2 cell (`HorizontalAlignment.LEFT`, never centered -- unlike
+  // map's key column) at the SAME "ascent-from-row-top" baseline every
+  // other row uses. A nested object's key aligns with the TOP of its own
+  // (possibly taller) sub-table row, not its vertical center -- jar-
+  // verified: "user"'s key row and its first nested member "age" share the
+  // SAME y despite the nested sub-table being much taller than one row.
+  it("sets each entry row's OWN textLength and an ascent-from-row-top baseline " +
+     "(including a nested object's key, top-aligned not centered)", () => {
+    const ast = parse(BEPAFE_JSON_SOURCE);
+    const geo = layoutClass(ast, theme, measurer);
+    const jsonGeo = geo.classifiers.find((c) => c.kind === 'json')!;
+    const [, nameKey, nameValue, colorKey, , , , , , userKey, ageKey, ageValue] = jsonGeo.rows;
+
+    // "name" key/value row -- jar y=37.8889, rect y=7 -> relative 30.8889
+    expect(nameKey!.text).toBe('name');
+    expect(nameKey!.width).toBeCloseTo(35, 3);
+    expect(nameKey!.y).toBeCloseTo(30.8889, 3);
+    expect(nameValue!.text).toBe('component c1');
+    expect(nameValue!.width).toBeCloseTo(84, 3);
+    expect(nameValue!.y).toBeCloseTo(30.8889, 3);
+
+    // "color" key row -- jar y=55.8889, rect y=7 -> relative 48.8889
+    expect(colorKey!.text).toBe('color');
+    expect(colorKey!.width).toBeCloseTo(30.3625, 3);
+    expect(colorKey!.y).toBeCloseTo(48.8889, 3);
+
+    // "user" key row + its nested "age" key/value share the SAME top-of-row
+    // y (top-aligned, NOT centered within the taller nested sub-table) --
+    // jar y=127.8889, rect y=7 -> relative 120.8889
+    expect(userKey!.text).toBe('user');
+    expect(userKey!.width).toBeCloseTo(27.2125, 3);
+    expect(userKey!.y).toBeCloseTo(120.8889, 3);
+    expect(ageKey!.text).toBe('age');
+    expect(ageKey!.width).toBeCloseTo(23.3625, 3);
+    expect(ageKey!.y).toBeCloseTo(120.8889, 3);
+    expect(ageValue!.text).toBe('23');
+    expect(ageValue!.width).toBeCloseTo(15.575, 3);
+    expect(ageValue!.y).toBeCloseTo(120.8889, 3);
+  });
 });
 
 // ---------------------------------------------------------------------------

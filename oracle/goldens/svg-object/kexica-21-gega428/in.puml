@@ -1,0 +1,9 @@
+@startuml
+title hide members
+hide members
+object A {
+  foo
+}
+object B
+
+@enduml

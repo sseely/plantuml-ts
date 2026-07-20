@@ -7,15 +7,17 @@
  * arrowhead.ts`/`renderer-group.ts`/`renderer-note.ts`/`renderer-url.ts`
  * split precedent for a renderer sub-concern; pure move for the
  * pre-existing pieces (`classifierFill`/`renderRow`/`renderBadge`/
- * `renderMapColumnDividers`), no behavior change.
+ * `mapColumnDividerEntries`), no behavior change (this note describes
+ * the original G2 split -- see `MAP_JSON_DIVIDER_STROKE_WIDTH`'s own doc
+ * comment for the G3/O3 map/json divider fix, which DID change behavior).
  */
 import type { ClassifierGeo } from './layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './layout.js';
 import type { Theme } from '../../core/theme.js';
-import { rect, text, line, ellipse, image } from '../../core/svg.js';
+import { rect, text, line, ellipse, image, path } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { resolveBareOrBackColor } from './class-color-override.js';
-import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
+import { MAP_CELL_MARGIN_X } from './class-map-sizing.js';
 import {
   hasBadge,
   resolveBadgeFill,
@@ -44,6 +46,68 @@ import { renderEnhancedBody } from './renderer-body-enhanced.js';
 // Classifier kind → fill color
 // ---------------------------------------------------------------------------
 
+/** `theme.colors.graph.classCascadeBackground ?? classBackground` -- the
+ *  terminal class-family default every kind falls back to when no
+ *  higher-priority override applies (shared because object/map/json
+ *  coincidentally default to the SAME jar hex, `#F1F1F1`, as class --
+ *  see `classifierFill`'s own doc comment for why this is NOT the same as
+ *  object/map/json sharing class's CASCADE). */
+function classDefaultBackground(theme: Theme): string {
+  return theme.colors.graph.classCascadeBackground ?? theme.colors.graph.classBackground;
+}
+
+/** G3/O1: `theme.colors.elements[sname].background` -- resolves the SAME
+ *  raw-`parseColor` value the generic `ELEMENT_BUCKET_SNAMES` bucket
+ *  populates for every other element kind (`note`, `spot<Kind>`). A plain
+ *  color NAME still needs HColorSet resolution (`resolveColorToSvgHex`,
+ *  mirroring `renderer-note.ts#resolveNoteBackground`'s identical branch).
+ *  Gradient `Paint`s are NOT supported here (unlike that note precedent) --
+ *  `classifierFill`'s return type is `string`, shared with two other
+ *  callers (`renderEnhancedBody`/`renderVisibilityUrlBackground`) that
+ *  don't accept a `Paint`; widening all three for a feature no fixture in
+ *  the corpus exercises is out of this iteration's scope -- falls through
+ *  to the class default in that (currently unencountered) case, same as
+ *  "unset". */
+function resolveElementBackground(theme: Theme, sname: string): string | undefined {
+  const bucket = theme.colors.elements?.[sname]?.background;
+  if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
+  return undefined;
+}
+
+/** G3/O2: `theme.colors.elements[sname].font` -- the SAME generic
+ *  `ELEMENT_BUCKET_SNAMES` bucket {@link resolveElementBackground} reads,
+ *  for the `fontcolor` field `collectElementStyleBuckets` already extracts
+ *  (unchanged there; only THIS consumption was missing). Jar-verified
+ *  `figeze-77-fozi735`: `<style> objectDiagram { object { FontColor blue }
+ *  } </style>` tints every object-kind row's text, independent of a `root
+ *  { FontColor Red }` block that would otherwise apply. */
+function resolveElementFont(theme: Theme, sname: string): string | undefined {
+  const bucket = theme.colors.elements?.[sname]?.font;
+  if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
+  return undefined;
+}
+
+/** G3/O4: `theme.colors.elements[sname].headerBackground` -- the
+ *  `<style> <sname> { header { BackgroundColor ... } } }` nested-selector
+ *  override (`theme.ts#ElementColors`'s own field doc comment). Read by
+ *  `buildHeaderPrimitive`'s own header-background-split gate, NEVER by
+ *  `classifierFill` (the body rect's fill stays the bare bucket's
+ *  `background`, unaffected). */
+function resolveElementHeaderBackground(theme: Theme, sname: string): string | undefined {
+  const bucket = theme.colors.elements?.[sname]?.headerBackground;
+  if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
+  return undefined;
+}
+
+/** G3/O4: `theme.colors.elements[sname].headerFont` -- the SAME nested
+ *  `header { FontColor ... } }` override, for the NAME row's text color
+ *  (member rows keep {@link resolveElementFont}'s bare-bucket value). */
+function resolveElementHeaderFont(theme: Theme, sname: string): string | undefined {
+  const bucket = theme.colors.elements?.[sname]?.headerFont;
+  if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
+  return undefined;
+}
+
 function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // Upstream has no `enum`/`interface` StyleSignature for the box fill --
   // `EntityImageClassHeader#getStyleSignature` (and the lollipop-interface
@@ -64,6 +128,23 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // doc comment for the full extraction rule).
   const override = resolveBareOrBackColor(geo.color);
   if (override !== undefined) return resolveColorToSvgHex(override);
+  // G3/O1: `object`/`map`/`json` each carry their OWN StyleSignature
+  // upstream (`SName.object`/`map`/`json` under `SName.objectDiagram`),
+  // independent of class's `SName.class_` (`EntityImageObject`/`Map`/
+  // `Json#getStyleSignature`) -- so they read their OWN `skinparam
+  // {object,map,json}BackgroundColor` bucket instead of the class
+  // `.tagname`/ancestor cascade below, which is genuinely class-only
+  // upstream (jar-verified: `skinparam objectBackgroundColor` never tints a
+  // PLAIN `class`, and vice versa -- majake-62-pero492). Falls through to
+  // the SAME terminal class default ONLY because object/map/json have no
+  // distinct default color of their own upstream (all three coincidentally
+  // default to jar's shared `#F1F1F1`), not because they share class's
+  // cascade -- `<<tag>>`-scoped `objectBackgroundColor<<X>>` is a SEPARATE,
+  // larger, deferred mechanism (`skinparam.ts#ELEMENT_BUCKET_SNAMES`'s own
+  // doc comment on the `object`/`map`/`json` entries).
+  if (geo.kind === 'object' || geo.kind === 'map' || geo.kind === 'json') {
+    return resolveElementBackground(theme, geo.kind) ?? classDefaultBackground(theme);
+  }
   // G2 N37: the `.tagname` sub-selector cascade (`class { .mystyle {
   // BackgroundColor cyan } } }`) wins over the plain ancestor cascade below
   // when the classifier carries a matching stereotype -- see
@@ -75,7 +156,7 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // theme.ts`) could ever populate from the SAME StyleMap -- it additionally
   // covers the `classDiagram`/`root` ancestor layer and nested `classDiagram
   // .class {}` -- see `theme.ts`'s own field doc comment.
-  return theme.colors.graph.classCascadeBackground ?? theme.colors.graph.classBackground;
+  return classDefaultBackground(theme);
 }
 
 /**
@@ -126,6 +207,23 @@ function classBorderStrokeWidth(geo: ClassifierGeo, theme: Theme): number {
   }
   return theme.colors.graph.classBorderThickness ?? CLASS_BORDER_STROKE_WIDTH_DEFAULT;
 }
+
+/**
+ * G3/O3: `map`/`json` row dividers (`TextBlockMap#drawU`/
+ * `TextBlockCucaJSon`'s `ULine.hline`/`vline`) draw on a UGraphic derived
+ * from `UGraphicStencil.create(ug, this, stroke)` -- built from the OUTER
+ * `ug`, taken BEFORE `EntityImageMap/Json#drawU` applies `ug.apply(stroke)`
+ * for the box's own outline -- so these lines never inherit the
+ * classifier's own border stroke width (`classBorderStrokeWidth` above,
+ * which class/interface/enum's OWN body dividers correctly DO use --
+ * `EntityImageClass`'s different draw path, proven exact since G2's
+ * 292/718 census). Jar-verified: `stroke-width:1` on every sampled map/json
+ * divider regardless of `skinparam classBorderThickness`. Also unlike
+ * class/interface/enum's own dividers, map/json dividers span the FULL box
+ * width (no 1px inset) -- see `buildBodyPrimitives`'s own doc comment.
+ * @see ~/git/plantuml/.../svek/image/EntityImageMap.java#drawU (ug2 derivation)
+ */
+const MAP_JSON_DIVIDER_STROKE_WIDTH = 1;
 
 /**
  * Every classifier row (header AND member) shares ONE plain-baseline
@@ -221,13 +319,41 @@ export function renderRowText(
   // header name AND a member row alike) -- but NEVER a stereotype label row
   // (`isStereoLabelRow`'s own doc comment above). See `style-cascade-class
   // .ts#resolveClassTagCascadeEntry`'s own doc comment.
-  const tagFontColor = isStereoLabelRow
-    ? undefined
-    : resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.fontColor;
+  // G3/O2: `object`/`map`/`json` read their OWN `theme.colors.elements
+  // [kind].font` bucket FIRST (`<style> objectDiagram { object { FontColor
+  // ... } } }`/bare `object { FontColor ... }`, the OBJECT-specific
+  // override -- `EntityImageObject`/`Map`/`Json#getStyleSignature` has NO
+  // `classDiagram`/`class` token, so a class-only `.tagname` cascade must
+  // never apply). Falls through to the SAME `classCascade(Header)FontColor`
+  // terminal chain the class branch uses below ONLY as a root/element-level
+  // default -- jar-verified `lapato-45-neje847` (regression guard): a bare
+  // `<style> root { FontColor Red } </style>` with NO objectDiagram/object
+  // block still tints object row text red, because `classCascadeFontColor`'s
+  // OWN `resolveStyleCascade` query set starts with `root`/`element` (the
+  // FIRST two tokens of EVERY StyleSignature chain, shared identically by
+  // class/object/map/json) -- exactly the SAME "falls through to the class
+  // default only because of a shared prefix, not a shared cascade" shape
+  // `classifierFill`'s own doc comment already establishes for
+  // BackgroundColor (`classDefaultBackground`). A `<style> classDiagram {
+  // ... } }`/`class { ... }`-SCOPED override incorrectly leaking into
+  // object text through this SAME shared fallback is a pre-existing,
+  // un-narrowed edge case (no fixture in the corpus isolates it), not
+  // introduced by this iteration.
   const fontColor =
-    tagFontColor ??
-    ((isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
-      : theme.colors.graph.classCascadeFontColor) ?? '#000000');
+    geo.kind === 'object' || geo.kind === 'map' || geo.kind === 'json'
+      ? // G3/O4: `<style> <sname> { header { FontColor } } }` wins over the
+        // bare bucket's own FontColor, but ONLY for the NAME row (`isHeader
+        // && !isStereoLabelRow` -- `resolveElementHeaderFont`'s own doc
+        // comment; the stereo label row's FontConfiguration is independent
+        // upstream, `EntityImageObject.java`'s own ctor).
+        (isHeader && !isStereoLabelRow ? resolveElementHeaderFont(theme, geo.kind) : undefined) ??
+        resolveElementFont(theme, geo.kind) ??
+        (isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
+          : theme.colors.graph.classCascadeFontColor) ??
+        '#000000'
+      : (isStereoLabelRow ? undefined : resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.fontColor) ??
+        ((isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
+          : theme.colors.graph.classCascadeFontColor) ?? '#000000');
   if (row.atoms !== undefined) {
     return renderRowAtoms(row.atoms, geo.x + row.indent, geo.y + row.y, theme, fontColor);
   }
@@ -263,6 +389,9 @@ export function renderRowText(
     // creole atom engine's identical `FontStyle.BOLD` -> `font-weight="700"`
     // convention (`renderRowAtoms` below).
     ...(row.bold === true ? { fontWeight: '700' as const } : {}),
+    // G3/O4: `skinparam style strictuml` -- object header name underline
+    // (`layout.ts`'s `rows[]` field doc comment).
+    ...(row.underline === true ? { textDecoration: 'underline' } : {}),
   });
 }
 
@@ -463,12 +592,27 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
 
 /**
  * Map-only: the column-B vertical divider per non-linked data row
- * (TextBlockMap#drawU's per-row `ULine.vline`). Row/column geometry is
- * reconstructed from rows[]/dividerYs alone (no ClassifierGeo schema change
- * — see class-object-map-sizing.ts#buildMapRowGeo for why): every data row
- * contributes exactly two rows[] entries (key, value) after the header
- * entries (those with y below dividerYs[0]); a linked row's value entry has
- * empty text and is skipped (upstream never draws that cell either).
+ * (`TextBlockMap#drawU`'s per-row `ULine.vline`, drawn immediately after
+ * that row's key+value text). Returns Y-tagged entries (NOT a joined
+ * string, G3/O3) so `buildBodyPrimitives` can merge them into its own
+ * stable Y-sort at the CORRECT interleaved position -- jar draws
+ * `[hline, key, value, vline]` per row, never batching every vline after
+ * every row (this port's pre-O3 bug: the old string-returning form was
+ * appended as one extra primitive at the very end of `renderClassifierBox`,
+ * after every row's own text). Each entry's sort `y` is deliberately the
+ * row's OWN text baseline -- identical to the value text primitive's own
+ * `y` -- so the stable sort preserves jar's `[key, value, vline]` relative
+ * order for that row without needing a secondary sort key (both were
+ * pushed into `buildBodyPrimitives`' array via the SAME `memberRows` loop
+ * iteration order, key then value, before this function's own entries are
+ * appended).
+ *
+ * Row/column geometry is reconstructed from rows[]/dividerYs alone (no
+ * ClassifierGeo schema change — see class-map-sizing.ts#buildMapRowGeo for
+ * why): every data row contributes exactly two rows[] entries (key, value)
+ * after the header entries (those with y below dividerYs[0]); a linked
+ * row's value entry has empty text and is skipped (upstream never draws
+ * that cell either).
  *
  * NOT used for `json` — a json entries area can nest arbitrarily deep, so it
  * does not fit the "exactly two rows[] entries per data row" invariant this
@@ -476,19 +620,27 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
  * rendering simplification (row/column TEXT is exact at every depth, only
  * the vertical divider lines are omitted).
  */
-function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
-  if (geo.kind !== 'map' || geo.dividerYs.length === 0) return '';
+function mapColumnDividerEntries(geo: ClassifierGeo, theme: Theme): Array<{ y: number; item: UrlTaggedPrimitive }> {
+  if (geo.kind !== 'map' || geo.dividerYs.length === 0) return [];
   const dataRows = geo.rows.filter((r) => r.y >= geo.dividerYs[0]!);
-  const parts: string[] = [];
+  const entries: Array<{ y: number; item: UrlTaggedPrimitive }> = [];
   for (let i = 0; i < geo.dividerYs.length; i++) {
     const value = dataRows[2 * i + 1];
     if (value === undefined || value.text === '') continue; // linked/point row
     const top = geo.dividerYs[i]!;
     const bottom = geo.dividerYs[i + 1] ?? geo.height;
     const dividerX = geo.x + value.indent - MAP_CELL_MARGIN_X;
-    parts.push(line(dividerX, geo.y + top, dividerX, geo.y + bottom, { stroke: classBorder(geo, theme) }));
+    entries.push({
+      y: value.y,
+      item: {
+        url: geo.url,
+        body: line(dividerX, geo.y + top, dividerX, geo.y + bottom, {
+          stroke: classBorder(geo, theme), strokeWidth: MAP_JSON_DIVIDER_STROKE_WIDTH,
+        }),
+      },
+    });
   }
-  return parts.join('');
+  return entries;
 }
 
 /**
@@ -506,6 +658,39 @@ function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
  * Every header row draws via `renderRowText` (never `renderRow` -- a
  * header row can never carry a visibility icon).
  */
+/**
+ * G3/O4: `EntityImageObject`/`Map`/`Json#drawU`'s conditional header-
+ * background split -- when the resolved header BackgroundColor differs
+ * from the box's own body fill, a SEPARATE half-rounded rect is drawn on
+ * TOP of the body rect, covering ONLY the title/header area (`URectangle
+ * .halfRounded`, `EntityImageObject.java:199-203`). Reuses `URectangle
+ * .ts#halfRounded`'s own already-ported arc math (verified byte-exact
+ * against this SAME jar sample before writing this string-builder) rather
+ * than re-deriving the geometry a second time -- see that method's own
+ * doc comment for the ARC/LINE sequence this mirrors.
+ *
+ * `headerHeight` is `geo.dividerYs[0]` (the title block's own height, only
+ * present when a divider is actually drawn -- `measureObjectClassifier`'s
+ * own `dividerYs: showFields ? [title.height] : []`) -- gated on its
+ * presence rather than re-deriving `title.height` independently; a
+ * suppressed-fields object/map/json (no divider) is a real but UNSAMPLED
+ * combination (no corpus fixture combines `hide fields` with a `.header`
+ * BackgroundColor override) and is left undrawn rather than guessed.
+ */
+function headerBackgroundPath(geo: ClassifierGeo, theme: Theme, roundCorner: number, fill: string): string {
+  const headerHeight = geo.dividerYs[0];
+  if (headerHeight === undefined) return '';
+  const r = roundCorner / 2;
+  const x0 = geo.x;
+  const y0 = geo.y;
+  const x1 = geo.x + geo.width;
+  const y1 = geo.y + headerHeight;
+  const d =
+    `M${x0 + r},${y0} L${x1 - r},${y0} A${r},${r} 0 0 1 ${x1},${y0 + r} ` +
+    `L${x1},${y1} L${x0},${y1} L${x0},${y0 + r} A${r},${r} 0 0 1 ${x0 + r},${y0}`;
+  return path(d, { fill, stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme) });
+}
+
 function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimitive {
   // G2 N37: `RoundCorner` -- tag cascade wins over the ancestor cascade,
   // which wins over the pre-existing hardcoded jar-default 5 (`rx`/`ry` =
@@ -521,6 +706,17 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
     fill: classifierFill(geo, theme), stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
     rx: roundCorner / 2, ry: roundCorner / 2,
   });
+  // G3/O4: `<style> <sname> { header { BackgroundColor } } }` -- object/
+  // map/json only (`headerBackgroundPath`'s own doc comment); drawn ONLY
+  // when it genuinely differs from the body's own fill (jar's own
+  // `backcolor.equals(headerBackcolor) == false` gate).
+  if (geo.kind === 'object' || geo.kind === 'map' || geo.kind === 'json') {
+    const headerBg = resolveElementHeaderBackground(theme, geo.kind);
+    const bodyBg = classifierFill(geo, theme);
+    if (headerBg !== undefined && headerBg !== bodyBg) {
+      body += headerBackgroundPath(geo, theme, roundCorner, headerBg);
+    }
+  }
   // G2 N58 item 40: `skinparam style strictuml` unconditionally suppresses
   // the circled-character badge (`CucaDiagram#showPortion`'s own doc comment
   // on the measurement side, class-layout-helpers.ts#measureGenericClassifier).
@@ -606,17 +802,29 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     }];
   }
   const memberRows = geo.rows.slice(geo.headerRowCount ?? 1);
+  // G3/O3: `map`/`json` horizontal row dividers use a DIFFERENT drawing
+  // convention from class/interface/enum's own body dividers -- full box
+  // width (no 1px inset) and a fixed stroke-width of 1 (never
+  // `classBorderStrokeWidth`) -- see `MAP_JSON_DIVIDER_STROKE_WIDTH`'s own
+  // doc comment for the upstream mechanism (`TextBlockMap`/
+  // `TextBlockCucaJSon` bypass the classifier's own border-stroke UGraphic
+  // context entirely).
+  const isMapOrJsonDivider = geo.kind === 'map' || geo.kind === 'json';
   const interleaved: Array<{ y: number; item: UrlTaggedPrimitive }> = geo.dividerYs.map((divY) => ({
     y: divY,
     item: {
       url: geo.url,
-      body: line(geo.x + 1, geo.y + divY, geo.x + geo.width - 1, geo.y + divY, {
-        stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
-      }),
+      body: isMapOrJsonDivider
+        ? line(geo.x, geo.y + divY, geo.x + geo.width, geo.y + divY, {
+            stroke: classBorder(geo, theme), strokeWidth: MAP_JSON_DIVIDER_STROKE_WIDTH,
+          })
+        : line(geo.x + 1, geo.y + divY, geo.x + geo.width - 1, geo.y + divY, {
+            stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
+          }),
     },
   }));
   // A map's linked-row value entry carries empty text (see
-  // renderMapColumnDividers doc) — upstream never draws that cell.
+  // mapColumnDividerEntries doc) — upstream never draws that cell.
   for (const row of memberRows) {
     if (row.text === '') continue;
     const effectiveUrl = row.url ?? geo.url;
@@ -666,6 +874,10 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     });
     interleaved.push({ y: row.y, item: { url: effectiveUrl, body: renderRowText(geo, row, theme) } });
   }
+  // G3/O3: map's own vertical column dividers, merged into the SAME
+  // stable Y-sort (see mapColumnDividerEntries' own doc comment for why
+  // this reproduces jar's real per-row interleaved draw order).
+  interleaved.push(...mapColumnDividerEntries(geo, theme));
   interleaved.sort((a, b) => a.y - b.y);
   return interleaved.map((entry) => entry.item);
 }
@@ -697,11 +909,12 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
  * mechanism.
  */
 export function renderClassifierBox(geo: ClassifierGeo, theme: Theme): string {
-  const mapDividers = renderMapColumnDividers(geo, theme);
+  // G3/O3: map's own vertical column dividers now interleave INSIDE
+  // buildBodyPrimitives' own Y-sort (mapColumnDividerEntries), not appended
+  // here as one extra batched-at-the-end primitive (pre-O3 bug).
   const primitives: UrlTaggedPrimitive[] = [
     buildHeaderPrimitive(geo, theme),
     ...buildBodyPrimitives(geo, theme),
-    ...(mapDividers !== '' ? [{ url: geo.url, body: mapDividers }] : []),
   ];
   return wrapClassifierBody(geo, primitives);
 }

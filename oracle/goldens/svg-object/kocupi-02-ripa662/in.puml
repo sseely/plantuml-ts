@@ -1,0 +1,6 @@
+@startuml
+title foo
+hide object stereotypes
+object foo <<Foo>> {
+}
+@enduml

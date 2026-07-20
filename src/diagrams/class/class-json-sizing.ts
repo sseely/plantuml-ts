@@ -23,6 +23,21 @@
  * independently-defined-but-equal upstream literals); a nested object/array
  * value recurses into its own sub-table instead of a single text cell.
  *
+ * G3/O1 (data-row baseline+textLength): unlike `map`, EVERY entry cell here
+ * (key AND scalar value, at every nesting depth) is drawn FLUSH-LEFT within
+ * its own margin-5,2 box (`getTextBlock`'s `HorizontalAlignment.LEFT`,
+ * `TextBlockCucaJSon#getTextBlock`'s own doc comment) — no CENTER-column
+ * split like `map`'s key column. Every row's baseline is the SAME "ascent-
+ * from-row-top" `rowTop + JSON_CELL_MARGIN_Y + baselineOffset` convention as
+ * every other object/map/json row (`class-object-map-sizing.ts#headerRows`
+ * / `#measureObjectFields`, `class-map-sizing.ts#buildOneMapRow`) — a
+ * nested object/array member's key/first-row aligns to the TOP of its own
+ * (possibly much taller) sub-table row, never its vertical center
+ * (jar-verified: bepafe-03-teda035's "user" key row and its nested "age"
+ * key/value share the exact same y, despite "user"'s row spanning the
+ * height of TWO nested members). Every row also carries its OWN
+ * `javaRound4`'d raw text width for `textLength`.
+ *
  * RENDERING SIMPLIFICATION (documented divergence, see this task's return):
  * upstream draws one horizontal `hline` per row (top-level AND nested, each
  * scoped to its OWN local column width) plus one vertical `vline` PER TABLE
@@ -44,7 +59,8 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { ClassifierGeo } from './layout.js';
 import type { MeasuredClassifier } from './class-layout-helpers.js';
-import { titleDimension, measureStereo, headerRows } from './class-object-map-sizing.js';
+import { titleDimension, measureStereo, headerRows, baselineOffsetFor } from './class-object-map-sizing.js';
+import { javaRound4 } from '../../core/number-format.js';
 
 interface Dim {
   width: number;
@@ -75,11 +91,11 @@ const EMPTY_OBJECT_NODE: JsonNode = { kind: 'object', entries: [] };
 // ---------------------------------------------------------------------------
 
 type JsonDimNode =
-  | { kind: 'scalar'; text: string; width: number; height: number }
+  | { kind: 'scalar'; text: string; width: number; height: number; rawWidth: number }
   | { kind: 'array'; items: JsonDimNode[]; width: number; height: number }
   | {
       kind: 'object';
-      members: { key: string; keyDim: Dim; value: JsonDimNode }[];
+      members: { key: string; keyDim: Dim; keyRawWidth: number; value: JsonDimNode }[];
       width1: number;
       width2: number;
       width: number;
@@ -112,7 +128,8 @@ function measureScalarNode(
 ): JsonDimNode {
   const text = scalarText(node);
   const dim = measureJsonCell(text, fontSpec, measurer);
-  return { kind: 'scalar', text, width: dim.width, height: dim.height };
+  const rawWidth = javaRound4(measurer.measure(text, fontSpec).width);
+  return { kind: 'scalar', text, width: dim.width, height: dim.height, rawWidth };
 }
 
 /** `TextBlockArray#calculateDimensionSlow`: `mergeTB` per element — width =
@@ -139,6 +156,7 @@ function measureObjectNode(
   const members = node.entries.map((e) => ({
     key: e.key,
     keyDim: measureJsonCell(e.key, fontSpec, measurer),
+    keyRawWidth: javaRound4(measurer.measure(e.key, fontSpec).width),
     value: measureJsonNode(e.value, fontSpec, measurer),
   }));
   const width1 = members.length === 0 ? 0 : Math.max(...members.map((m) => m.keyDim.width));
@@ -169,19 +187,26 @@ interface RowsResult {
   starts: number[];
 }
 
-function buildScalarRows(node: JsonDimNode & { kind: 'scalar' }, x: number, y: number): RowsResult {
-  return { rows: [{ text: node.text, y: y + node.height / 2, indent: x + JSON_CELL_MARGIN_X }], starts: [] };
+/** G3/O1: `rowTop + JSON_CELL_MARGIN_Y + baselineOffset` — the SAME
+ *  "ascent-from-row-top" baseline every other object/map/json row uses (see
+ *  file doc); every cell also carries its OWN `rawWidth` for `textLength`,
+ *  never a shared column width. */
+function buildScalarRows(node: JsonDimNode & { kind: 'scalar' }, x: number, y: number, baselineOffset: number): RowsResult {
+  return {
+    rows: [{ text: node.text, y: y + JSON_CELL_MARGIN_Y + baselineOffset, indent: x + JSON_CELL_MARGIN_X, width: node.rawWidth }],
+    starts: [],
+  };
 }
 
 /** `TextBlockArray#drawU`: an hline BETWEEN elements only (`if (nb > 0)`) —
  *  the first element has no leading boundary of its own. */
-function buildArrayRows(node: JsonDimNode & { kind: 'array' }, x: number, y: number): RowsResult {
+function buildArrayRows(node: JsonDimNode & { kind: 'array' }, x: number, y: number, baselineOffset: number): RowsResult {
   const rows: ClassifierGeo['rows'] = [];
   const starts: number[] = [];
   let curY = y;
   node.items.forEach((item, i) => {
     if (i > 0) starts.push(curY);
-    const sub = buildJsonRows(item, x, curY);
+    const sub = buildJsonRows(item, x, curY, baselineOffset);
     rows.push(...sub.rows);
     starts.push(...sub.starts);
     curY += item.height;
@@ -190,16 +215,25 @@ function buildArrayRows(node: JsonDimNode & { kind: 'array' }, x: number, y: num
 }
 
 /** `TextBlockJson#drawU`: an hline before EVERY member (including the
- *  first); the value column starts at `x + width1`. */
-function buildObjectRows(node: JsonDimNode & { kind: 'object' }, x: number, y: number): RowsResult {
+ *  first); the value column starts at `x + width1`. The key row's baseline
+ *  uses the SAME `rowTop + JSON_CELL_MARGIN_Y + baselineOffset` formula
+ *  regardless of `rowHeight` -- for a nested object/array VALUE, `rowHeight`
+ *  can far exceed one text line, so the key aligns to the row's TOP, not
+ *  its center (G3/O1, jar-verified against bepafe-03-teda035's "user"). */
+function buildObjectRows(node: JsonDimNode & { kind: 'object' }, x: number, y: number, baselineOffset: number): RowsResult {
   const rows: ClassifierGeo['rows'] = [];
   const starts: number[] = [];
   let curY = y;
   for (const m of node.members) {
     starts.push(curY);
     const rowHeight = Math.max(m.keyDim.height, m.value.height);
-    rows.push({ text: m.key, y: curY + rowHeight / 2, indent: x + JSON_CELL_MARGIN_X });
-    const sub = buildJsonRows(m.value, x + node.width1, curY);
+    rows.push({
+      text: m.key,
+      y: curY + JSON_CELL_MARGIN_Y + baselineOffset,
+      indent: x + JSON_CELL_MARGIN_X,
+      width: m.keyRawWidth,
+    });
+    const sub = buildJsonRows(m.value, x + node.width1, curY, baselineOffset);
     rows.push(...sub.rows);
     starts.push(...sub.starts);
     curY += rowHeight;
@@ -207,10 +241,10 @@ function buildObjectRows(node: JsonDimNode & { kind: 'object' }, x: number, y: n
   return { rows, starts };
 }
 
-function buildJsonRows(node: JsonDimNode, x: number, y: number): RowsResult {
-  if (node.kind === 'scalar') return buildScalarRows(node, x, y);
-  if (node.kind === 'array') return buildArrayRows(node, x, y);
-  return buildObjectRows(node, x, y);
+function buildJsonRows(node: JsonDimNode, x: number, y: number, baselineOffset: number): RowsResult {
+  if (node.kind === 'scalar') return buildScalarRows(node, x, y, baselineOffset);
+  if (node.kind === 'array') return buildArrayRows(node, x, y, baselineOffset);
+  return buildObjectRows(node, x, y, baselineOffset);
 }
 
 // ---------------------------------------------------------------------------
@@ -243,8 +277,9 @@ export function measureJsonClassifier(
   const width = Math.max(dimNode.width, title.width + JSON_X_MARGIN_CIRCLE * 2);
   const height = title.height + fieldsHeight;
 
-  const headerGeo = headerRows(classifier, nameDim.height, stereoDim.height);
-  const { rows: entryRows, starts } = buildJsonRows(dimNode, 0, title.height);
+  const headerGeo = headerRows(classifier, theme, measurer, width, JSON_NAME_MARGIN);
+  const baselineOffset = baselineOffsetFor(fontSpec, measurer);
+  const { rows: entryRows, starts } = buildJsonRows(dimNode, 0, title.height, baselineOffset);
 
   return { width, height, rows: [...headerGeo, ...entryRows], dividerYs: starts };
 }

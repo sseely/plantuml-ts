@@ -419,6 +419,131 @@ describe('renderClass — member rows', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G3/O3: map/json row-divider draw mechanics (TextBlockMap#drawU /
+// TextBlockCucaJSon -- both bypass the classifier's own border-stroke
+// context via `UGraphicStencil.create(ug, this, stroke)`, which is built
+// from the OUTER `ug` -- BEFORE `ug.apply(stroke)` -- not the stroke-scoped
+// graphic the outer rect itself draws with; jar-verified against every
+// sampled map/json divider: `stroke-width:1` always, regardless of
+// `skinparam classBorderThickness`/the classifier's own rect stroke-width,
+// and no 1px inset (full box width) -- a DIFFERENT convention from class/
+// interface/enum's own body dividers (which DO use the classifier's own
+// border stroke width + 1px inset, unaffected, still proven exact since
+// G2's 292/718 census). See class-map-sizing.ts#buildOneMapRow's own doc
+// comment for the vertical-divider draw-ORDER half of this fix
+// (TextBlockMap#drawU interleaves [hline, key, value, vline] PER ROW, never
+// batching every vline after every row -- this port's pre-O3 bug).
+// ---------------------------------------------------------------------------
+
+// bepafe-03-teda035's CapitalCity map (UK=>London, USA=>Washington,
+// Germany=>Berlin) -- numbers jar-verified via the golden SVG and the
+// already-passing `measureMapClassifier` sizing test (relative to this
+// classifier's own x=7,y=43 origin, matching that test's own worked
+// numbers exactly).
+function makeCapitalCityMapGeo(): ClassifierGeo {
+  return {
+    id: 'CapitalCity',
+    kind: 'map',
+    x: 7,
+    y: 43,
+    width: 151.425,
+    height: 72,
+    dividerYs: [18, 36, 54],
+    rows: [
+      { text: 'CapitalCity', y: 12.8889, indent: 41.8063, width: 67.8125 },
+      { text: 'UK', y: 30.8889, indent: 23.9875, width: 19.5125 },
+      { text: 'London', y: 30.8889, indent: 72.4875, width: 46.725 },
+      { text: 'USA', y: 48.8889, indent: 19.3063, width: 28.875 },
+      { text: 'Washington', y: 48.8889, indent: 72.4875, width: 73.9375 },
+      { text: 'Germany', y: 66.8889, indent: 5, width: 57.4875 },
+      { text: 'Berlin', y: 66.8889, indent: 72.4875, width: 35.875 },
+    ],
+  };
+}
+
+describe('renderClass — map row dividers (G3/O3, TextBlockMap#drawU)', () => {
+  it("draws each row's horizontal divider full box width with a fixed stroke-width of 1 (not classBorderStrokeWidth, not inset)", () => {
+    const geo = makeMinimalGeo({ classifiers: [makeCapitalCityMapGeo()] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    // jar: x1 = box.x exactly (7), x2 = box.x + box.width exactly (158.425).
+    expect(svg).toContain('<line x1="7" y1="61" x2="158.425" y2="61" stroke="#181818" stroke-width="1"/>');
+    expect(svg).toContain('<line x1="7" y1="79" x2="158.425" y2="79" stroke="#181818" stroke-width="1"/>');
+    expect(svg).toContain('<line x1="7" y1="97" x2="158.425" y2="97" stroke="#181818" stroke-width="1"/>');
+    // Not the class/interface/enum member-divider convention (1px inset +
+    // classBorderStrokeWidth 0.5) this port previously (wrongly) reused --
+    // the box's OWN outline rect legitimately keeps stroke-width 0.5, so
+    // assert on the absence of a 0.5-width <line> specifically, not a
+    // blanket absence of the string anywhere in the SVG.
+    expect(svg).not.toContain('x1="8" y1="61"');
+    expect(svg).not.toMatch(/<line[^>]*stroke-width="0.5"/);
+  });
+
+  it("draws each row's own vertical column divider interleaved right after that row's key+value text, not batched after every row", () => {
+    const geo = makeMinimalGeo({ classifiers: [makeCapitalCityMapGeo()] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    const ukVertical = '<line x1="74.4875" y1="61" x2="74.4875" y2="79" stroke="#181818" stroke-width="1"/>';
+    const usaVertical = '<line x1="74.4875" y1="79" x2="74.4875" y2="97" stroke="#181818" stroke-width="1"/>';
+    const usaHorizontalDivider = '<line x1="7" y1="79" x2="158.425" y2="79"';
+    expect(svg).toContain(ukVertical);
+    expect(svg).toContain(usaVertical);
+    // Draw order (TextBlockMap#drawU): row 0's vertical divider must
+    // appear BEFORE row 1's horizontal divider -- upstream interleaves
+    // [hline, key, value, vline] per row.
+    expect(svg.indexOf(ukVertical)).toBeLessThan(svg.indexOf(usaHorizontalDivider));
+    expect(svg.indexOf('>UK<')).toBeLessThan(svg.indexOf(ukVertical));
+    expect(svg.indexOf('>London<')).toBeLessThan(svg.indexOf(ukVertical));
+  });
+
+  it('skips the vertical divider for a linked (Point) row (empty value text, upstream never draws that cell)', () => {
+    const pointGeo: ClassifierGeo = {
+      id: 'm',
+      kind: 'map',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 40,
+      dividerYs: [18],
+      rows: [
+        { text: 'm', y: 12.8889, indent: 5, width: 10 },
+        { text: 'Warsaw', y: 30.8889, indent: 40, width: 45 },
+        { text: '', y: 30.8889, indent: 60 },
+      ],
+    };
+    const geo = makeMinimalGeo({ classifiers: [pointGeo] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    // Only the header's own divider (dividerYs has 1 entry, the single
+    // row's TOP) -- no vertical divider at all for a Point row.
+    expect((svg.match(/<line/g) ?? []).length).toBe(1);
+  });
+});
+
+describe('renderClass — json row dividers (G3/O3, same TextBlockCucaJSon convention as map)', () => {
+  it('draws a json entity\'s horizontal divider full box width with a fixed stroke-width of 1', () => {
+    // bepafe-03-teda035's json "A" entity: box x=209,width=143.025, header
+    // divider at absolute y=25 (relative 18) -- jar-verified golden value.
+    const jsonGeo: ClassifierGeo = {
+      id: 'A',
+      kind: 'json',
+      x: 209,
+      y: 7,
+      width: 143.025,
+      height: 144,
+      dividerYs: [18],
+      rows: [
+        { text: 'A', y: 12.8889, indent: 66.8313, width: 9.3625 },
+        { text: 'name', y: 30.8889, indent: 5, width: 35 },
+        { text: 'component c1', y: 30.8889, indent: 54.025, width: 84 },
+      ],
+    };
+    const geo = makeMinimalGeo({ classifiers: [jsonGeo] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<line x1="209" y1="25" x2="352.025" y2="25" stroke="#181818" stroke-width="1"/>');
+    expect(svg).not.toContain('x1="210" y1="25"');
+    expect(svg).not.toMatch(/<line[^>]*stroke-width="0.5"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC4: classifier fill color driven by kind field
 // ---------------------------------------------------------------------------
 

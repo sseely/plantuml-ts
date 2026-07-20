@@ -47,10 +47,17 @@ function renderDividerPart(
   // separator char, matching `core/svg.ts#line`'s existing "omit when
   // undefined" convention (same as `strokeWidth` itself needs no gating).
   const dashField = part.strokeDasharray !== undefined ? { strokeDasharray: part.strokeDasharray } : {};
+  // G3/O4: `UHorizontalLine#drawHLine`'s `style == '='` branch -- draws
+  // EVERY segment below TWICE, once at its own `y`, once at `y+2` (SAME
+  // x1/x2 span) -- see `EnhancedDividerPart.doubleLine`'s own doc comment.
+  const segment = (x1: number, y1: number, x2: number): string => {
+    const one = line(x1, y1, x2, y1, { stroke: borderColor, strokeWidth: part.strokeWidth, ...dashField });
+    return part.doubleLine === true
+      ? one + line(x1, y1 + 2, x2, y1 + 2, { stroke: borderColor, strokeWidth: part.strokeWidth, ...dashField })
+      : one;
+  };
   if (part.title === undefined) {
-    return line(geo.x + 1, y, geo.x + geo.width - 1, y, {
-      stroke: borderColor, strokeWidth: part.strokeWidth, ...dashField,
-    });
+    return segment(geo.x + 1, y, geo.x + geo.width - 1);
   }
   const fullStart = geo.x + 1;
   const fullEnd = geo.x + geo.width - 1;
@@ -58,12 +65,12 @@ function renderDividerPart(
   const labelStart = fullStart + gap;
   const labelEnd = fullEnd - gap;
   return (
-    line(fullStart, y, labelStart, y, { stroke: borderColor, strokeWidth: part.strokeWidth, ...dashField }) +
+    segment(fullStart, y, labelStart) +
     svgText(labelStart, geo.y + part.title.y, part.title.text, {
       fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: '#000000',
       lengthAdjust: 'spacing', textLength: javaRound4(part.title.width),
     }) +
-    line(labelEnd, y, fullEnd, y, { stroke: borderColor, strokeWidth: part.strokeWidth, ...dashField })
+    segment(labelEnd, y, fullEnd)
   );
 }
 
