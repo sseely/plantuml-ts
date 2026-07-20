@@ -78,7 +78,7 @@ describe('renderState — composite-internal transition nesting', () => {
     expect(linkIdx).toBeGreaterThan(parentGOpenTagStart);
 
     // The path's own d attribute must reference the inner transition points.
-    expect(svg).toContain('M 10,20');
+    expect(svg).toContain('M10,20'); // mission G4 S8: buildPathD no longer spaces after M/C
   });
 
   it('does not duplicate a composite child transition at the outer StateGeometry.transitions level', () => {
@@ -114,6 +114,6 @@ describe('renderState — composite-internal transition nesting', () => {
 
     const linkCount = svg.split('class="link"').length - 1;
     expect(linkCount).toBe(1);
-    expect(svg).toContain('M 10,20');
+    expect(svg).toContain('M10,20'); // mission G4 S8: buildPathD no longer spaces after M/C
   });
 });

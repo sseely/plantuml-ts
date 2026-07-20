@@ -1,0 +1,6 @@
+@startuml
+left to right direction
+state f <<fork>>
+A --> f
+f --> B
+@enduml

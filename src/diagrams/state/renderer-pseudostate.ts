@@ -80,13 +80,30 @@ export function renderChoiceJunction(node: StateNodeGeo, theme: Theme): string {
   const { cx, cy } = pseudoCenter(node);
   const size = node.width / 2;
   const fill = resolveStateFill(node, STATE_DEFAULT_BACKGROUND);
-  return diamond(cx, cy, size, {
+  const markup = diamond(cx, cy, size, {
     fill,
     stroke: theme.colors.border,
     'stroke-width': STATE_BORDER_STROKE_WIDTH,
     'stroke-linejoin': 'miter',
     'stroke-miterlimit': 10,
   });
+  return closeDiamondPoints(markup);
+}
+
+/**
+ * mission G4 S8 (kilato-12-laso661): jar's `EntityImageBranch` closes the
+ * diamond `<polygon>` by repeating its first point at the end (5 coordinate
+ * pairs for a 4-sided diamond) -- `core/svg.ts#diamond` (shared with
+ * activity/chronology, out of this mission's write-set) does not, so the
+ * closing repeat is appended here, state-locally, via a targeted
+ * `points="..."` patch rather than touching the shared helper.
+ */
+function closeDiamondPoints(markup: string): string {
+  const m = /points="([^"]*)"/.exec(markup);
+  if (m === null) return markup;
+  const pts = m[1]!;
+  const first = pts.trim().split(/[\s,]+/).slice(0, 2).join(',');
+  return markup.replace(`points="${pts}"`, `points="${pts} ${first}"`);
 }
 
 /** `EntityImagePseudoState.java`/`EntityImageDeepHistory.java` (SIZE=22):

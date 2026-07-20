@@ -1,0 +1,4 @@
+@startuml
+[*] --> IDLE
+IDLE :
+@enduml

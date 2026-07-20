@@ -194,37 +194,46 @@ function renderNodeWrapped(node: StateNodeGeo, theme: Theme, uidPlan: StateUidPl
 // Transition renderer
 // ---------------------------------------------------------------------------
 
+/**
+ * mission G4 S8 (mechanism 19): `TransitionGeo.points` is a well-formed
+ * `1 + 3*n` cubic-bezier spline for every real dot-layout-driven transition
+ * -- confirmed by direct inspection of `layoutState()`'s own raw output
+ * (`state-manual-arrowheads.test.ts`'s doc comment) -- jar's own `DotPath`
+ * draws it as a genuine SVG cubic bezier chain (`Mx,y Cx1,y1 x2,y2 x,y
+ * [Cx1,y1 x2,y2 x,y ...]`, repeating the `C` command once per 3-point
+ * group), NOT a polyline OR a re-interpolated Catmull-Rom curve through the
+ * control points -- the pre-S8 implementation's own Catmull-Rom smoothing
+ * was WRONG: it discarded the already-correct bezier control-point
+ * structure `applyHeadTrim` (renderer-arrowhead.ts) already assumes and
+ * re-derived extra, spurious segments (jar-verified regression:
+ * `nelupe-49-xova546`'s `*start*s7_2-to-chat1` -- jar draws ONE 4-point
+ * segment, the pre-S8 port drew THREE). Mirrors `class/renderer.ts
+ * #buildPathData` exactly (G2 N5), including its straight-`L`-segment
+ * fallback for any point list that ISN'T `1 + 3*n`
+ * (`points.length < 4` or `(points.length - 1) % 3 !== 0`) -- the
+ * degenerate/hand-built 2-point secant case a caller might still construct
+ * outside the real layout pipeline (unit tests).
+ */
 function buildPathD(points: ReadonlyArray<{ x: number; y: number }>): string {
   if (points.length === 0) return '';
-  const p0 = points[0];
-  if (p0 === undefined) return '';
-  if (points.length === 1) return `M ${p0.x},${p0.y}`;
+  const [first, ...rest] = points;
+  if (first === undefined) return '';
+  const start = `M${first.x},${first.y}`;
 
-  if (points.length === 2) {
-    const p1 = points[1]!;
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    const cp1x = p0.x + dx * 0.1;
-    const cp1y = p0.y + dy * 0.45;
-    const cp2x = p1.x - dx * 0.3;
-    const cp2y = p1.y - dy * 0.4;
-    return `M ${p0.x},${p0.y} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p1.x},${p1.y}`;
+  const isBezierSpline = points.length >= 4 && (points.length - 1) % 3 === 0;
+  if (isBezierSpline) {
+    const segments: string[] = [];
+    for (let i = 1; i < points.length; i += 3) {
+      const c1 = points[i]!;
+      const c2 = points[i + 1]!;
+      const end = points[i + 2]!;
+      segments.push(`C${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`);
+    }
+    return [start, ...segments].join(' ');
   }
 
-  // Catmull-Rom → cubic Bézier for 3+ waypoints
-  const parts: string[] = [`M ${p0.x},${p0.y}`];
-  for (let i = 0; i < points.length - 1; i++) {
-    const prev = points[i > 0 ? i - 1 : 0]!;
-    const curr = points[i]!;
-    const next1 = points[i + 1]!;
-    const next2 = points[i + 2 < points.length ? i + 2 : i + 1]!;
-    const cp1x = curr.x + (next1.x - prev.x) / 6;
-    const cp1y = curr.y + (next1.y - prev.y) / 6;
-    const cp2x = next1.x - (next2.x - curr.x) / 6;
-    const cp2y = next1.y - (next2.y - curr.y) / 6;
-    parts.push(`C ${cp1x},${cp1y} ${cp2x},${cp2y} ${next1.x},${next1.y}`);
-  }
-  return parts.join(' ');
+  const segments = rest.map((p) => `L${p.x},${p.y}`);
+  return [start, ...segments].join(' ');
 }
 
 /** `Link#idCommentForSvg`-ish `<path id="...">` value — jar names the

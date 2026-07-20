@@ -378,6 +378,9 @@ export function runPass(acc: PassAccumulator, ctx: DiagramCtx): DotLayoutResult 
     rankDir: ctx.rankdir,
     omitSepAttrs: true,
     ...(acc.clusters.length > 0 ? { clusters: acc.clusters } : {}),
+    // mission G4 S8 mechanism 19 -- see state-dot-graph.ts#buildDotGraph's
+    // doc comment for the full derivation (mirrors G2 N29).
+    manualArrowheads: true,
   };
   return layoutGraph(graph);
 }
@@ -453,6 +456,9 @@ export function buildTopLevelPass(
     ...(theme.nodeSep !== undefined ? { nodeSepExplicit: true } : {}),
     ...(theme.rankSep !== undefined ? { rankSepExplicit: true } : {}),
     ...(acc.clusters.length > 0 ? { clusters: acc.clusters } : {}),
+    // mission G4 S8 mechanism 19 -- see state-dot-graph.ts#buildDotGraph's
+    // doc comment for the full derivation (mirrors G2 N29).
+    manualArrowheads: true,
   };
   const result = layoutGraph(graph);
   // mission G4 S5: real states/composites FIRST, pseudo start/end LAST --

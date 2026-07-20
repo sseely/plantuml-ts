@@ -1,0 +1,9 @@
+@startuml
+
+[*] --> Active
+Active --> Other
+state Big begin
+b1 --> b2
+endstate
+
+@enduml

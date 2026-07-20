@@ -284,6 +284,21 @@ describe('renderState — choice node', () => {
     const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('<polygon');
   });
+
+  // mission G4 S8 (kilato-12-laso661): jar's EntityImageBranch closes the
+  // diamond polygon by repeating its first point last (5 pairs for a
+  // 4-sided diamond) -- a bare 4-point list was a real conformance diff
+  // (svg/.../polygon[1]/@points had 4 tokens vs jar's 5).
+  it('closes the diamond polygon by repeating the first point last', () => {
+    const node = makeNode({ kind: 'choice', width: 20, height: 20, x: 100, y: 100 });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    const m = /<polygon points="([^"]*)"/.exec(result);
+    expect(m, 'expected a <polygon points="..."> for the choice diamond').not.toBeNull();
+    const pairs = m![1]!.split(' ').filter((s) => s.length > 0);
+    expect(pairs).toHaveLength(5);
+    expect(pairs[0]).toBe(pairs[4]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -447,29 +462,56 @@ describe('renderState — transitions', () => {
     const result = assembleSvg(renderState(geo, defaultTheme));
     // A single-point path should still produce a <path> with an M command
     expect(result).toContain('<path');
-    expect(result).toContain('M 10,20');
+    expect(result).toContain('M10,20');
   });
 
-  it('transition with exactly two points uses cubic Bézier with two control points', () => {
-    // Covers the points.length === 2 branch in buildPathD
+  // mission G4 S8 (mechanism 19): buildPathD now mirrors class/renderer.ts
+  // #buildPathData exactly -- a 2-point list is NOT a valid 1+3n bezier
+  // spline, so it falls back to a straight L segment (jar's own DotPath
+  // never smooths a raw 2-point secant into a curve; the pre-S8 Catmull-Rom
+  // smoothing here was an un-jar-verified invention).
+  it('transition with exactly two points falls back to a straight L segment (not a bezier spline)', () => {
     const t = makeTransition({ points: [{ x: 10, y: 10 }, { x: 90, y: 90 }] });
     const geo = makeGeo({ transitions: [t] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('<path');
-    expect(result).toContain('M 10,10');
-    // The 2-point path produces a single cubic segment
-    expect(result).toContain('C ');
+    expect(result).toContain('M10,10');
+    expect(result).toContain('L');
   });
 
-  it('path d attribute encodes cubic Bézier segments from points', () => {
+  // mission G4 S8 (mechanism 19): a 3-point list is ALSO not `1 + 3*n`
+  // (n must be a whole number of 3-point groups after the initial M), so it
+  // falls back to straight L segments too -- only EXACTLY `1 + 3*n` point
+  // lists (4, 7, 10, ...) are real dot-layout bezier splines.
+  it('a non-bezier (3-point) point list falls back to straight L segments, not a curve', () => {
     const t = makeTransition({
       points: [{ x: 5, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 90 }],
     });
     const geo = makeGeo({ transitions: [t] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain('M 5,10');
-    expect(result).toContain('C '); // Catmull-Rom → cubic Bézier
-    expect(result).not.toContain(' L ');
+    expect(result).toContain('M5,10');
+    expect(result).toContain('L50,10');
+    expect(result).not.toContain('<path d="M5,10 C');
+  });
+
+  // mission G4 S8 (mechanism 19): a real `1 + 3*1` = 4-point dot-layout
+  // spline renders as a SINGLE M...C... segment, byte-matching jar's own
+  // `DotPath` output (nelupe-49-xova546's `*start*s7_2-to-chat1`:
+  // `M46.11,62.31 C46.11,71.35 46.11,80.49 46.11,92.73`).
+  it('a real 4-point (1+3*1) bezier spline renders as ONE M...C... segment, not a polyline', () => {
+    const t = makeTransition({
+      points: [
+        { x: 5, y: 10 },
+        { x: 5, y: 30 },
+        { x: 5, y: 60 },
+        { x: 5, y: 90 },
+      ],
+    });
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).toContain('M5,10');
+    expect(result).toContain('C5,30 5,55 5,85'); // last two points shifted by the arrowhead trim
+    expect(result).not.toContain('<path d="M5,10 L');
   });
 });
 

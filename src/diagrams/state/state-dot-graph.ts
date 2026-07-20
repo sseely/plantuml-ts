@@ -255,5 +255,19 @@ export function buildDotGraph(
     edges,
     rankDir: rankdir,
     ...sepAttrs(theme),
+    // mission G4 S8 (mechanism 19, mirrors G2 N29's identical class-engine
+    // fix): state draws every transition's arrowhead as an inline
+    // \x22<polygon>\x22 at the raw spline endpoint (mission G4 S1 mechanism 3),
+    // not an SVG \x22<marker>\x22 -- jar's own svek-DOT emitter unconditionally
+    // writes arrowtail=none,arrowhead=none on every edge line
+    // (svek-dot-emit.ts, corpus-wide). Without this flag,
+    // graph-layout-build.ts#addEdges defaults to arrowhead=normal and
+    // graphviz-ts reserves a ~10-11px arrow-clip gap when solving the
+    // spline, stopping every routed transition well short of its target
+    // node's boundary -- verified against real `dot -Tplain` on
+    // nelupe-49-xova546's own pinned svek-3.dot golden (see
+    // tests/unit/state/state-manual-arrowheads.test.ts's doc comment for
+    // the full derivation).
+    manualArrowheads: true,
   };
 }
