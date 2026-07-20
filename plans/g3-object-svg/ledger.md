@@ -1337,3 +1337,561 @@ correctly out of scope for ANY near-term iteration regardless).
   own note on this file — `svg-parity-survey.ts`'s subprocess-timeout
   flakiness under this environment's concurrency default, still
   unaddressed, still named here rather than silently worked around).
+
+## O4 (mission-closing) — the six small/well-scoped mechanisms from O3's assessment
+
+Landed all six mechanisms O3's mission-closing assessment named
+small/well-scoped, largest-first per the orchestrator's own instruction.
+None turned out to require deferral; the "enhanced-body-for-object" item
+(assessed "well-scoped reuse, not new port") did require the widest
+investigation of the six (a genuine architectural finding — see its own
+section below) but resolved cleanly once root-caused.
+
+### Mechanism 1 (largest): `skinparam tabSize` tab-stop expansion in
+### object field text
+
+**Mechanism**: `AtomText#drawU`/`getWidth` (`klimt/creole/legacy/
+AtomText.java`) tokenizes a text run on literal TAB bytes (`StringTokenizer`,
+`returnDelims=true`) and, for each tab token, advances the drawing cursor
+to the next tab-stop boundary (`x += tabStopPx - (x % tabStopPx)`) rather
+than drawing anything — producing MULTIPLE independently-positioned
+`<text>` runs per source line when it contains one or more tabs. The tab
+stop's own pixel width has a genuine upstream QUIRK: `AtomText
+#tabString()`'s `nb >= 1 && nb < 7` gate means only `skinparam tabSize`
+values 1-6 use that literal number of space characters; ANY other value
+(including the upstream default 8, and this fixture's own `20`) silently
+falls back to a HARDCODED 8-space string regardless of the configured
+number. `nufoju-44-dabi767`'s literal `\t` occurrences in the source
+(`\tfield1`, two SOURCE characters — backslash + `t`, not a raw tab byte)
+are themselves unescaped to a real tab byte at the SAME site jar's own
+`Display.getWithNewlines`'s `c2 == 't'` branch does (`Display.java:302-304`)
+— a GENERIC backslash-escape site every Display-backed text line (title/
+caption/legend/member) routes through upstream; this port implements only
+the `\t` case (not the full `\n`/`\r`/`\l`/`\\` family), scoped to what
+this fixture's own mechanism needs.
+
+**Origin**: `src/diagrams/class/class-object-map-sizing.ts`
+`formatObjectMemberText` (backslash-`t` unescape, new), `tabStopWidthPx`/
+`layoutTabRuns` (new helpers), `measureObjectFields` (rewired to emit one
+row PER tab-delimited run instead of one row per member line).
+
+**Causal chain**: jar-verified `nufoju-44-dabi767` directly — `skinparam
+tabSize 20` folds to the 8-space fallback, which measures to WIDTH 0 under
+`DeterministicMeasurer` (the width table has no space-glyph entry), which
+in turn triggers `AtomText#getTabSize`'s OWN `width == 0` fallback:
+`fontConfiguration.getFont().getSize2D() * 4` = `14 * 4 = 56`. Every
+observed `<text>` x-position (`field1`\`field2`\`field3` all at x=69 =
+margin(13) + one leading-tab jump(56); `field6` at x=125 = margin(13) +
+two tab jumps(56+56, since `field5`'s own 33.5125px width leaves a
+remainder under 56)) matches this formula EXACTLY, and the box's own
+width (157.5125) equals the WIDEST tab-expanded line's own final cursor
+position (145.5125, the `field5\tfield6` line) plus the standard 2×
+margin — confirming `layoutTabRuns`'s `totalWidth` (not a naive whole-
+string measurement) is what feeds the box-sizing `Math.max(...widths)`
+call, mirroring `AtomText#getWidth()`'s own identical tokenize-and-jump
+algorithm.
+
+**Ruled out**: NOT a DOT-emission bug (object DOT gate unchanged, 78/80).
+NOT a general creole/backslash-escape port (the full `\n`/`\r`/`\l`/`\\`
+family `Display.getWithNewlines` also handles is a materially larger,
+unverified feature — no corpus object-field fixture exercises those,
+scoped out deliberately per this iteration's own "port only what's
+verified" discipline, matching this file's established precedent
+elsewhere).
+
+**Tests**: `tests/unit/class/class-object-map-sizing.test.ts` (+4 tests):
+box-width/height against the oracle exact numbers, multi-run row
+splitting (indent/text/width per run, jar-verified against `field1`
+through `field6`), the upstream-default (`tabSize` unset) case (folds to
+the SAME 56px stop since 8 also triggers the width-0 fallback), and a
+tab-free line's zero-behavior-change guard.
+
+**Census delta**: object `16/80 -> 17/80` (+1: `nufoju-44-dabi767`). Class
+census unaffected (`293/718`, `formatObjectMemberText`/`layoutTabRuns`
+are object-field-exclusive). DOT gate unchanged.
+
+### Mechanism 2: `<style> <sname> { header { BackgroundColor/FontColor/
+### FontSize } } }` nested selector for object/map/json
+
+**Mechanism**: `EntityImageObject`/`Map`/`Json` each define a SECOND,
+NESTED style signature — `getStyleHeader()` (`{root, element,
+objectDiagram, <sname>, header}`) — distinct from the bare-bucket
+signature `resolveElementBackground`/`resolveElementFont` (G3/O1-O2)
+already consult. Two independent effects read from it: (1) the NAME
+row's own `FontConfiguration` (`fcHeader`, `EntityImageObject.java:96-98`
+— NOT the stereo row, which uses its own independent `FontParam
+.OBJECT_STEREOTYPE` config, unaffected), and (2) a conditionally-drawn
+SEPARATE half-rounded rect covering ONLY the title/header area
+(`EntityImageObject.java:199-203`, `URectangle#halfRounded` — ALREADY
+faithfully ported in this codebase, `core/klimt/shape/URectangle.ts`,
+just never previously WIRED to any renderer), drawn only when the
+resolved header BackgroundColor differs from the box's own body fill.
+
+**Origin**: `src/core/style-map-element.ts` (`HEADER_SELECTOR_SUFFIX`,
+`.header` bucket-collection branch, mirrors the pre-existing
+`.stereotype` suffix exactly); `src/core/theme.ts` (`ElementColors
+.headerBackground`/`headerFont`/`headerFontSize`, new fields);
+`src/diagrams/class/renderer-classifier-box.ts` (`resolveElementHeader
+Background`/`Font`, `headerBackgroundPath` — new; `buildHeaderPrimitive`'s
+new conditional draw; `renderRowText`'s `fontColor` now checks the
+header bucket FIRST for the name row only, `isHeader && !isStereoLabelRow`);
+`src/diagrams/class/class-object-map-sizing.ts` (`measureObjectClassifier`
+resolves `headerFontSize` BEFORE `nameDim`/`title.width` — the override
+feeds the box's own final width, so it can't be resolved inside
+`headerRows` after the fact; `headerRows`/`buildUnderlinedNameRows` both
+thread the override through to the name row's own baseline/width).
+
+**Causal chain**: jar-verified `soxufi-98-nita528` directly (`object {
+FontColor blue; BackgroundColor yellow; header { FontSize 20; FontColor
+green; BackgroundColor red } }`): the box's outer `<rect>` fills yellow
+(bare bucket), a SEPARATE `<path>` (the half-rounded header rect, EXACT
+`URectangle.halfRounded` arc geometry — `M{x+r},{y} L{x+w-r},{y}
+A{r},{r} 0 0 1 {x+w},{y+r} L{x+w},{y+h} L{x},{y+h} L{x},{y+r} A{r},{r}
+0 0 1 {x+r},{y}`, `h` = the title-block height, `geo.dividerYs[0]`)
+fills red, the name text "Foo" draws at font-size 20 in green, and the
+"dummy" member row stays blue (bare bucket, unaffected by the header
+override) — every one of these 4 independent facets verified against the
+real golden numbers before writing code.
+
+**Ruled out**: NOT a general creole feature — the header sub-selector is
+narrowly `EntityImageObject`/`Map`/`Json`-specific (`EntityImageClassHeader`
+has NO `header`-nested selector or half-rounded-rect mechanism at all,
+confirmed by direct source read — class/interface/enum are completely
+unaffected). The half-rounded-rect draw is GATED strictly on
+`headerBackground !== bodyBackground` (matching jar's own
+`backcolor.equals(headerBackcolor) == false` check) — a classifier with
+no `.header` override never draws the extra path (zero visual/DOM change
+for the common case, re-verified against the full object+class census).
+
+**Tests**: `tests/unit/core/style-map-element.test.ts` (+3 tests: nested
+`.header` selector routing, rejection of an unrecognized bucket, a no-op
+when no recognized declaration is present). `tests/unit/object/
+renderer.test.ts` (+4 tests: name-row FontColor/FontSize override + member
+row unaffected, header-background path drawn/not-drawn, object-kind-only
+gate).
+
+**Census delta**: object `17/80 -> 19/80` (+2: `soxufi-98-nita528` AND a
+BONUS, `lijoda-62-teci632` — the SAME `object { header { ... } } }`
+selector shape, previously miscounted under the `path/@d` gvts-attributed
+family in O3's own table since its edge geometry happened to also differ;
+re-verified it reaches zero-diff purely via this mechanism, not a gvts
+coincidence). Class census unchanged (`293/718`) — every new code path is
+gated on `geo.kind === 'object'|'map'|'json'`.
+
+### Mechanism 3: `hide <entity|TYPE_KEYWORD> stereotype(s)` (GENDER/PORTION
+### form, distinct from the label-pattern command)
+
+**Mechanism**: upstream's shared `CommandHideShowByGender` PORTION
+grammar (`(members?|attributes?|fields?|methods?|circles?|circled?|
+stereotypes?)`) includes `stereotypes?` — a portion this mission's own
+prior `hide <kind> circle|members|fields|methods` mechanism (O3) scoped
+out. Dispatch: `CucaDiagram#showPortion(EntityPortion.STEREOTYPE, entity)`
+— the SAME per-entity gender+portion check `circle`/`fields`/`methods`
+already use, `cmd.gender.contains(entity)`. Genuinely INDEPENDENT from
+the ALREADY-ported `hide|show [<<pattern>>] stereotype(s)` command
+(`class-stereotype.ts#parseHideStereotypeDirective`/
+`isStereotypeLabelHidden`) — that command filters by LABEL PATTERN
+(`getVisibleStereotypeLabels`, used by CLASS kind's own header, which has
+NO `showPortion(STEREOTYPE, ...)` call at all), while THIS one filters by
+ENTITY/KIND (used by `EntityImageObject`/`Map`/`Json` exclusively,
+confirmed by direct source read — `EntityImageClassHeader` never calls
+`showPortion(STEREOTYPE, ...)`). The two commands share a source-grammar
+neighborhood but are architecturally disjoint upstream mechanisms.
+
+**Origin**: `src/diagrams/class/ast.ts` (`Classifier.hideStereotype`, new;
+`HideShowEntityDirective`/`HideShowKindDirective['target']` widened to
+include `'stereotype'`); `src/diagrams/class/class-directives.ts`
+(`ENTITY_PORTION_MAP`'s `stereotype`/`stereotypes` entries; both
+`applyHideShowEntityDirectives`/`applyHideShowKindDirectives` set
+`classifier.hideStereotype = true`); `src/diagrams/class/class-object-
+map-sizing.ts` (`measureStereo`/`headerRows`'s `stereoLabels` computation
+both short-circuit to empty when `hideStereotype === true`).
+
+**Causal chain**: jar-verified `kocupi-02-ripa662` (`hide object
+stereotypes` / `object foo <<Foo>> { }`) directly: the entity draws with
+NO guillemet row at all — the SAME shape as an object with no stereotype
+declared, confirming the fix's own "treat like absent" approach (rather
+than a separate suppression flag threaded through every stereo-consuming
+call site) is correct, not a shortcut.
+
+**Ruled out — pre-existing test correction**: `class-hide-entity.test.ts`
+carried a stale assertion (`rejects the stereotype portion (owned by
+parseHideStereotypeDirective's own grammar)`) claiming `hide <entityId>
+stereotype` was invalid — traced to the ACTUAL upstream grammar (not
+assumed): `parseHideStereotypeDirective`'s own regex requires NO entity
+id at all (`hide [<<pattern>>] stereotypes` only), so the two commands
+were NEVER actually overlapping grammar for the same feature — the old
+test's assumption was a genuine misdiagnosis, corrected in place (not
+silently overridden) with a citation to the jar source proving the
+correction.
+
+**Tests**: `class-hide-entity.test.ts` (corrected 1 stale test, +1 new
+`applyHideShowEntityDirectives` test). `class-hide-kind.test.ts` (+2
+tests: parse + apply, kind-scoped). `class-object-map-sizing.test.ts`
+(+2 tests: layout-level suppression + zero-behavior-change guard).
+
+**Census delta**: object `19/80 -> 20/80` (+1: `kocupi-02-ripa662`).
+Class census unaffected (`hideStereotype` consumed ONLY by object/map/
+json's own `measureStereo`/`headerRows`, per the mechanism's own scoping
+above) — re-verified `293/718` unchanged.
+
+### Mechanism 4: object bodies wired into the class-kind enhanced-body
+### engine (`--`/`==`/`..`/`__` separators, `|_` tree lists)
+
+**Mechanism** (the widest investigation of the six — a genuine
+architectural finding, not a narrow extension): O3's own framing
+("class-kind enhanced-body renderer not wired for `kind === 'object'`")
+turned out to be SLIGHTLY imprecise on inspection of the actual jar
+source. `BodierLikeClassOrObject#isBodyEnhanced()`'s dispatch gate
+(`type.isLikeClass() && isBodyEnhanced()`) does NOT include
+`LeafType.OBJECT` (`isLikeClass()`'s own `LIKE_CLASS` EnumSet excludes
+OBJECT) — so object bodies never take the SAME branch class does.
+Instead, `getBody`'s OWN, SEPARATE `type == LeafType.OBJECT` branch
+(when `showFields`) calls the IDENTICAL `BodyFactory.create1(...)` ->
+`BodyEnhanced1` constructor UNCONDITIONALLY — regardless of whether a
+separator is present. In other words: object bodies have ALWAYS routed
+through the exact SAME `BodyEnhanced1` renderer class kind uses ONLY when
+"enhanced" (this port's own `measureObjectFields`, independently
+jar-derived across O0/O1, happens to reproduce `BodyEnhanced1`'s
+plain-row output byte-exactly — not a coincidence, since `BodyEnhanced1`'s
+row-drawing formula IS the "ascent-from-row-top" convention this file's
+own `measureObjectFields` doc comment already cites). The missing
+capability was purely the SEPARATOR/tree-list branches of that shared
+engine. A SEPARATE, second gap surfaced mid-investigation: `'='`
+separators draw TWO parallel `<line>` elements (`y` and `y+2` — `UHorizontal
+Line#drawHLine`'s own `style == '='` branch), a genuinely UNPORTED detail
+this port's `class-body-enhanced-layout.ts` never modeled for ANY kind
+(class included) — a real, independent bonus fix, not object-specific.
+
+**Origin**: `src/diagrams/class/parser.ts` (`rawBodyLines` capture
+WIDENED from "every kind except object" to "every kind including
+object" — the pre-O4 exclusion comment was a genuine gap, not a
+deliberate scoping); `src/diagrams/class/ast.ts` (`Classifier.rawBodyLines`
+doc comment corrected); `src/diagrams/class/class-object-map-sizing.ts`
+(`measureObjectClassifier` gates on `isEnhancedBody(classifier
+.rawBodyLines) && showFields`, dispatches to `measureEnhancedBody` when
+true — the SAME function/`EnhancedLayoutCtx` class kind already built,
+zero duplication; `sprites` threaded through as a new optional param,
+matching class's own call-site shape); `src/diagrams/class/class-layout-
+helpers.ts` (`measureClassifier`'s object call site passes `sprites`
+through); `src/diagrams/class/class-body-enhanced-layout.ts`
+(`EnhancedDividerPart.doubleLine`, `separatorIsDouble`, threaded through
+both the plain-divider and titled-divider builders); `src/diagrams/
+class/renderer-body-enhanced.ts` (`renderDividerPart`'s `segment` helper
+draws each line segment twice, at `y` and `y+2`, when `doubleLine`).
+
+**Causal chain**: jar-verified `linazi-45-gevo553` directly (two
+objects, `--`/`==`/`..`/`__` separators, one WITH visibility-icon method-
+looking rows `+ getName()`). Every text/divider/icon element matched
+after wiring `isEnhancedBody`/`measureEnhancedBody` through, EXCEPT one
+residual: `Foo1`'s bare `==` separator (between "and group" and "things
+together.") drew ONE `<line>` in this port vs jar's TWO (`y=132`/`y=134`,
+identical x1/x2 span) — traced to `UHorizontalLine.java:141-144`'s
+`drawHLine` (`drawSimpleHline` called once unconditionally, once more at
+`y+2` iff `style == '='`), fixed via the new `doubleLine` flag. The
+`+ getName()`/`+ getAddress()` rows in `User` render their icons FILLED
+(`fill="#84BE84"`, PUBLIC_METHOD) — confirmed this does NOT contradict
+mechanism 6 below (object field icons always stroke-only): those rows
+route through `buildMemberRow`'s CLASS-style creole/icon engine
+(field-vs-method-classified, filled per the SAME rule class uses) because
+they're inside an ENHANCED body, while mechanism 6's target fixture uses
+the CLASSIC (non-enhanced) object field path (`measureObjectFields`,
+always-field-flavored `Member`s per jar) — two independently-verified,
+non-overlapping code paths, not a contradiction.
+
+**Ruled out**: NOT a regression risk for the classic (non-enhanced)
+object path — `isEnhancedBody` returns `false` for every plain-field
+fixture already zero-diff (re-verified via the full census before and
+after: zero fixtures moved OUT of the zero-diff set). The `doubleLine`
+fix is GENERIC (not object-gated) by construction — jar-verified it also
+benefits a PRE-EXISTING class-kind fixture (`rizexu-84-xujo903`, both
+plain `==` AND titled `== TEST ==` separators, both branches exercised in
+one real sample) — a genuine, unplanned bonus, not scope creep (the fix
+IS the shared `UHorizontalLine` primitive, faithfully ported once).
+
+**Tests**: `tests/unit/object/class-object-enhanced-body.test.ts` (NEW,
+4 tests): enhanced-body dispatch trigger/non-trigger, `==`
+double-line-count assertion, `--` single-line-count assertion (byte-level
+`<line>` counting against the real renderer output, not a hand-built
+geometry — the doubleLine mechanism is genuinely render-path behavior).
+
+**Census delta**: object `20/80 -> 21/80` (+1: `linazi-45-gevo553`).
+Class census `293/718 -> 294/718` (+1 BONUS: `rizexu-84-xujo903`,
+verified via a full pinned-vs-current zero-diff-set diff — ZERO
+regressions, pure addition, matching O3's own precedent for an
+unplanned cross-mission benefit). Class ratchet re-run green, 294/294
+tests (unchanged pinned-fixture count — `rizexu-84-xujo903` NOT added to
+the class ratchet, out of this mission's write-set, same disposition
+O3 gave `nujiga-81-peno983`). DOT gate unchanged (render-only fix, never
+touches DOT emission).
+
+### Mechanism 5 (smallest): object field visibility icons always
+### stroke-only (`fill="none"`)
+
+**Mechanism**: `BodierLikeClassOrObject#getFieldsToDisplay`'s OBJECT
+branch constructs EVERY member via `Member.field(s)` (never `Member
+.method(s)`, regardless of the text looking method-like, e.g.
+`getName()`) — `Member`'s constructor bakes a FIELD-flavored
+`VisibilityModifier` (e.g. `PUBLIC_FIELD`, never `PUBLIC_METHOD`) into
+the instance at construction time. `MethodsOrFieldsArea#getUBlock`'s own
+icon-fill derivation (`modifier.isField()`) reads THIS baked-in property,
+not a per-draw-call classification — so an object field's icon is
+ALWAYS unfilled (`class-visibility-icon.ts#isFilled`'s own `!memberIsField`
+rule), independent of the row's own text content.
+
+**Origin**: `src/diagrams/class/class-object-map-sizing.ts`
+`measureObjectFields`'s row-building loop — pre-fix, `visibilityIsField`
+was never set on an object row at all, so `renderVisibilityIcon`'s
+`isField` param defaulted false (`row.visibilityIsField === true`
+evaluating false), incorrectly filling `+`/`*` icons the SAME way a
+CLASS method row would.
+
+**Causal chain**: jar-verified `xuvesu-44-laru205` directly (8 field
+rows, alternating `+`/`-`, plain prose text with no parens): every icon
+(4 green circles, 4 red squares) draws `fill="none"`, `data-visibility-
+modifier="PUBLIC_FIELD"`/`"PRIVATE_FIELD"` (never `_METHOD`).
+
+**Ruled out**: NOT a general visibility-icon bug — CLASS kind's own
+field-vs-method fill distinction (G2 N6) is UNCHANGED and still correct
+(re-verified via the full class census, `293/718` -> `294/718` bonus
+notwithstanding, driven entirely by mechanism 4's doubleLine fix, not
+this one). This fix is gated to the object-classic-path row builder
+ONLY — enhanced-body object rows (mechanism 4, `linazi-45-gevo553`'s
+`+ getName()`) correctly keep the class-style filled convention, since
+they never pass through `measureObjectFields` at all.
+
+**Tests**: `class-object-map-sizing.test.ts` (+1 test: `visibilityIsField
+: true` on every icon-bearing object row). `tests/unit/object/
+renderer.test.ts` (+2 tests: end-to-end `fill="none"` on both a
+method-looking `+ getName()` line and a plain `- secret` line, through
+the REAL renderer, not a hand-built geometry).
+
+**Census delta**: object `21/80 -> 22/80` (+1: `xuvesu-44-laru205`).
+Class census unaffected (object-classic-path-exclusive change).
+
+### Mechanism 6 (mechanism landed, fixture NOT resolved): `skinparam
+### style strictuml` object-header underline convention
+
+**Mechanism**: `EntityImageObject#getUnderlinedName` — `skinparam style
+strictuml` wraps the object's display name in `Display#underlinedName()`
+(`Display.java:468-485`): a name containing a colon (`instanceName :
+type`) splits into TWO creole runs via the pattern `^([^:]+?)(\s*:.+)$`
+(non-greedy up to the FIRST colon) — the name portion underlined
+(`<u>...</u>`), the `: type` portion plain, LEADING WHITESPACE stripped
+from the rendered text (jar's own `: type` never carries a leading
+space, even though the captured group does); a name with NO colon draws
+entirely underlined, one run. This port had ZERO underline support for
+object headers at all pre-O4.
+
+**Origin**: `src/diagrams/class/class-object-map-sizing.ts`
+(`INSTANCE_NAME_TYPE_PATTERN`, `buildUnderlinedNameRows` — new;
+`headerRows`'s new `underlineName` param, object-kind-only per
+`measureObjectClassifier`'s `theme.strictUml === true` call-site check —
+`EntityImageMap`/`Json` never call `underlinedName()`, jar-verified
+absent); `src/diagrams/class/layout.ts` (`rows[].underline`, new field);
+`src/diagrams/class/renderer-classifier-box.ts` (`renderRowText` emits
+`text-decoration="underline"` when set).
+
+**Causal chain**: jar-verified `jotaga-99-fatu830` directly — `firstObject`
+(no colon) draws ONE fully-underlined `<text>`; `o2` ("instance name :
+type") draws TWO adjacent `<text>` runs ("instance name" underlined,
+textLength 87.15; ": type" plain, textLength 30.275, x immediately
+following the first run's own end with zero gap) — BOTH runs' widths sum
+EXACTLY to the un-split name's own full measured width (117.425),
+confirming splitting never perturbs the pre-existing centering math
+(`(boxWidth - nameWidth) / 2`, unchanged). Every text-level attribute
+(`x`/`y`/`textLength`/`text-decoration`/element count within the
+`<g class="entity">`) now matches jar byte-exact for BOTH classifiers in
+this fixture.
+
+**Why the fixture itself stays non-conformant**: 4 residual diffs
+(`svg/@height`/`@viewBox[2]`/`@viewBox[3]`/`@width` — canvas dimensions
+only, zero text/position diffs WITHIN either entity) — INSTRUMENTED
+directly (not guessed): re-ran `layoutClass` on the SAME two classifiers
+with `theme.strictUml` toggled on vs. off and confirmed BOTH entities'
+own `x`/`width` are IDENTICAL either way (`firstObject: x=7, width=
+76.9125`; `o2: x=118.74375, width=131.425`, in both runs) — proving the
+underline mechanism has ZERO effect on node positioning, so this residual
+predates and is fully independent of this iteration's fix. The gap
+between the two entities (`118.74375 - 83.9125 = 34.83125`, vs jar's
+implied `118.74 - 83.9125 = 34.8275`, a ~0.004px drift) is the SAME
+symptom SHAPE as the already-characterized "adjacent-node separation, no
+edges" `gvts-blocked` family (`gatefi-65-curu360`/`bepafe-03-teda035`/
+`jabote-02-rajo672`/`baloca-83-nadu916`) — two side-by-side objects with
+no relationship between them, isolated per-entity box dims correct, a
+tiny inter-entity gap numeric drift that crosses an integer canvas-
+rounding boundary. Re-attributed to that family below (shape-match, per
+the SVG-channel standing rule — not independently re-instrumented to the
+SAME depth as the four originally-diagnosed members, flagged
+lower-confidence like `baloca-83-nadu916` already was).
+
+**Tests**: `class-object-map-sizing.test.ts` (+4 tests: whole-name
+underline, name/type split with the leading-whitespace-strip and
+adjacent-indent assertions, the no-strictUml zero-behavior-change guard,
+the map-kind-unaffected guard).
+
+**Census delta**: none directly (the fixture itself stays non-conformant
+per the canvas-rounding residual above) — but the mechanism is fully
+landed, unit-tested, and byte-verified at the text level; a future
+fixture combining `strictuml` with NO adjacent-node-separation drift
+would reach zero-diff on this mechanism alone. Class census unaffected
+(object-kind-only gate).
+
+### Correcting a 79/80 arithmetic gap in O3's own attribution table
+
+While refreshing the accounting (below), a systematic set-diff (every
+corpus slug vs. the union of every named category, not a manual recount)
+found O3's own table — which stated "Total accounted: 80" — actually
+summed to 79: `fafozi-27-reja300` (O2's own multi-stacked-stereotype
+fixture, moved 3 diffs -> 1 diff by O2's mechanism 2, residual `svg/
+@viewBox[2]`/`svg/@width`, already correctly characterized as
+"gvts-attributed" in O2's OWN prose) was never carried into O3's final
+compact table row. Folded into the "adjacent-node separation"
+`gvts-blocked` family below (same 2-diff, canvas-dimension-only shape,
+re-verified this iteration) — a bookkeeping correction, not a new
+finding; the fixture's own root cause was already correctly diagnosed at
+O2.
+
+### Full per-fixture attribution table (80/80 named, refreshed)
+
+| Mechanism | Fixtures | Count |
+|---|---|---|
+| **Conformant (zero-diff)** | `beruju-17-jigi548`, `febadi-87-zozu271`, `figeze-77-fozi735`, `gizini-87-vuve916`, `janoma-30-dovo501`, `juciri-29-tamu404`, `kexica-21-gega428`, `kocupi-02-ripa662`, `lalizo-85-paxe277`, `lapato-45-neje847`, `lijoda-62-teci632`, `linazi-45-gevo553`, `niloru-34-nuve651`, `nufoju-44-dabi767`, `pagidu-67-doxa131`, `rotele-89-cuva650`, `sinepa-64-beze711`, `sobosi-40-xuda813`, `soxufi-98-nita528`, `vozomu-86-rodo657`, `xuvesu-44-laru205`, `zagodo-28-ranu153` | 22 |
+| `gvts-blocked` — edge-spline `path/@d` family (graphviz-ts numeric divergence, ADR-1) | `beleso-08-ruca459`, `diveje-52-xefe514`, `fikojo-87-tine499`, `fonulu-92-libi014`, `fusopu-05-loxo960`, `gapisu-00-celo011`, `gubene-80-zume167`, `guzojo-14-muxa584`, `jaxere-74-cole479`, `kagope-09-kubu001`, `kavako-54-zipa815`, `kiluja-96-pado371`, `lafemo-98-ruri220`, `lecali-51-funo316`, `lisepi-64-mudo307`, `lunike-70-xipi897`, `nitica-38-cere665`, `nukera-08-dige359`, `nulixu-97-nofi684`, `pavizi-27-xupe815`, `rocepa-35-gepo708`, `rozuxo-44-fudi093`, `ruloso-59-nato909`, `ruturo-47-kapi300`, `sarepa-89-cevi460`, `satuco-50-vusa163`, `sibika-09-sipu286`, `sigado-12-rina240`, `sivapa-41-sebu112`, `sivime-00-gudo607`, `sorisi-53-xebi982`, `style-stereotype-on-arrow-3`, `style-stereotype-on-arrow-7`, `tenalu-53-meri239`, `tobuka-93-jale775`, `togixe-65-bepo490`, `tujasu-04-nota700`, `vimavu-26-civo110`, `vocute-12-suxa445`, `zebufu-01-pevo013` | 40 |
+| `gvts-blocked` — adjacent-node separation, no edges (canvas-dimension rounding drift; shape-match, not independently re-instrumented for `jotaga`/`fafozi`) | `gatefi-65-curu360`, `bepafe-03-teda035`, `jabote-02-rajo672`, `baloca-83-nadu916`\*, `fafozi-27-reja300`\*\*, `jotaga-99-fatu830`\*\*\* | 6 |
+| `awaiting-maintainer` — legacy tag-scoped `objectBackgroundColor<<X>>` (generic skinparam-to-style-cascade transform, broader than a narrow port) | `majake-62-pero492` | 1 |
+| `awaiting-maintainer` — DOT-topology, namespace/package nesting | `meloxo-38-jeti489`, `tusiri-92-catu943` | 2 |
+| Creole `~`-escape + `#`-ordered-list markup (genuinely unbuilt, cross-cutting) | `linuxu-41-cogo780`, `fajafu-44-cuve930`, `jocamu-71-nuvo330` | 3 |
+| Creole `*`/`**` unordered bullet-list markup (sibling gap to the above) | `donoki-79-riku189` | 1 |
+| Creole table syntax (`\|=`) in object body | `pikuba-31-faxo766` | 1 |
+| `!procedure`-nested-diagram-in-map-value + creole font tags | `zuvila-56-nuda425`, `zicope-62-pica490` | 2 |
+| `<style> json/map { MaximumWidth/MinimumWidth/Margin/Padding }` | `maxosa-84-juci042` | 1 |
+| Edge uid-assignment order, mixed inline-color/style arrows | `sajege-04-zuce784` | 1 |
+| **Total accounted** | | **80** |
+
+\* `baloca-83-nadu916` — symptom-shape attribution only (per O3).
+\*\* `fafozi-27-reja300` — O2's own root-caused instrumentation
+(`x=117.33` jar vs `x=117.33125` ours, a graphviz-ts node-position float
+residual); folded in here from O3's arithmetic gap, not re-instrumented.
+\*\*\* `jotaga-99-fatu830` — this iteration's own instrumentation (theme
+.strictUml toggle A/B, confirmed zero effect on node positions; NOT
+independently probed to the SAME depth as the four originally-diagnosed
+gatefi/bepafe/jabote/baloca members — lower confidence, per this row's
+own established convention).
+
+### Gates (O4, final)
+
+- `object` census: `22/80` zero-diff (`1-3:5, 4-10:11, 11-30:11, 31+:31,
+  errors:0`) — O3 baseline was `16/80` (`1-3:7, 4-10:14, 11-30:12,
+  31+:31`).
+- Object ratchet: **24 tests** (22 AC1 + 1 AC2 + 1 AC3), +6 vs O3's 18 (6
+  newly-pinned fixtures: `nufoju-44-dabi767`, `soxufi-98-nita528`,
+  `kocupi-02-ripa662`, `linazi-45-gevo553`, `xuvesu-44-laru205`,
+  `lijoda-62-teci632`).
+- Class census: `294/718` (**+1 vs O3's 293**, ALL previously-pinned 293
+  individually re-verified zero-diff via a full pinned-set-vs-current-
+  zero-diff-set diff — zero regressions, pure addition, `rizexu-84-
+  xujo903` via mechanism 4's shared `doubleLine` fix). Class ratchet:
+  green, 294/294 tests (unchanged pinned-fixture count — the new
+  zero-diff fixture is NOT added to the ratchet, out of this mission's
+  write-set, same disposition as O3's own `nujiga-81-peno983`).
+- Description census (48-set): intact, ratchet re-run green (51/51
+  tests).
+- DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
+  78/80 - state 267/267` — EXACTLY unchanged.
+- `npm test -- --run`: 9913/9913 passing, 362 files (+1 vs O3's 361: new
+  `class-object-enhanced-body.test.ts`; +33 tests vs O3's 9880).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+
+### Mission-closing assessment
+
+**Accounting bar** (2026-07-14 ruling): MET, refreshed. All 80/80
+fixtures named above — 22 conformant (+6 vs O3), 46 `gvts-blocked`/
+`awaiting-maintainer` (permanent residue pending the dot-engine ADR-1
+cutover or a maintainer scoping decision), 12 genuinely-unbuilt-but-named
+mechanisms (creole ordered/unordered-list markup, creole table syntax,
+`!procedure`-nested-diagram, json/map dimension-style cascade, edge
+uid-assignment order) — no anonymous misses, plus a corrected 79->80
+arithmetic gap inherited from O3.
+
+**Trajectory**: object census `1/80 (TRUE baseline, O0) -> 5 -> 10 -> 13
+-> 16 -> 22/80` across 5 iterations. Landed mechanisms: header-row
+centering (O0), data-row baseline/textLength + skinparam BackgroundColor
+cascade (O1), empty-body ink-extent + multi-stacked-stereotype + style
+FontColor cascade (O2), map/json divider mechanics + hide-by-kind
+directive (O3), tabSize expansion + header nested-selector (background/
+font/font-size) + hide-stereotype-portion + object-in-enhanced-body
+engine (+ the shared `==` double-line fix) + underline convention
+(mechanism landed, residual fixture unresolved) + visibility-icon-fill
+(O4, this iteration) — 12 distinct, independently jar-verified,
+unit-tested mechanisms across the mission, zero regressions at any
+checkpoint (class 293-set intact through O4's own pre-checks, description
+48-set intact throughout, DOT gate frozen exactly since O0).
+
+**Closing.** The mission's own accounting bar (100% minus NAMED
+divergences) is met and every remaining fixture is attributed to a
+specific, understood mechanism — 46 permanently out of scope (gvts/
+awaiting-maintainer) and 12 genuinely-unbuilt features large enough to
+warrant their own future iteration (creole markup engine gaps, the
+`!procedure`-nested-diagram feature, json/map dimension-style cascade,
+edge uid-assignment ordering) if a future mission picks object diagrams
+back up. No further small/well-scoped items remain unattempted — this
+was the explicit closing criterion set at O3.
+
+### Files changed (O4)
+
+- `src/core/theme.ts` — `Theme.tabSize` (new); `ElementColors
+  .headerBackground`/`headerFont`/`headerFontSize` (new).
+- `src/core/skinparam.ts` — `tabsize` key parsing (`ELEMENT_BUCKET_
+  SNAMES`-independent, direct `theme.tabSize`).
+- `src/core/style-map-element.ts` — `HEADER_SELECTOR_SUFFIX`,
+  `.header`-suffix bucket-collection branch.
+- `src/diagrams/class/ast.ts` — `Classifier.hideStereotype` (new);
+  `HideShowEntityDirective`/`HideShowKindDirective['target']` widened
+  (`'stereotype'`); `rawBodyLines` doc comment corrected.
+- `src/diagrams/class/class-directives.ts` — `ENTITY_PORTION_MAP`'s
+  `stereotype`/`stereotypes` entries; both apply functions' new
+  `target === 'stereotype'` branch.
+- `src/diagrams/class/class-object-map-sizing.ts` — `tabStopWidthPx`/
+  `layoutTabRuns` (tab expansion); `formatObjectMemberText` (backslash-t
+  unescape); `INSTANCE_NAME_TYPE_PATTERN`/`buildUnderlinedNameRows`
+  (underline); `headerRows` (underline + headerFontSize params);
+  `measureObjectClassifier` (headerFontSize resolution, enhanced-body
+  dispatch, `sprites` param); `measureStereo`/`headerRows`'s
+  `hideStereotype` gates; `measureObjectFields`'s `visibilityIsField:
+  true`.
+- `src/diagrams/class/class-body-enhanced-layout.ts` —
+  `EnhancedDividerPart.doubleLine`, `separatorIsDouble`.
+- `src/diagrams/class/renderer-body-enhanced.ts` — `renderDividerPart`'s
+  `segment` helper (double-line draw).
+- `src/diagrams/class/renderer-classifier-box.ts` —
+  `resolveElementHeaderBackground`/`Font`, `headerBackgroundPath` (new);
+  `buildHeaderPrimitive`'s header-background conditional draw;
+  `renderRowText`'s header-font-override + underline `text-decoration`.
+- `src/diagrams/class/layout.ts` — `rows[].underline` (new field).
+- `src/diagrams/class/parser.ts` — `rawBodyLines` capture widened to
+  include `kind: 'object'`.
+- `src/diagrams/class/class-layout-helpers.ts` — `measureClassifier`'s
+  object call site passes `sprites` through.
+- `tests/unit/class/class-object-map-sizing.test.ts` — +14 tests (tab
+  expansion 4, underline 4, hide-stereotype 2, visibility-icon-fill 1,
+  plus 3 pre-existing-file additions from earlier in this same session).
+- `tests/unit/core/style-map-element.test.ts` — +3 tests.
+- `tests/unit/object/renderer.test.ts` — +9 tests (header override 4,
+  visibility-icon-fill 2, plus 3 from earlier mechanisms this session).
+- `tests/unit/class/class-hide-kind.test.ts` — +2 tests.
+- `tests/unit/class/class-hide-entity.test.ts` — corrected 1 stale test,
+  +1 new test.
+- `tests/unit/object/class-object-enhanced-body.test.ts` — NEW, 4 tests.
+- `oracle/goldens/svg-object/{nufoju-44-dabi767,soxufi-98-nita528,
+  kocupi-02-ripa662,linazi-45-gevo553,xuvesu-44-laru205,lijoda-62-
+  teci632}/` — NEW (6 pinned goldens, copied from `test-results/
+  dot-cache/object/`).
+- `oracle/goldens/svg-object/ratchet.json` — +6 entries.
+- `oracle/goldens/svg-object/README.md` — "Current state" O4 section.
+- `tests/oracle/svg-conformance/parity-object.json` — 6 entries'
+  `verdict` updated to `"conformant"` (manual, targeted edit, same
+  rationale as O2/O3's own notes on this file — `svg-parity-survey.ts`'s
+  subprocess-timeout flakiness under this environment's concurrency
+  default, still unaddressed, still named here rather than silently
+  worked around).

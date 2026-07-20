@@ -491,3 +491,193 @@ describe('map DOT emission', () => {
     expect(mapNode?.isPort).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// object — nufoju-44-dabi767: `skinparam tabSize` field-text tab expansion
+// (G3/O4)
+// ---------------------------------------------------------------------------
+
+describe('measureObjectClassifier — skinparam tabSize field-text expansion (nufoju-44-dabi767)', () => {
+  // `\t` here is the literal TWO-character source escape (backslash + 't'),
+  // matching `parseObjectField`'s own `rawDisplay` capture verbatim -- NOT
+  // a real tab byte. `formatObjectMemberText` unescapes it before layout
+  // (jar's `Display.getWithNewlines`'s own `c2 == 't'` branch).
+  function tabAst(): ClassDiagramAST {
+    return makeAST([
+      objectClassifier('foo', 'foo', {
+        members: [
+          { visibility: '+', name: 'field1', rawDisplay: '\\tfield1', isStatic: false, isAbstract: false },
+          { visibility: '+', name: 'field2', rawDisplay: '\\tfield2', isStatic: false, isAbstract: false },
+          { visibility: '+', name: 'field3', rawDisplay: '\\tfield3', isStatic: false, isAbstract: false },
+          {
+            visibility: '+',
+            name: 'field5',
+            rawDisplay: '\\tfield5\\tfield6',
+            isStatic: false,
+            isAbstract: false,
+          },
+        ],
+      }),
+    ]);
+  }
+
+  it('sizes the box to the oracle width (157.5125 x 82), tabSize 20 folding to the ' +
+     'default 8-space (width-0) fallback -> fontSize*4 = 56px tab stop', () => {
+    const themeWithTabSize = { ...theme, tabSize: 20 };
+    const geo = layoutClass(tabAst(), themeWithTabSize, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.width).toBeCloseTo(157.5125, 3);
+    expect(c.height).toBeCloseTo(82, 5);
+  });
+
+  it('splits a multi-tab line into independently-positioned runs sharing one row y, ' +
+     'and single-tab lines into one run each -- jar-verified x/textLength/childCount', () => {
+    const themeWithTabSize = { ...theme, tabSize: 20 };
+    const geo = layoutClass(tabAst(), themeWithTabSize, measurer);
+    const c = geo.classifiers[0]!;
+    // header(1) + field1(1) + field2(1) + field3(1) + field5+field6(2) = 6
+    expect(c.rows).toHaveLength(6);
+    const [, r1, r2, r3, r5, r6] = c.rows;
+    for (const r of [r1!, r2!, r3!, r5!]) {
+      expect(r.indent).toBeCloseTo(62, 3); // OBJECT_FIELD_MARGIN_X(6) + tabStop(56)
+      expect(r.width).toBeCloseTo(33.5125, 3);
+    }
+    expect(r1!.text).toBe('field1');
+    expect(r5!.text).toBe('field5');
+    expect(r6!.text).toBe('field6');
+    // field5's own tab stop (56) + field6's own post-field5 tab stop (56
+    // more, jar's `ceil(33.5125/56)*56`) = 112 relative -> +6 margin = 118
+    expect(r6!.indent).toBeCloseTo(118, 3);
+    // field5/field6 share the SAME row y (one source line, two runs)
+    expect(r5!.y).toBeCloseTo(r6!.y, 6);
+  });
+
+  it('falls back to the upstream default (8) when `skinparam tabSize` is unset -- ' +
+     'SAME tab stop (56px), since 8 also folds to the width-0 fallback', () => {
+    const geo = layoutClass(tabAst(), theme, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.width).toBeCloseTo(157.5125, 3);
+    expect(c.rows[1]!.indent).toBeCloseTo(62, 3);
+  });
+
+  it('leaves a tab-free line completely unaffected (single run, x:0, zero behavior ' +
+     'change for the common case)', () => {
+    const ast = makeAST([
+      objectClassifier('plain', 'plain', {
+        members: [{ visibility: '+', name: 'field1', isStatic: false, isAbstract: false }],
+      }),
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.rows).toHaveLength(2);
+    expect(c.rows[1]!.indent).toBeCloseTo(6, 3); // OBJECT_FIELD_MARGIN_X, no tab
+  });
+});
+
+// ---------------------------------------------------------------------------
+// object — jotaga-99-fatu830: `skinparam style strictuml` header underline
+// (G3/O4)
+// ---------------------------------------------------------------------------
+
+describe('measureObjectClassifier — skinparam style strictuml underline (jotaga-99-fatu830)', () => {
+  it('underlines the WHOLE name (single row) when there is no colon', () => {
+    const ast = makeAST([objectClassifier('firstObject', 'firstObject')]);
+    const geo = layoutClass(ast, { ...theme, strictUml: true }, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.rows).toHaveLength(1);
+    expect(c.rows[0]!.text).toBe('firstObject');
+    expect(c.rows[0]!.underline).toBe(true);
+    expect(c.rows[0]!.width).toBeCloseTo(62.9125, 3);
+    // jar-verified: rect x=7 -> text x=14, unaffected by the underline split
+    expect(c.rows[0]!.indent).toBeCloseTo(7, 3);
+  });
+
+  it('splits `name : type` into an underlined name run + a plain, leading-' +
+     'whitespace-stripped type run sharing one row y -- jar-verified against o2', () => {
+    const ast = makeAST([objectClassifier('o2', 'instance name : type')]);
+    const geo = layoutClass(ast, { ...theme, strictUml: true }, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.rows).toHaveLength(2);
+    const [nameRow, typeRow] = c.rows;
+    expect(nameRow!.text).toBe('instance name');
+    expect(nameRow!.underline).toBe(true);
+    expect(nameRow!.width).toBeCloseTo(87.15, 3);
+    expect(typeRow!.text).toBe(': type'); // leading space stripped
+    expect(typeRow!.underline).toBeUndefined();
+    expect(typeRow!.width).toBeCloseTo(30.275, 3);
+    expect(typeRow!.y).toBeCloseTo(nameRow!.y, 6);
+    // jar-verified: rect x=118.74 -> name text x=125.74 (indent 7), type
+    // text x=212.89 (indent 94.15 = 7 + 87.15, immediately adjacent)
+    expect(nameRow!.indent).toBeCloseTo(7, 3);
+    expect(typeRow!.indent).toBeCloseTo(94.15, 3);
+  });
+
+  it('does NOT underline without `skinparam style strictuml` (zero behavior change)', () => {
+    const ast = makeAST([objectClassifier('firstObject', 'firstObject')]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.rows).toHaveLength(1);
+    expect(c.rows[0]!.underline).toBeUndefined();
+  });
+
+  it('does NOT underline map/json headers even with strictuml (object-kind only)', () => {
+    const ast = makeAST([
+      { id: 'm', display: 'CapitalCity', kind: 'map', typeParams: [], members: [] },
+    ]);
+    const geo = layoutClass(ast, { ...theme, strictUml: true }, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.rows[0]!.underline).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// object — kocupi-02-ripa662: `hide object stereotypes` suppresses the
+// stereo row entirely (G3/O4)
+// ---------------------------------------------------------------------------
+
+describe('measureObjectClassifier -- hideStereotype (kocupi-02-ripa662)', () => {
+  it('draws NO stereo row and collapses the title to the name-only height', () => {
+    const ast = makeAST([
+      objectClassifier('foo', 'foo', { stereotype: 'Foo', hideStereotype: true }),
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    // header(name only, no stereo) + empty-fields placeholder -- no
+    // divider between them since showFields defaults true with zero
+    // members (OBJECT_EMPTY_FIELDS path)
+    expect(c.rows).toHaveLength(1);
+    expect(c.rows[0]!.text).toBe('foo');
+    expect(c.height).toBeCloseTo(18 + 16, 5); // nameHeight(18) + OBJECT_EMPTY_FIELDS.height(16)
+  });
+
+  it('draws the stereo row normally when hideStereotype is unset (zero behavior change)', () => {
+    const ast = makeAST([objectClassifier('foo', 'foo', { stereotype: 'Foo' })]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    expect(c.rows).toHaveLength(2);
+    expect(c.rows[0]!.text).toBe('«Foo»');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// object — xuvesu-44-laru205: visibility icon fill (stroke-only, never
+// filled) for object field rows (G3/O4)
+// ---------------------------------------------------------------------------
+
+describe('measureObjectFields -- visibilityIsField always true (xuvesu-44-laru205)', () => {
+  it('sets visibilityIsField: true on every icon-bearing object field row', () => {
+    const ast = makeAST([
+      objectClassifier('Test', 'Test', {
+        members: [
+          { visibility: '+', name: 'line1', rawDisplay: 'line 1', isStatic: false, isAbstract: false, visibilityExplicit: true },
+          { visibility: '-', name: 'line5', rawDisplay: 'line 5', isStatic: false, isAbstract: false, visibilityExplicit: true },
+        ],
+      }),
+    ]);
+    const geo = layoutClass(ast, theme, measurer);
+    const c = geo.classifiers[0]!;
+    const [publicRow, privateRow] = c.rows.slice(1);
+    expect(publicRow!.visibilityIsField).toBe(true);
+    expect(privateRow!.visibilityIsField).toBe(true);
+  });
+});

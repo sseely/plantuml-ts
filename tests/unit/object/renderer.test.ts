@@ -301,3 +301,94 @@ describe('renderClass() — multiple object classifiers', () => {
     expect(svg).toContain('y = 2');
   });
 });
+
+// ---------------------------------------------------------------------------
+// <style> object { header { BackgroundColor/FontColor/FontSize } } } (G3/O4)
+// ---------------------------------------------------------------------------
+
+describe('theme.colors.elements.object.header* (G3/O4, soxufi-98-nita528)', () => {
+  function themeWithHeaderOverride(): typeof defaultTheme {
+    return {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        elements: {
+          ...defaultTheme.colors.elements,
+          object: { background: '#FFFF00', font: '#0000FF', headerBackground: '#FF0000', headerFont: '#008000', headerFontSize: 20 },
+        },
+      },
+    };
+  }
+
+  it('tints the NAME row text with headerFont/headerFontSize, member rows with the bare font', () => {
+    const t = themeWithHeaderOverride();
+    const ast = parseClass(src(['object Foo {', 'dummy', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('fill="#008000"'); // name row (header override)
+    expect(svg).toContain('fill="#0000FF"'); // member row (bare bucket)
+    expect(svg).toContain('font-size="20"'); // name row font-size override
+  });
+
+  it('draws a header-background <path> when headerBackground differs from the body fill', () => {
+    const t = themeWithHeaderOverride();
+    const ast = parseClass(src(['object Foo {', 'dummy', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).toContain('<path');
+    expect(svg).toContain('fill="#FF0000"');
+  });
+
+  it('draws NO header-background path when headerBackground matches the body fill', () => {
+    const t = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        elements: {
+          ...defaultTheme.colors.elements,
+          object: { background: '#FF0000', headerBackground: '#FF0000' },
+        },
+      },
+    };
+    const ast = parseClass(src(['object Foo {', 'dummy', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).not.toContain('<path');
+  });
+
+  it('does NOT tint a plain class classifier (object-kind only)', () => {
+    const t = themeWithHeaderOverride();
+    const ast = parseClass(src(['class C {', 'dummy', '}']));
+    const geo = layoutClass(ast, t, measurer);
+    const svg = assembleSvg(renderClass(geo, t));
+    expect(svg).not.toContain('fill="#008000"');
+    expect(svg).not.toContain('fill="#FF0000"'); // no header-background path
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Object field visibility icons render stroke-only (G3/O4, xuvesu-44-laru205)
+// ---------------------------------------------------------------------------
+
+describe('object field visibility icon fill (G3/O4)', () => {
+  it('draws a PUBLIC_FIELD icon with fill="none", even for method-looking text', () => {
+    const ast = parseClass(src(['object Test {', '+ getName()', '}']));
+    const geo = layoutClass(ast, theme, measurer);
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).toContain('data-visibility-modifier="PUBLIC_FIELD"');
+    expect(svg).not.toContain('data-visibility-modifier="PUBLIC_METHOD"');
+    // the icon's own <ellipse> (public = circle) must be unfilled
+    const match = /<g data-visibility-modifier="PUBLIC_FIELD"><ellipse[^/]*\/>/.exec(svg);
+    expect(match).not.toBeNull();
+    expect(match![0]).toContain('fill="none"');
+  });
+
+  it('draws a PRIVATE_FIELD icon (square) with fill="none"', () => {
+    const ast = parseClass(src(['object Test {', '- secret', '}']));
+    const geo = layoutClass(ast, theme, measurer);
+    const svg = assembleSvg(renderClass(geo, theme));
+    const match = /<g data-visibility-modifier="PRIVATE_FIELD"><rect[^/]*\/>/.exec(svg);
+    expect(match).not.toBeNull();
+    expect(match![0]).toContain('fill="none"');
+  });
+});

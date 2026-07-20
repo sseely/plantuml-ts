@@ -78,6 +78,13 @@ export interface EnhancedDividerPart {
    *  (`-`/`=`/the synthetic leading `_`), matching upstream's `else` branch
    *  (no dash array emitted at all). */
   readonly strokeDasharray?: string;
+  /** G3/O4: `UHorizontalLine#drawHLine`'s `style == '='` branch -- draws
+   *  EVERY line segment (the whole span, or each half either side of a
+   *  title) TWICE: once at `y`, once at `y+2` (`linazi-45-gevo553`'s
+   *  `Foo1` object, `== ` separator between "and group" and "things
+   *  together." -- jar's own `<line y=132>`/`<line y=134>` pair, SAME
+   *  x1/x2 span). Absent (single line) for every other separator char. */
+  readonly doubleLine?: boolean;
   readonly title?: { readonly x: number; readonly y: number; readonly width: number; readonly text: string };
 }
 
@@ -119,6 +126,12 @@ function separatorStrokeWidth(char: string): number {
 
 function separatorStrokeDasharray(char: string): string | undefined {
   return char === '.' ? '1,2' : undefined;
+}
+
+/** `UHorizontalLine#isDouble` -- G3/O4, see `EnhancedDividerPart
+ *  .doubleLine`'s own doc comment. */
+function separatorIsDouble(char: string): boolean {
+  return char === '=';
 }
 
 interface RowsBlockResult {
@@ -201,6 +214,7 @@ function layoutPlainDividerRows(
     {
       kind: 'divider', y: dividerY, strokeWidth: separatorStrokeWidth(char),
       ...(dasharrayField !== undefined ? { strokeDasharray: dasharrayField } : {}),
+      ...(separatorIsDouble(char) ? { doubleLine: true as const } : {}),
     },
     { kind: 'rows', rows },
   ];
@@ -237,6 +251,7 @@ function layoutTitledDividerRows(
       y: dividerY,
       strokeWidth: separatorStrokeWidth(separator.char),
       ...(titledDasharrayField !== undefined ? { strokeDasharray: titledDasharrayField } : {}),
+      ...(separatorIsDouble(separator.char) ? { doubleLine: true as const } : {}),
       title: { x: 0, y: titleBaselineY, width: titleBuild.width, text: separator.title! },
     },
   ];

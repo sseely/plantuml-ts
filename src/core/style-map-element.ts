@@ -18,6 +18,16 @@ import { parseColor } from './paint.js';
  *  mechanism — see `ledger.md` I4b, not handled here. */
 const STEREOTYPE_SELECTOR_SUFFIX = '.stereotype';
 
+/** `<sname>.header` selector suffix (`<style> <sname> { header {
+ *  BackgroundColor/FontColor/FontSize } } }`) -- G3/O4, `EntityImage
+ *  Object`/`Map`/`Json`'s own `getStyleHeader()` nested selector
+ *  (`theme.ts#ElementColors`'s `headerBackground`/`headerFont`/
+ *  `headerFontSize` field doc comment). Mirrors {@link
+ *  STEREOTYPE_SELECTOR_SUFFIX}'s exact shape -- a distinct suffix (not
+ *  merged with it) since the two populate DIFFERENT fields and the
+ *  underlying upstream selectors are independent nested tokens. */
+const HEADER_SELECTOR_SUFFIX = '.header';
+
 /**
  * Diagram-type style-selector names (`SName` values PlantUML's style engine
  * registers per diagram type, e.g. `classDiagram`/`componentDiagram` —
@@ -111,11 +121,30 @@ export function collectElementStyleBuckets(
       const size = Number(fs);
       if (!Number.isFinite(size)) continue;
       elements[sname] = { ...elements[sname], stereotypeFontSize: size };
+      continue;
+    }
+
+    if (selector.endsWith(HEADER_SELECTOR_SUFFIX)) {
+      const sname = selector.slice(0, -HEADER_SELECTOR_SUFFIX.length);
+      if (!ELEMENT_BUCKET_SNAMES.has(sname)) continue;
+      const bucket: Partial<ElementColors> = {};
+      const bg = props.get('backgroundcolor');
+      if (bg !== undefined) bucket.headerBackground = parseColor(bg);
+      const fc = props.get('fontcolor');
+      if (fc !== undefined) bucket.headerFont = parseColor(fc);
+      const fs = props.get('fontsize');
+      if (fs !== undefined) {
+        const size = Number(fs);
+        if (Number.isFinite(size)) bucket.headerFontSize = size;
+      }
+      if (Object.keys(bucket).length > 0) {
+        elements[sname] = { ...elements[sname], ...bucket };
+      }
     }
   }
-  // #lizard forgives -- pre-existing (unchanged by G2 N7); two independent
-  // bucket-collection branches (bare/nested SName + `.stereotype` suffix)
-  // push this over the CCN/NLOC threshold, not this iteration's change.
+  // #lizard forgives -- pre-existing (unchanged by G2 N7); THREE independent
+  // bucket-collection branches (bare/nested SName + `.stereotype` suffix +
+  // G3/O4's `.header` suffix) push this over the CCN/NLOC threshold.
   return elements;
 }
 

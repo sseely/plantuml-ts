@@ -119,6 +119,13 @@ const ENTITY_PORTION_MAP: Record<string, HideShowEntityDirective['target']> = {
   member: 'members', members: 'members',
   field: 'fields', fields: 'fields', attribute: 'fields', attributes: 'fields',
   method: 'methods', methods: 'methods',
+  // G3/O4: `EntityPortion.STEREOTYPE` -- the GENDER/PORTION form
+  // (`CucaDiagram#showPortion`), distinct from the LABEL-pattern `hide
+  // [<<pattern>>] stereotype(s)` command already ported separately
+  // (`class-stereotype.ts#parseHideStereotypeDirective`) -- jar-verified
+  // `kocupi-02-ripa662` (`hide object stereotypes`). See `ast.ts
+  // #Classifier.hideStereotype`'s own doc comment for the consuming side.
+  stereotype: 'stereotype', stereotypes: 'stereotype',
 };
 
 const VISIBILITY_GENDER_WORDS = new Set(['public', 'private', 'protected', 'package']);
@@ -194,6 +201,7 @@ export function applyHideShowEntityDirectives(ast: ClassDiagramAST): void {
     const classifier = byId.get(entityId);
     if (classifier === undefined) continue;
     if (target === 'circle') { classifier.hideCircle = true; continue; }
+    if (target === 'stereotype') { classifier.hideStereotype = true; continue; }
     if (target === 'members') { classifier.suppressFields = true; classifier.suppressMethods = true; continue; }
     if (target === 'fields') { classifier.suppressFields = true; continue; }
     classifier.suppressMethods = true;
@@ -250,6 +258,7 @@ export function applyHideShowKindDirectives(ast: ClassDiagramAST): void {
     for (const classifier of ast.classifiers) {
       if (classifier.kind !== classifierKind) continue;
       if (target === 'circle') { classifier.hideCircle = true; continue; }
+      if (target === 'stereotype') { classifier.hideStereotype = true; continue; }
       if (target === 'members') { classifier.suppressFields = true; classifier.suppressMethods = true; continue; }
       if (target === 'fields') { classifier.suppressFields = true; continue; }
       classifier.suppressMethods = true;

@@ -408,18 +408,23 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
         if (member !== null) {
           classifier.members.push(member);
         }
-        // G2 N42: parallel raw-line capture for class/interface/enum/...
-        // bodies (NOT object -- its own separate grammar, no enhanced-body
-        // reach) -- see `Classifier.rawBodyLines`'s own doc comment for why
-        // this is additive, not a replacement for the `members.push` above.
-        // `state.currentRawLine` (trailing-whitespace-only trimmed) is used
-        // instead of `line` (fully trimmed by `mergeStandaloneBraces`) so a
-        // `|_` tree-list line's leading indentation survives -- falls back
-        // to `line` only for a hand-built `ParseState` that bypasses the
-        // main loop (never sets `currentRawLine`, zero corpus reach).
-        if (classifier.kind !== 'object') {
-          (classifier.rawBodyLines ??= []).push(state.currentRawLine ?? line);
-        }
+        // G2 N42, G3/O4 (correction): parallel raw-line capture for
+        // class/interface/enum/... AND object bodies alike -- upstream's
+        // `BodierLikeClassOrObject#addFieldOrMethod` collects EVERY kind's
+        // raw line into the SAME `rawBody` list unconditionally
+        // (`isBodyEnhanced()`'s own scan has no kind gate); OBJECT's own
+        // `getBody` ALWAYS routes through `BodyFactory.create1`
+        // (`BodyEnhanced1`) when `showFields`, whether or not a separator
+        // is present -- the pre-O4 "object -- no enhanced-body reach"
+        // comment was a genuine gap, jar-verified `linazi-45-gevo553`
+        // (`--`/`==`/`..`/`__` separators inside an object body). See
+        // `Classifier.rawBodyLines`'s own doc comment. `state.currentRawLine`
+        // (trailing-whitespace-only trimmed) is used instead of `line`
+        // (fully trimmed by `mergeStandaloneBraces`) so a `|_` tree-list
+        // line's leading indentation survives -- falls back to `line` only
+        // for a hand-built `ParseState` that bypasses the main loop (never
+        // sets `currentRawLine`, zero corpus reach).
+        (classifier.rawBodyLines ??= []).push(state.currentRawLine ?? line);
       }
     }
   }

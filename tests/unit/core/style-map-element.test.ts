@@ -104,6 +104,40 @@ describe('collectElementStyleBuckets (T5 / D4)', () => {
   });
 });
 
+// G3/O4: `<style> object { header { BackgroundColor red; FontColor green;
+// FontSize 20 } } }` -- EntityImageObject/Map/Json's own `getStyleHeader()`
+// nested `header` sub-selector (`theme.ts#ElementColors`'s `headerBackground`/
+// `headerFont`/`headerFontSize` field doc comment) -- jar-verified
+// `soxufi-98-nita528`.
+describe('collectElementStyleBuckets -- nested "<sname>.header" selector (G3/O4)', () => {
+  it('routes "object.header" into the SAME object bucket, under the header* fields', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({
+        object: { backgroundcolor: 'yellow', fontcolor: 'blue' },
+        'object.header': { backgroundcolor: 'red', fontcolor: 'green', fontsize: '20' },
+      }),
+    );
+    expect(buckets.object).toEqual({
+      background: 'yellow', font: 'blue',
+      headerBackground: 'red', headerFont: 'green', headerFontSize: 20,
+    });
+  });
+
+  it('does NOT route "widget.header" (widget is not an ELEMENT_BUCKET_SNAMES member)', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'widget.header': { backgroundcolor: 'red' } }),
+    );
+    expect(Object.keys(buckets)).toHaveLength(0);
+  });
+
+  it('leaves an "object.header" block with no recognized declarations a no-op', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'object.header': { linecolor: 'red' } }),
+    );
+    expect(buckets.object).toBeUndefined();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // collectElementStyleBuckets — per-element FontSize / stereotype (G1 I4b)
 // ---------------------------------------------------------------------------

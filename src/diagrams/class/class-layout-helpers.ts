@@ -899,7 +899,7 @@ export function measureClassifier(
     };
   }
   if (classifier.kind === 'object') {
-    return measureObjectClassifier(classifier, theme, measurer, suppress.fields);
+    return measureObjectClassifier(classifier, theme, measurer, suppress.fields, sprites);
   }
   if (classifier.kind === 'map') {
     return measureMapClassifier(classifier, theme, measurer);

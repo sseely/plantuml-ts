@@ -46,10 +46,13 @@
 import type { Classifier, Member } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
 import type { ClassifierGeo } from './layout.js';
 import type { MeasuredClassifier } from './class-layout-helpers.js';
 import { javaRound4 } from '../../core/number-format.js';
 import { splitStereotypeLabels, measureStereoLabelWidths } from './class-stereotype.js';
+import { isEnhancedBody } from './class-body-enhanced.js';
+import { measureEnhancedBody } from './class-body-enhanced-layout.js';
 
 // ---------------------------------------------------------------------------
 // Shared object/map/json header sizing (name + optional stereotype, stacked)
@@ -85,6 +88,70 @@ export function baselineOffsetFor(fontSpec: FontSpec, measurer: StringMeasurer):
   return fontSpec.size - measurer.getDescent(fontSpec, '');
 }
 
+/**
+ * G3/O4: `AtomText#getTabSize`/`tabString` -- the pixel width of ONE tab
+ * stop, matching upstream's own quirky clamp: a configured `skinparam
+ * tabSize N` in [1,6] uses N literal spaces; ANY other value (including
+ * the upstream default 8, and `skinparam tabSize 20`) falls back to a
+ * HARDCODED 8-space string regardless of N (`AtomText.java:258-264`'s own
+ * `nb >= 1 && nb < 7` gate -- a genuine upstream quirk, ported faithfully
+ * per this project's "port the awkward code too" discipline). When that
+ * string measures to width 0 (`DeterministicMeasurer`'s width table has no
+ * entry for the space glyph -- jar-verified), the tab stop becomes
+ * `fontSize * 4` instead (`AtomText.java:272-274`'s own `width == 0`
+ * fallback) -- jar-verified against `nufoju-44-dabi767` (`skinparam
+ * tabSize 20`, 14pt font -> tab stop 56 = 14*4, NOT a function of the
+ * configured `20` at all).
+ */
+function tabStopWidthPx(theme: Theme, measurer: StringMeasurer): number {
+  const nb = theme.tabSize ?? 8;
+  const spaces = nb >= 1 && nb < 7 ? ' '.repeat(nb) : '        ';
+  const width = measurer.measure(spaces, { family: theme.fontFamily, size: theme.fontSize }).width;
+  return width === 0 ? theme.fontSize * 4 : width;
+}
+
+/** One drawn text run within a tab-expanded line -- {@link layoutTabRuns}. */
+interface TabRun {
+  text: string;
+  x: number;
+  width: number;
+}
+
+/**
+ * G3/O4: `AtomText#drawU`/`getWidth` -- splits a member line containing
+ * literal `\t` characters into independently-positioned text runs. Jar
+ * draws ONE `<text>` per non-tab token, advancing `x` by each token's own
+ * measured width; a tab TOKEN instead jumps `x` to the next tab-stop
+ * boundary (`x += tabStopPx - (x % tabStopPx)`) and draws nothing.
+ * `totalWidth` is the final cursor position after every token -- the value
+ * jar's OWN `getWidth()` uses for the line's box-sizing contribution
+ * (`AtomText.java:241-256`, the SAME tokenize-and-jump algorithm as
+ * `drawU`, not a naive whole-string measurement). A tab-free line degrades
+ * to the pre-O4 shape exactly: one run at `x:0`, `totalWidth ===
+ * run.width` -- zero behavior change for the common no-tab case.
+ */
+function layoutTabRuns(
+  text: string,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+  tabStopPx: number,
+): { runs: TabRun[]; totalWidth: number } {
+  const tokens = text.split(/(\t)/).filter((t) => t.length > 0);
+  let x = 0;
+  const runs: TabRun[] = [];
+  for (const token of tokens) {
+    if (token === '\t') {
+      const remainder = x % tabStopPx;
+      x += tabStopPx - remainder;
+      continue;
+    }
+    const runWidth = measurer.measure(token, fontSpec).width;
+    runs.push({ text: token, x, width: runWidth });
+    x += runWidth;
+  }
+  return { runs, totalWidth: x };
+}
+
 /** EntityImageObject/Map#getNameAndSteretypeDimension: width = max of the two
  *  (both already margin-padded by the caller), height = sum (stacked). */
 export function titleDimension(nameDim: Dim, stereoDim: Dim): Dim {
@@ -111,7 +178,11 @@ export function titleDimension(nameDim: Dim, stereoDim: Dim): Dim {
  * fieldsHeight(16, OBJECT_EMPTY_FIELDS).
  */
 export function measureStereo(classifier: Classifier, theme: Theme, measurer: StringMeasurer): Dim {
-  if (classifier.stereotype === undefined) return { width: 0, height: 0 };
+  // G3/O4: `hide <object|...> stereotypes` (`EntityPortion.STEREOTYPE`,
+  // `CucaDiagram#showPortion`) -- object/map/json ONLY consult this flag
+  // (`ast.ts#Classifier.hideStereotype`'s own doc comment); jar-verified
+  // `kocupi-02-ripa662`.
+  if (classifier.stereotype === undefined || classifier.hideStereotype === true) return { width: 0, height: 0 };
   const labels = splitStereotypeLabels(classifier.stereotype);
   if (labels.length === 0) return { width: 0, height: 0 };
   const widths = measureStereoLabelWidths(labels, theme.fontFamily, measurer, undefined, STEREO_FONT_SIZE);
@@ -191,15 +262,90 @@ export function measureStereo(classifier: Classifier, theme: Theme, measurer: St
  * which combines this gap with the centering bug and was excluded from
  * this fix's own verification set for exactly that reason).
  */
+/**
+ * G3/O4: `Display#underlinedName`'s split pattern (`Display.java:468`) --
+ * matches ONLY up to the FIRST colon: group1 excludes ':' entirely (so it
+ * can only end right before the first colon encountered), group2's `\s*`
+ * backtracks to absorb any trailing whitespace group1 would otherwise
+ * capture. `null` when the display has no colon at all (the whole-name-
+ * underlined case, `firstObject` in `jotaga-99-fatu830`).
+ */
+const INSTANCE_NAME_TYPE_PATTERN = /^([^:]+?)(\s*:.+)$/;
+
+/**
+ * G3/O4: `EntityImageObject#getUnderlinedName` -- `skinparam style
+ * strictuml`'s UML instance-notation convention. No colon: the WHOLE name
+ * draws underlined, one row. With a colon: the name splits into TWO
+ * ADJACENT runs sharing the SAME row `y` -- the name portion (underlined)
+ * at `indent`, the `: type` portion (plain, LEADING whitespace stripped --
+ * jar's own rendered `<text>` never carries it, `jotaga-99-fatu830`'s own
+ * `": type"` citation) immediately following at `indent + nameRawWidth`
+ * (raw, unrounded -- matches this file's own "round once for textLength,
+ * reuse raw for position math" convention, `headerRows`'s own stereo-row
+ * precedent). `indent` is the CALLER's already-centered offset for the
+ * COMBINED block (both runs together occupy the same span the un-split
+ * name would have) -- jar-verified `jotaga-99-fatu830`'s `o2`: full-name
+ * width 117.425 == "instance name" (87.15) + " : type" (30.275) exactly,
+ * so splitting never perturbs the block's own centering math.
+ */
+function buildUnderlinedNameRows(
+  display: string,
+  y: number,
+  indent: number,
+  nameFontSpec: FontSpec,
+  measurer: StringMeasurer,
+  // G3/O4: `<style> object { header { FontSize N } } }` -- `fcHeader`'s
+  // OWN FontConfiguration wraps the WHOLE underlined-name TextBlock
+  // (`EntityImageObject.java:98`, `getUnderlinedName(entity).create(fcHeader,
+  // ...)`), so BOTH split runs (name + type suffix) carry the SAME override
+  // when set -- unverified in combination (no corpus fixture combines
+  // strictuml + header FontSize), but the most defensible reading of the
+  // single-FontConfiguration construction above.
+  fontSizeOverride?: number,
+): ClassifierGeo['rows'] {
+  const fontSizeField = fontSizeOverride !== undefined ? { fontSize: fontSizeOverride } : {};
+  const match = INSTANCE_NAME_TYPE_PATTERN.exec(display);
+  if (match === null) {
+    return [
+      {
+        text: display, y, indent,
+        width: javaRound4(measurer.measure(display, nameFontSpec).width),
+        underline: true,
+        ...fontSizeField,
+      },
+    ];
+  }
+  const namePart = match[1]!;
+  const typePart = match[2]!.replace(/^\s+/, '');
+  const nameRawWidth = measurer.measure(namePart, nameFontSpec).width;
+  const typeRawWidth = measurer.measure(typePart, nameFontSpec).width;
+  return [
+    { text: namePart, y, indent, width: javaRound4(nameRawWidth), underline: true, ...fontSizeField },
+    { text: typePart, y, indent: indent + nameRawWidth, width: javaRound4(typeRawWidth), ...fontSizeField },
+  ];
+}
+
 export function headerRows(
   classifier: Classifier,
   theme: Theme,
   measurer: StringMeasurer,
   boxWidth: number,
   namePadding: number,
+  // G3/O4: `skinparam style strictuml` -- OBJECT kind only (`class-object-
+  // map-sizing.ts#buildUnderlinedNameRows`'s own doc comment); map/json
+  // callers never pass `true` (`EntityImageMap`/`Json` never call
+  // `underlinedName()`, jar-verified).
+  underlineName = false,
+  // G3/O4: `<style> <sname> { header { FontSize N } } }` -- the CALLER
+  // resolves this (it also feeds `nameDim`/`title.width`, upstream of this
+  // function's own `boxWidth` parameter -- `measureObjectClassifier`'s own
+  // doc comment) and passes it through so the name row's OWN width/baseline
+  // use the SAME size the caller already measured with, rather than
+  // re-deriving it here.
+  nameFontSizeOverride?: number,
 ): ClassifierGeo['rows'] {
   const rows: ClassifierGeo['rows'] = [];
-  const nameFontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  const nameFontSpec = { family: theme.fontFamily, size: nameFontSizeOverride ?? theme.fontSize };
   const stereoFontSpec = { family: theme.fontFamily, size: STEREO_FONT_SIZE };
   // G3/O2: one stacked line PER label (`Stereotype#getLabels()` shape) --
   // see `measureStereo`'s own doc comment for the split mechanism and the
@@ -208,7 +354,14 @@ export function headerRows(
   // `getDescent` is content-independent (every `StringMeasurer`
   // implementation, `baselineOffsetFor`'s own doc comment), so the
   // baseline offset is computed once and reused per stacked line.
-  const stereoLabels = classifier.stereotype === undefined ? [] : splitStereotypeLabels(classifier.stereotype);
+  // G3/O4: `hide <kind> stereotypes` -- {@link measureStereo}'s own doc
+  // comment; suppresses every stacked label line identically to "no
+  // stereotype at all" for header-row PURPOSES (the raw `classifier
+  // .stereotype` string itself is untouched -- only rendering skips it).
+  const stereoLabels =
+    classifier.stereotype === undefined || classifier.hideStereotype === true
+      ? []
+      : splitStereotypeLabels(classifier.stereotype);
   const stereoWidths = measureStereoLabelWidths(stereoLabels, theme.fontFamily, measurer, undefined, STEREO_FONT_SIZE);
   const stereoBaselineOffset = STEREO_FONT_SIZE - measurer.getDescent(stereoFontSpec, '');
   stereoLabels.forEach((label, i) => {
@@ -224,13 +377,19 @@ export function headerRows(
   });
   const stereoHeight = stereoLabels.length * STEREO_FONT_SIZE;
   const nameWidth = javaRound4(measurer.measure(classifier.display, nameFontSpec).width);
-  const nameBaseline = theme.fontSize - measurer.getDescent(nameFontSpec, classifier.display);
-  rows.push({
-    text: classifier.display,
-    y: stereoHeight + namePadding + nameBaseline,
-    indent: (boxWidth - nameWidth) / 2,
-    width: nameWidth,
-  });
+  const nameBaseline = nameFontSpec.size - measurer.getDescent(nameFontSpec, classifier.display);
+  const nameY = stereoHeight + namePadding + nameBaseline;
+  const nameIndent = (boxWidth - nameWidth) / 2;
+  if (underlineName) {
+    rows.push(
+      ...buildUnderlinedNameRows(classifier.display, nameY, nameIndent, nameFontSpec, measurer, nameFontSizeOverride),
+    );
+  } else {
+    rows.push({
+      text: classifier.display, y: nameY, indent: nameIndent, width: nameWidth,
+      ...(nameFontSizeOverride !== undefined ? { fontSize: nameFontSizeOverride } : {}),
+    });
+  }
   return rows;
 }
 
@@ -276,10 +435,27 @@ const OBJECT_SMALL_ICON = 14;
  *  class-object-commands.ts#parseObjectField), else the structured
  *  `name = value` / bare `name` reconstruction for the two shapes this AST
  *  still parses eagerly. Exported: also used by tests constructing expected
- *  row text directly. */
+ *  row text directly.
+ *
+ *  G3/O4: a literal `\t` (backslash + 't', TWO source chars -- `skinparam
+ *  tabSize`'s own trigger, `nufoju-44-dabi767`) is unescaped to a REAL tab
+ *  byte (U+0009) here, mirroring `Display.getWithNewlines`'s own `c2 ==
+ *  't'` branch (`Display.java:302-304`, `current.append('\t')`) -- the
+ *  GENERIC backslash-escape site every Display-backed text line (title/
+ *  caption/legend/member) routes through upstream. Scoped to ONLY the `\t`
+ *  escape (not the full `\n`/`\r`/`\l`/`\\` family Display.java also
+ *  handles) -- no corpus object-field fixture exercises the others, and
+ *  `\n` specifically has NO meaning inside a single already-newline-split
+ *  field line. `layoutTabRuns` (below) consumes the resulting real tab
+ *  byte via `AtomText#drawU`'s own tokenizer shape. */
 export function formatObjectMemberText(member: Pick<Member, 'name' | 'type' | 'rawDisplay'>): string {
-  if (member.rawDisplay !== undefined) return member.rawDisplay;
-  return member.type !== undefined ? `${member.name} = ${member.type}` : member.name;
+  const raw =
+    member.rawDisplay !== undefined
+      ? member.rawDisplay
+      : member.type !== undefined
+        ? `${member.name} = ${member.type}`
+        : member.name;
+  return raw.includes('\\t') ? raw.replace(/\\t/g, '\t') : raw;
 }
 
 /** BodierLikeClassOrObject#getMethodOrFieldHeight (OBJECT branch). */
@@ -330,22 +506,48 @@ function measureObjectFields(
 
   const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const texts = visibleMembers.map(formatObjectMemberText);
-  const widths = texts.map((t) => measurer.measure(t, fontSpec).width);
+  // G3/O4: `\t` characters (`skinparam tabSize`) split a line into
+  // multiple independently-positioned text runs -- see `layoutTabRuns`'s
+  // own doc comment. `tabStopWidthPx` is computed once per block (font-
+  // dependent only, not per-row).
+  const tabStopPx = tabStopWidthPx(theme, measurer);
+  const layouts = texts.map((t) => layoutTabRuns(t, fontSpec, measurer, tabStopPx));
+  const widths = layouts.map((l) => l.totalWidth);
   const hasIcon = visibleMembers.some((m) => m.visibilityExplicit === true);
   const iconReserve = hasIcon ? OBJECT_SMALL_ICON : 0;
   const textIndent = OBJECT_FIELD_MARGIN_X + iconReserve;
   const width = Math.max(...widths) + iconReserve + OBJECT_FIELD_MARGIN_X * 2;
   const height = visibleMembers.length * theme.fontSize + OBJECT_FIELD_MARGIN_Y * 2;
   const baselineOffset = baselineOffsetFor(fontSpec, measurer);
-  const rows = texts.map((t, i) => ({
-    text: t,
-    y: OBJECT_FIELD_MARGIN_Y + i * theme.fontSize + baselineOffset,
-    indent: textIndent,
-    width: javaRound4(widths[i]!),
-    ...(visibleMembers[i]!.visibilityExplicit === true
-      ? { visibilityIcon: visibleMembers[i]!.visibility }
-      : {}),
-  }));
+  const rows: ClassifierGeo['rows'] = [];
+  layouts.forEach((layout, i) => {
+    const y = OBJECT_FIELD_MARGIN_Y + i * theme.fontSize + baselineOffset;
+    layout.runs.forEach((run, runIndex) => {
+      rows.push({
+        text: run.text,
+        y,
+        indent: textIndent + run.x,
+        width: javaRound4(run.width),
+        // G3/O4: `visibilityIsField: true` UNCONDITIONALLY -- upstream's
+        // `BodierLikeClassOrObject#getFieldsToDisplay` OBJECT branch
+        // constructs EVERY member via `Member.field(s)` (never `Member
+        // .method(s)`, regardless of the text looking method-like, e.g.
+        // `getName()`), so `MethodsOrFieldsArea`'s own icon-fill derivation
+        // (`modifier.isField()`, baked in at Member-construction time, NOT
+        // a dynamic per-row check) is ALWAYS true for an object field --
+        // `class-visibility-icon.ts#isFilled`'s own `!memberIsField` rule
+        // therefore ALWAYS resolves to stroke-only (`fill="none"`) for
+        // object rows, regardless of the visibility char -- jar-verified
+        // `xuvesu-44-laru205` (`+`/`-` icons both `fill="none"`, `PUBLIC_
+        // FIELD`/`PRIVATE_FIELD` data-attributes, never `_METHOD`). Absent
+        // pre-O4, `row.visibilityIsField === true` evaluated false for
+        // every object row, incorrectly filling `+` icons like a method.
+        ...(runIndex === 0 && visibleMembers[i]!.visibilityExplicit === true
+          ? { visibilityIcon: visibleMembers[i]!.visibility, visibilityIsField: true as const }
+          : {}),
+      });
+    });
+  });
   return { dim: { width, height }, rows };
 }
 
@@ -361,9 +563,21 @@ export function measureObjectClassifier(
   theme: Theme,
   measurer: StringMeasurer,
   suppressMemberSection: boolean,
+  // G3/O4: threaded through to `measureEnhancedBody`'s `EnhancedLayoutCtx`
+  // (an enhanced-body member row may carry a `<$sprite>`/img atom, same as
+  // class's own wiring, `class-layout-helpers.ts#measureClassifier`'s own
+  // call site) -- absent for every hand-built test geometry that bypasses
+  // `measureClassifier` (zero behavior change, `buildMemberRow`'s own
+  // `sprites?: SpriteRegistry` optionality).
+  sprites?: SpriteRegistry,
 ): MeasuredClassifier {
-  const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
-  const nameM = measurer.measure(classifier.display, fontSpec);
+  // G3/O4: `<style> object { header { FontSize N } } }` -- resolved HERE
+  // (not inside `headerRows`) because it feeds `nameDim`/`title.width`,
+  // upstream of the box's own final `width` -- `headerRows`'s own
+  // `nameFontSizeOverride` doc comment.
+  const nameFontSizeOverride = theme.colors.elements?.['object']?.headerFontSize;
+  const nameFontSpec = { family: theme.fontFamily, size: nameFontSizeOverride ?? theme.fontSize };
+  const nameM = measurer.measure(classifier.display, nameFontSpec);
   const nameDim: Dim = {
     width: nameM.width + OBJECT_NAME_PADDING * 2,
     height: nameM.height + OBJECT_NAME_PADDING * 2,
@@ -372,13 +586,48 @@ export function measureObjectClassifier(
   const title = titleDimension(nameDim, stereoDim);
 
   const showFields = !suppressMemberSection;
+
+  // G3/O4: `BodierLikeClassOrObject#getBody`'s OBJECT branch ALWAYS routes
+  // through `BodyFactory.create1` (`BodyEnhanced1`) when `showFields` --
+  // the SAME renderer class uses ONLY when a separator/tree-list trigger
+  // is present (`class-layout-helpers.ts`'s own `enhancedBody` doc
+  // comment) -- see `ast.ts#Classifier.rawBodyLines`'s own G3/O4 doc
+  // comment for why gating on `isEnhancedBody` (rather than always
+  // routing through this engine, matching jar's literal structure) is
+  // safe: the plain-content case is numerically IDENTICAL either way
+  // (this port's own `measureObjectFields` was independently jar-derived
+  // and verified against it since O0/O1), so gating avoids regressing the
+  // already-verified common case while adding ONLY the separator/tree
+  // capability. `fontSpec` here is the FIELD font (theme default) -- the
+  // header override above is name-row-only, unrelated.
+  const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  const enhancedBody =
+    isEnhancedBody(classifier.rawBodyLines) && showFields
+      ? measureEnhancedBody(classifier.rawBodyLines!, {
+          fontSpec, measurer, sprites, baselineOffset: baselineOffsetFor(fontSpec, measurer), bodyTop: title.height,
+        })
+      : undefined;
+
+  if (enhancedBody !== undefined) {
+    const width = Math.max(enhancedBody.width, title.width + OBJECT_X_MARGIN_CIRCLE * 2);
+    const patchedHeaderRows = headerRows(
+      classifier, theme, measurer, width, OBJECT_NAME_PADDING, theme.strictUml === true, nameFontSizeOverride,
+    );
+    return {
+      width, height: title.height + enhancedBody.height, rows: patchedHeaderRows,
+      dividerYs: [title.height], enhancedBody,
+    };
+  }
+
   const { dim: fieldsDim, rows: fieldRows } = measureObjectFields(classifier, theme, measurer, showFields);
   const fieldsHeight = methodOrFieldHeight(fieldsDim.height, showFields);
 
   const width = Math.max(fieldsDim.width, title.width + OBJECT_X_MARGIN_CIRCLE * 2);
   const height = title.height + fieldsHeight;
 
-  const rows = headerRows(classifier, theme, measurer, width, OBJECT_NAME_PADDING);
+  const rows = headerRows(
+    classifier, theme, measurer, width, OBJECT_NAME_PADDING, theme.strictUml === true, nameFontSizeOverride,
+  );
   for (const r of fieldRows) rows.push({ ...r, y: title.height + r.y });
 
   // TextBlockLineBefore always draws its separator when reached — i.e.

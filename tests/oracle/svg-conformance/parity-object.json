@@ -235,10 +235,7 @@
       "slug": "kocupi-02-ripa662",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 12,
-      "firstDiff": "svg/g[1]/g[2][childCount]",
-      "maxDeltaPath": "svg/@height"
+      "verdict": "conformant"
     },
     {
       "slug": "lafemo-98-ruri220",
@@ -280,19 +277,13 @@
       "slug": "lijoda-62-teci632",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 13.8889,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@fill",
-      "maxDeltaPath": "svg/g[1]/g[2]/text[2]/@y"
+      "verdict": "conformant"
     },
     {
       "slug": "linazi-45-gevo553",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 32,
-      "firstDiff": "svg/g[1]/g[2][childCount]",
-      "maxDeltaPath": "svg/@height"
+      "verdict": "conformant"
     },
     {
       "slug": "linuxu-41-cogo780",
@@ -367,10 +358,7 @@
       "slug": "nufoju-44-dabi767",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 63,
-      "firstDiff": "svg/g[1]/g[1][childCount]",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "nukera-08-dige359",
@@ -546,10 +534,7 @@
       "slug": "soxufi-98-nita528",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 6,
-      "firstDiff": "svg/g[1]/g[2][childCount]",
-      "maxDeltaPath": "svg/@height"
+      "verdict": "conformant"
     },
     {
       "slug": "style-stereotype-on-arrow-3",
@@ -641,10 +626,7 @@
       "slug": "xuvesu-44-laru205",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 7.88900000000001,
-      "firstDiff": "svg/g[1]/g[1]/g[1]/ellipse[1]/@fill",
-      "maxDeltaPath": "svg/g[1]/g[1]/text[9]/@y"
+      "verdict": "conformant"
     },
     {
       "slug": "zagodo-28-ranu153",

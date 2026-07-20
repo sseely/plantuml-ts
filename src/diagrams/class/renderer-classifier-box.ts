@@ -14,7 +14,7 @@
 import type { ClassifierGeo } from './layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './layout.js';
 import type { Theme } from '../../core/theme.js';
-import { rect, text, line, ellipse, image } from '../../core/svg.js';
+import { rect, text, line, ellipse, image, path } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { resolveBareOrBackColor } from './class-color-override.js';
 import { MAP_CELL_MARGIN_X } from './class-map-sizing.js';
@@ -83,6 +83,27 @@ function resolveElementBackground(theme: Theme, sname: string): string | undefin
  *  { FontColor Red }` block that would otherwise apply. */
 function resolveElementFont(theme: Theme, sname: string): string | undefined {
   const bucket = theme.colors.elements?.[sname]?.font;
+  if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
+  return undefined;
+}
+
+/** G3/O4: `theme.colors.elements[sname].headerBackground` -- the
+ *  `<style> <sname> { header { BackgroundColor ... } } }` nested-selector
+ *  override (`theme.ts#ElementColors`'s own field doc comment). Read by
+ *  `buildHeaderPrimitive`'s own header-background-split gate, NEVER by
+ *  `classifierFill` (the body rect's fill stays the bare bucket's
+ *  `background`, unaffected). */
+function resolveElementHeaderBackground(theme: Theme, sname: string): string | undefined {
+  const bucket = theme.colors.elements?.[sname]?.headerBackground;
+  if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
+  return undefined;
+}
+
+/** G3/O4: `theme.colors.elements[sname].headerFont` -- the SAME nested
+ *  `header { FontColor ... } }` override, for the NAME row's text color
+ *  (member rows keep {@link resolveElementFont}'s bare-bucket value). */
+function resolveElementHeaderFont(theme: Theme, sname: string): string | undefined {
+  const bucket = theme.colors.elements?.[sname]?.headerFont;
   if (typeof bucket === 'string') return resolveColorToSvgHex(bucket);
   return undefined;
 }
@@ -320,7 +341,13 @@ export function renderRowText(
   // introduced by this iteration.
   const fontColor =
     geo.kind === 'object' || geo.kind === 'map' || geo.kind === 'json'
-      ? resolveElementFont(theme, geo.kind) ??
+      ? // G3/O4: `<style> <sname> { header { FontColor } } }` wins over the
+        // bare bucket's own FontColor, but ONLY for the NAME row (`isHeader
+        // && !isStereoLabelRow` -- `resolveElementHeaderFont`'s own doc
+        // comment; the stereo label row's FontConfiguration is independent
+        // upstream, `EntityImageObject.java`'s own ctor).
+        (isHeader && !isStereoLabelRow ? resolveElementHeaderFont(theme, geo.kind) : undefined) ??
+        resolveElementFont(theme, geo.kind) ??
         (isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
           : theme.colors.graph.classCascadeFontColor) ??
         '#000000'
@@ -362,6 +389,9 @@ export function renderRowText(
     // creole atom engine's identical `FontStyle.BOLD` -> `font-weight="700"`
     // convention (`renderRowAtoms` below).
     ...(row.bold === true ? { fontWeight: '700' as const } : {}),
+    // G3/O4: `skinparam style strictuml` -- object header name underline
+    // (`layout.ts`'s `rows[]` field doc comment).
+    ...(row.underline === true ? { textDecoration: 'underline' } : {}),
   });
 }
 
@@ -628,6 +658,39 @@ function mapColumnDividerEntries(geo: ClassifierGeo, theme: Theme): Array<{ y: n
  * Every header row draws via `renderRowText` (never `renderRow` -- a
  * header row can never carry a visibility icon).
  */
+/**
+ * G3/O4: `EntityImageObject`/`Map`/`Json#drawU`'s conditional header-
+ * background split -- when the resolved header BackgroundColor differs
+ * from the box's own body fill, a SEPARATE half-rounded rect is drawn on
+ * TOP of the body rect, covering ONLY the title/header area (`URectangle
+ * .halfRounded`, `EntityImageObject.java:199-203`). Reuses `URectangle
+ * .ts#halfRounded`'s own already-ported arc math (verified byte-exact
+ * against this SAME jar sample before writing this string-builder) rather
+ * than re-deriving the geometry a second time -- see that method's own
+ * doc comment for the ARC/LINE sequence this mirrors.
+ *
+ * `headerHeight` is `geo.dividerYs[0]` (the title block's own height, only
+ * present when a divider is actually drawn -- `measureObjectClassifier`'s
+ * own `dividerYs: showFields ? [title.height] : []`) -- gated on its
+ * presence rather than re-deriving `title.height` independently; a
+ * suppressed-fields object/map/json (no divider) is a real but UNSAMPLED
+ * combination (no corpus fixture combines `hide fields` with a `.header`
+ * BackgroundColor override) and is left undrawn rather than guessed.
+ */
+function headerBackgroundPath(geo: ClassifierGeo, theme: Theme, roundCorner: number, fill: string): string {
+  const headerHeight = geo.dividerYs[0];
+  if (headerHeight === undefined) return '';
+  const r = roundCorner / 2;
+  const x0 = geo.x;
+  const y0 = geo.y;
+  const x1 = geo.x + geo.width;
+  const y1 = geo.y + headerHeight;
+  const d =
+    `M${x0 + r},${y0} L${x1 - r},${y0} A${r},${r} 0 0 1 ${x1},${y0 + r} ` +
+    `L${x1},${y1} L${x0},${y1} L${x0},${y0 + r} A${r},${r} 0 0 1 ${x0 + r},${y0}`;
+  return path(d, { fill, stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme) });
+}
+
 function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimitive {
   // G2 N37: `RoundCorner` -- tag cascade wins over the ancestor cascade,
   // which wins over the pre-existing hardcoded jar-default 5 (`rx`/`ry` =
@@ -643,6 +706,17 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
     fill: classifierFill(geo, theme), stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
     rx: roundCorner / 2, ry: roundCorner / 2,
   });
+  // G3/O4: `<style> <sname> { header { BackgroundColor } } }` -- object/
+  // map/json only (`headerBackgroundPath`'s own doc comment); drawn ONLY
+  // when it genuinely differs from the body's own fill (jar's own
+  // `backcolor.equals(headerBackcolor) == false` gate).
+  if (geo.kind === 'object' || geo.kind === 'map' || geo.kind === 'json') {
+    const headerBg = resolveElementHeaderBackground(theme, geo.kind);
+    const bodyBg = classifierFill(geo, theme);
+    if (headerBg !== undefined && headerBg !== bodyBg) {
+      body += headerBackgroundPath(geo, theme, roundCorner, headerBg);
+    }
+  }
   // G2 N58 item 40: `skinparam style strictuml` unconditionally suppresses
   // the circled-character badge (`CucaDiagram#showPortion`'s own doc comment
   // on the measurement side, class-layout-helpers.ts#measureGenericClassifier).

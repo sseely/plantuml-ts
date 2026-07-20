@@ -96,8 +96,26 @@ describe('parseHideShowEntityDirective', () => {
     expect(parseHideShowEntityDirective('hide interface circled')).toBeNull();
   });
 
-  it('rejects the stereotype portion (owned by parseHideStereotypeDirective\'s own grammar)', () => {
-    expect(parseHideShowEntityDirective('hide Dummy2 stereotype')).toBeNull();
+  // G3/O4 CORRECTION: `hide <entityId> stereotype(s)` is a GENUINE,
+  // legitimate entity-scoped directive upstream (`CommandHideShowByGender`'s
+  // shared PORTION grammar, `(members?|attributes?|fields?|methods?|
+  // circles?|circled?|stereotypes?)`, applies identically to BOTH the
+  // entity-id and type-keyword GENDER alternatives) -- jar-verified via
+  // `kocupi-02-ripa662`'s own KIND-scoped sibling (`hide object
+  // stereotypes`). The pre-G3/O4 assumption that this form was "owned by
+  // parseHideStereotypeDirective's own grammar" was a misdiagnosis: that
+  // parser's regex requires NO entity id at all (`hide [<<pattern>>]
+  // stereotypes` only) -- the two commands are genuinely independent
+  // upstream mechanisms (label-pattern filtering vs. entity/kind-gender
+  // portion suppression, `ast.ts#Classifier.hideStereotype`'s own doc
+  // comment), not overlapping grammar for the SAME feature.
+  it('parses the entity-scoped stereotype portion (target: "stereotype")', () => {
+    expect(parseHideShowEntityDirective('hide Dummy2 stereotype')).toEqual({
+      kind: 'hideshowentity', action: 'hide', entityId: 'Dummy2', target: 'stereotype',
+    });
+    expect(parseHideShowEntityDirective('show Dummy2 stereotypes')).toEqual({
+      kind: 'hideshowentity', action: 'show', entityId: 'Dummy2', target: 'stereotype',
+    });
   });
 
   it('rejects a single-token line (owned by parseHideShowPatternDirective)', () => {
@@ -156,6 +174,16 @@ describe('applyHideShowEntityDirectives', () => {
     const d = ast.classifiers[0]!;
     expect(d.suppressMethods).toBe(true);
     expect(d.suppressFields).toBeUndefined();
+  });
+
+  it('sets hideStereotype only on the targeted classifier (G3/O4)', () => {
+    const ast = makeAST([makeClassifier('C1'), makeClassifier('C2')]);
+    ast.hideEntityDirectives = [
+      { kind: 'hideshowentity', action: 'hide', entityId: 'C2', target: 'stereotype' },
+    ];
+    applyHideShowEntityDirectives(ast);
+    expect(ast.classifiers.find((c) => c.id === 'C1')?.hideStereotype).toBeUndefined();
+    expect(ast.classifiers.find((c) => c.id === 'C2')?.hideStereotype).toBe(true);
   });
 
   it('last-writer-wins per (entityId, target): a later show cancels an earlier hide', () => {

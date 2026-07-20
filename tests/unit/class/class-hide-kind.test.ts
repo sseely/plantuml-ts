@@ -66,6 +66,17 @@ describe('parseHideShowKindDirective', () => {
     expect(parseHideShowKindDirective('hide object circled')?.target).toBe('circle');
   });
 
+  // G3/O4: `EntityPortion.STEREOTYPE` -- jar-verified `kocupi-02-ripa662`
+  // (`hide object stereotypes`), distinct from the LABEL-pattern `hide
+  // [<<pattern>>] stereotype(s)` command (`class-hide-entity.test.ts`'s own
+  // correction note on this exact distinction).
+  it('maps stereotype/stereotypes to target "stereotype"', () => {
+    expect(parseHideShowKindDirective('hide object stereotype')?.target).toBe('stereotype');
+    expect(parseHideShowKindDirective('hide object stereotypes')).toEqual({
+      kind: 'hideshowkind', action: 'hide', classifierKind: 'object', target: 'stereotype',
+    });
+  });
+
   it('recognizes show as well as hide', () => {
     expect(parseHideShowKindDirective('show object fields')).toMatchObject({ action: 'show' });
   });
@@ -132,6 +143,19 @@ describe('applyHideShowKindDirectives', () => {
     ];
     applyHideShowKindDirectives(ast);
     expect(ast.classifiers[0]!.hideCircle).toBe(true);
+  });
+
+  it('sets hideStereotype for target=stereotype, scoped to the matching kind (G3/O4)', () => {
+    const ast = makeAST([
+      makeClassifier('foo', { kind: 'object' }),
+      makeClassifier('bar', { kind: 'class' }),
+    ]);
+    ast.hideKindDirectives = [
+      { kind: 'hideshowkind', action: 'hide', classifierKind: 'object', target: 'stereotype' },
+    ];
+    applyHideShowKindDirectives(ast);
+    expect(ast.classifiers.find((c) => c.id === 'foo')?.hideStereotype).toBe(true);
+    expect(ast.classifiers.find((c) => c.id === 'bar')?.hideStereotype).toBeUndefined();
   });
 
   it('last-writer-wins per (classifierKind, target): a later show cancels an earlier hide', () => {

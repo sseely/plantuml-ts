@@ -154,6 +154,29 @@ intact; DOT gate unchanged (`component 262/262`, `usecase 90/90`, `class
 `plans/g3-object-svg/ledger.md` O3 for the full mechanism writeups, the
 per-fixture attribution table, and the mission-closing assessment.
 
+## Current state (G3/O4, mission-closing iteration, 2026-07-19)
+
+**22 fixtures pinned.** Landed all six mechanisms O3's mission-closing
+assessment named as small/well-scoped (largest-first): `skinparam
+tabSize` tab-stop expansion in object field text (`nufoju-44-dabi767`),
+`skinparam style strictuml` object-header underline convention
+(mechanism landed and unit-tested, but `jotaga-99-fatu830` itself stays
+non-conformant -- a separate, pre-existing DOT-layout canvas-rounding
+residual, re-attributed below), `<style> <sname> { header { ... } } }`
+nested selector for object/map/json (`soxufi-98-nita528` + bonus
+`lijoda-62-teci632`, previously miscounted in the `path/@d` gvts family),
+`hide <entity|kind> stereotypes` (`kocupi-02-ripa662`), the class-kind
+enhanced-body engine (`--`/`==`/`..`/`__`) wired for object
+(`linazi-45-gevo553` -- also fixed a genuine `==` double-line gap shared
+with class kind, +1 bonus class-census fixture), and always-stroke-only
+object field visibility icons (`xuvesu-44-laru205`). Corpus effect:
+**16/80 -> 22/80** zero-diff. Class 293-set (now 294, additive-only,
+zero regressions) and description 48-set both re-verified intact; DOT
+gate unchanged (`component 262/262`, `usecase 90/90`, `class 708/708`,
+`object 78/80`, `state 267/267`). See `plans/g3-object-svg/ledger.md` O4
+for the full mechanism writeups, the refreshed 80/80 attribution table,
+and the mission-closing summary.
+
 ## Add rule
 
 A fixture may be added to `ratchet.json` only when **both** hold:

@@ -301,6 +301,7 @@ export function resolveSkinparam(
   let nodeSep: number | undefined;
   let rankSep: number | undefined;
   let wrapWidth: number | undefined;
+  let tabSize: number | undefined;
   // G2 N65 item 47: bare `skinparam RoundCorner N` -- see
   // `theme.ts#classCascadeRoundCorner`'s doc comment for the exact
   // upstream identity (`FromSkinparamToStyle.java:164`, SName.root) this
@@ -522,6 +523,17 @@ export function resolveSkinparam(
       case 'wrapwidth': {
         const v = Number.parseInt(value.trim(), 10);
         if (Number.isFinite(v) && v !== 0) wrapWidth = v;
+        break;
+      }
+      case 'tabsize': {
+        // G3/O4: `SkinParam#getTabSize()` -- `getAsInt("tabsize", 8)`, no
+        // zero-is-unset convention (unlike nodesep/ranksep/wrapwidth) --
+        // `AtomText#tabString()`'s own downstream clamp to [1,6] or the
+        // literal 8-space fallback happens at CONSUMPTION time
+        // (`class-object-map-sizing.ts#tabStopWidthPx`), not here; this
+        // parse site stores the raw configured value verbatim.
+        const v = Number.parseInt(value.trim(), 10);
+        if (Number.isFinite(v)) tabSize = v;
         break;
       }
       case 'roundcorner': {
@@ -823,6 +835,7 @@ export function resolveSkinparam(
   if (nodeSep !== undefined) partial.nodeSep = nodeSep;
   if (rankSep !== undefined) partial.rankSep = rankSep;
   if (wrapWidth !== undefined) partial.wrapWidth = wrapWidth;
+  if (tabSize !== undefined) partial.tabSize = tabSize;
   if (componentStyle !== undefined) partial.componentStyle = componentStyle;
   if (strictUml !== undefined) partial.strictUml = strictUml;
   if (monochrome !== undefined) partial.monochrome = monochrome;
