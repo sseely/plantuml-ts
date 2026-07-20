@@ -1068,3 +1068,360 @@ After  (S2): 9/271 -- 1-3:18, 4-10:187, 11-30:37, 31+:20, errors:0
    lands — composite-bearing fixtures currently dominate the `svg/@viewBox`/
    `@width`/`@height` family (233/224/210-fixture reach), so the true
    remaining non-composite surface is still partly obscured.
+
+## S3 — mechanism 6 landed (autonom composite box shape), wrapper-sizing gap diagnosed but NOT landed, 9/271 unchanged
+
+### Summary
+
+Landed mechanism 6's PRIMARY scope: the autonom (`class="entity"`) composite
+box is now drawn as jar's real 3-4-layer structure (half-rounded header
+path + solid outline + divider(s) + centered title text + optional
+action-zone background/text for entry/exit descriptions), replacing the
+S1-era dashed-rect approximation, TDD-first and jar-verified byte-exact on
+both `bajelo-54-dixe684`'s `Track_FSM` (no body lines) and `Track_FSM.Run.
+Do_Sector` (2 body lines). This closed the `childCount` mismatch that was
+short-circuiting `compareSvg` for EVERY composite-bearing fixture, which —
+per this mission's own established "unmasking" pattern (S1→S2, S2→S3) —
+immediately surfaced a SEVENTH mechanism: a pre-existing composite-wrapper
+WIDTH/HEIGHT sizing formula gap (`measureAutonomWrapper`'s `childImg`
+parameter uses `layoutGraph()`'s raw, generically-margined `result.width`/
+`height` instead of `InnerStateAutonom.calculateDimensionSlow`'s real
+`SvekResult#calculateDimension()`, a tight bbox + `.delta(15,15)`). A trial
+fix was implemented, jar-verified to IMPROVE two fixtures (`coteta-47-
+mare883` 21→18 diffs, `lonuti-97-voko521` 80→67) but ALSO jar-verified to
+REGRESS two ALREADY-PINNED `size-backlog.json` entries past their own
+tighten-only allowance — REVERTED per this mission's own hard boundary,
+diagnosed and queued whole for S4 (needs combining with a still-separate,
+still-unresolved child POSITION-offset residual before either stops
+regressing a backlog entry). Composite ink-extent (item 2) and the
+entity-vs-cluster split (item 3) were both assessed; item 2 is consistent
+with the box's own reported dimensions (no independently-verifiable
+ink-rule-specific residual found, but full verification is blocked by the
+still-unresolved wrapper-sizing gap); item 3 was diagnosed as genuinely
+unbounded this iteration (a DOT-native cluster-label sizing code path,
+materially different from `InnerStateAutonom`'s math) and deferred.
+
+```
+S2 (before): 9/271 -- 1-3:18, 4-10:187, 11-30:37, 31+:20, errors:0
+S3 (after):  9/271 -- 1-3:17, 4-10:182, 11-30:40, 31+:23, errors:0
+```
+
+Zero-diff count held at 9/271 (all 9 pinned ratchet fixtures verified
+UNCHANGED, `dotEqual:true`, via a freshly-regenerated `parity-state.json`).
+The 1-3/4-10 buckets shrank slightly while 11-30/31+ grew — the SAME
+mixed-direction "unmasking" signature S0→S1 exhibited (`31+:0->17` there),
+not a regression: every fixture that moved to a worse bucket was ALREADY
+non-zero-diff before this iteration (verified per-fixture, none of the 9
+pinned fixtures moved), and the increased diff count is REAL,
+previously-hidden structure (the composite's own true attribute mismatches,
+now visible because `childCount` finally matches) rather than anything this
+iteration's own code introduced.
+
+### Mechanism 6 (composite box rendering convention): LANDED, jar-verified 2 samples
+
+`src/diagrams/state/renderer-composite-box.ts` (NEW file) — `renderComposite`
+dispatches on `node.headerLines`:
+- `undefined` (hand-built test geometry, OR a concurrent-region LEAF spec,
+  OR a non-autonom `cluster` composite — none of these are threaded with
+  measured text this iteration) → the PRE-S3 dashed-rect + centered-label
+  shape, verbatim, unchanged — a deliberate, non-regressing fallback
+  (mirrors `renderer-box.ts#renderUnmeasuredFallback`'s S2 precedent).
+- defined (an autonom composite, `state-composite-autonom.ts
+  #buildPlainAutonomSpec` / `state-composite-concurrent.ts
+  #combineConcurrentPasses`, both newly threaded this iteration) → the real
+  shape: `compositeHeaderPath` (a local string-builder reproducing
+  `URectangle.halfRounded(25)`'s exact arc+line sequence, the SAME math
+  class's own `renderer-classifier-box.ts#headerBackgroundPath` already
+  ports, but WITHOUT a stroke attribute — jar-verified the header `<path>`
+  carries only `fill`) + a solid (never dashed) outline `<rect fill="none">`
+  + a header/body divider `<line>` (ALWAYS drawn) + centered title `<text>`
+  + (only when `bodyLines.length > 0`) an action-zone background `<rect
+  fill=stroke=THE SAME resolved color, stroke-width="1">` + a second divider
+  + left-aligned action `<text>` lines, whose baseline offset
+  (`dividerY1 + ascent`, jar-verified via `Do_Sector`'s own `y="349.8889" =
+  339 + textAscent(14)` exactly) is confirmed to differ from the leaf box's
+  own body-text offset (`renderer-box.ts`'s `dividerY + MARGIN_LINE +
+  ascent`) by exactly `MARGIN_LINE` — a genuinely distinct upstream formula,
+  not a copy-paste of the leaf convention.
+
+**Jar-verified byte-for-byte** (`bajelo-54-dixe684`, direct probe script,
+deleted before finishing):
+- `Track_FSM` (top-level, no body lines): header path, outline rect,
+  single divider, and title `<text>` all byte-identical to jar (only the
+  overall canvas dimensions differ, dominated by the STILL-approximated
+  `Run` cluster sibling — a different, deferred mechanism, item 3 below).
+- `Track_FSM.Run.Do_Sector` (nested, 2 body lines): full 8-element layered
+  shape (header path, action-zone bg, outline, divider1, divider2, title,
+  2 action-text lines) byte-identical to jar, INCLUDING the action-zone's
+  own `fill`/`stroke` (both the SAME resolved color) and the `dividerY1 +
+  ascent` (no `MARGIN_LINE`) baseline offset.
+
+**Split for the 500-line file cap**: `state-composite-pass.ts` (504 lines
+pre-S3) had `buildPlainAutonomSpec`/`buildAutonomSpec`/
+`resolveAllAutonomPasses` moved out to a NEW `state-composite-autonom.ts`
+(mirrors `state-composite-cluster.ts`'s/`state-composite-concurrent.ts`'s
+own identical iter-16 split, pure move plus the mechanism-6 threading);
+`sweepOrphanEdges` was exported (previously private) for the moved
+function's reuse. `renderer-composite-box.ts` itself split
+`renderCompositeMeasured` into `buildCoreLayers`/`buildActionZone` to stay
+under the per-function token-length complexity cap (draw order preserved
+by returning 3 separate action-zone strings, not one concatenated blob,
+so they can interleave correctly with the core layers' own divider/title).
+
+### Threading headerLines/bodyLines/color onto composite `GeoSpec`s
+
+`GeoSpec`'s `'autonom'` variant (`state-composite-pass.ts`) gained the SAME
+`headerLines?`/`bodyLines?`/`color?` fields the `'state'` variant already
+had (mission G4 S2 precedent) — populated via `state-sizing.ts
+#buildStateGeoTextFields(s, ...)`, the SAME shared builder the flat leaf
+pipeline uses, called from BOTH `buildPlainAutonomSpec`
+(state-composite-autonom.ts) and `combineConcurrentPasses`
+(state-composite-concurrent.ts, for a concurrent-region-OWNING composite,
+which is ALSO wrapped by `InnerStateAutonom` exactly like a plain autonom
+composite). `state-composite-geo.ts#materializeAutonom` threads the fields
+onto the final `StateNodeGeo`, mirroring `materializeSpecs`'s existing
+`'state'`-branch spread pattern. A concurrent-region LEAF
+(`state-composite-cluster.ts#buildConcurrentRegionLeaf`, which upstream
+NEVER wraps in `InnerStateAutonom` — `GroupMakerState.getImage()` returns
+its raw graph image directly) deliberately does NOT get these fields, so
+it correctly falls through to the unchanged fallback shape.
+
+### Mechanism 7 (NEWLY DIAGNOSED, NOT LANDED) — composite wrapper width/height sizing gap
+
+Per diagnosis.md: instrumented (not guessed) — direct raw-string inspection
+of `coteta-47-mare883`'s and `lonuti-97-voko521`'s own composite `<g>`s,
+undertaken after mechanism 6 landing unmasked a fresh `svg/g.../rect/
+@width`/`@height` diff family that had no `childCount` short-circuit left
+to hide behind.
+
+**Mechanism**: `state-composite-autonom.ts#buildPlainAutonomSpec` passes
+`measureAutonomWrapper`'s `childImg` parameter as `{width: result.width,
+height: result.height}` — `layoutGraph()`'s raw output, which bakes in a
+GENERIC per-graph canvas margin (`MARGIN=12`, `graph-layout.ts
+#canvasSize`). Upstream's `InnerStateAutonom.calculateDimensionSlow` wants
+`im.calculateDimension(stringBounder)`, where `im` is the wrapped child
+pass's own `SvekResult` — `SvekResult#calculateDimension()`
+(SvekResult.java:130-135) is a TIGHT content bbox (`TextBlockUtils.
+getMinMax`) + a flat `.delta(15,15)`, a COMPLETELY DIFFERENT number from
+the generic engine-internal `MARGIN=12` canvas padding. This is the EXACT
+SAME class of bug `state-composite-cluster.ts#tightContentDimension`'s own
+doc comment already named and fixed for a concurrent region leaf (mission
+A4 Phase L iter 16) — the plain-autonom call site simply never got the
+same fix, because no fixture's `childCount` matched jar's real composite
+box shape until mechanism 6 landed this iteration.
+
+**Origin**: `state-composite-autonom.ts#buildPlainAutonomSpec` (pre-existing
+code, moved but NOT logically changed by mechanism 6's own diff — the bug
+predates this iteration, only its VISIBILITY is new).
+
+**Causal chain**: `coteta-47-mare883`'s composite `s1` (description: 3
+body lines, 1 child `state c`) — jar's own outer rect is `width="91"`,
+ours (pre-fix) was `width="87"`, a 4px shortfall. Tracing `mergedWidth =
+Math.max(text.width, attr.width, childImg.width)`: `childImg.width` is the
+dominant term (child `c`'s own 50×50 leaf, plus DOT layout content), and
+`result.width` (raw, MARGIN=12-padded) undercounts relative to
+`SvekResult#calculateDimension()`'s own tight+15 formula for this exact
+graph shape. `lonuti-97-voko521`'s nested composite `A` (containing an
+EMPTY `state B {}` and a `state C : state c`) shows the identical pattern
+at a larger scale (width off by ~8px).
+
+**Ruled out**: NOT mechanism 6's own render-shape math (the header path,
+outline rect, and divider positions are ALL jar-verified byte-exact given
+a CORRECT box width/height — see `Do_Sector`'s own full-byte match above,
+which uses REAL jar-computed dimensions, not this port's own drift). NOT
+the leading-whitespace text-measurement question raised while diagnosing
+`coteta-47-mare883`'s 3-line body (`line1`/`  line2`/`    line3`) — verified
+BOTH ours and jar's own `WidthTableMeasurer`-equivalent measure all 3
+lines identically (`textLength="29.6625"` on both sides; jar strips the
+leading Creole-indentation whitespace from the DISPLAYED text but the
+measured WIDTH already excludes it too, since `measure(' ')===0` in this
+project's own width table — a genuine, pre-existing, UNRELATED text-content
+divergence, named but not chased this iteration, zero effect on the width
+gap's own root cause).
+
+**Fix attempted, then REVERTED**: `tightContentDimension(result)` (now
+`export`ed from `state-composite-cluster.ts`, reused rather than
+re-derived) + the SAME `delta(15,15)` constant (`SVEK_RESULT_DELTA`,
+mirroring `REGION_LEAF_MARGIN`) — jar-verified to shrink
+`coteta-47-mare883` (21→18 diffs) and `lonuti-97-voko521` (80→67 diffs),
+but ALSO jar-verified (via the full `npm test -- --run` suite) to push
+`nelupe-49-xova546`'s own `maxSizeDeltaIn` from 1.555555 (its PINNED
+`size-backlog.json` allowance) to 1.597222, and `pesita-10-dene726`'s from
+0.195792 to 0.237459 — BOTH already-pinned, tighten-only ratchet entries.
+Per this mission's own hard boundary ("size-backlog.json (tighten-only)"),
+the fix was REVERTED rather than landed with a boundary violation. The
+`tightContentDimension` export and this diagnosis are KEPT (harmless,
+documents the finding) so S4 does not have to re-derive it — but the
+REAL fix likely needs this piece COMBINED with the still-separate child
+POSITION-offset residual (below) before either stops regressing a backlog
+entry in isolation.
+
+**Also confirmed, same investigation**: a SEPARATE, still-unresolved child
+POSITION-offset residual (`coteta-47-mare883`'s child "c": jar wants
+absolute `x=19`/`y=90` relative to its parent's own origin; this port
+currently produces `x=12`/`y=83`, a consistent ~7px shortfall on BOTH
+axes) — NOT the SAME numeric constant as `SvekResult`'s own
+`moveDelta(6,6)` (a raw single-node child pass's own node position is
+`(0,0)`, not pre-shifted, confirmed via direct `layoutGraph()` probe), so
+this is a THIRD, not-yet-derived sub-component of the same general
+"composite wrapper geometry" gap — named, not guessed at.
+
+### Item 2 (composite ink-extent): assessed, not independently verifiable this iteration
+
+`layout-ink-extent.ts#addStateBoxInk`'s composite reuse (the SAME
+asymmetric leaf-box rule, `[x-1,x+w] × [y-1,y+h-1]`) was checked against
+the NEW real box shape: the composite's own OUTLINE rect spans exactly
+`(node.x, node.y, node.width, node.height)` — the SAME rect the leaf box's
+own ink rule already targets — and the header path/action-zone/dividers
+all stay STRICTLY INSIDE that outline's own bounds (confirmed via the
+`compositeHeaderPath`/`buildActionZone` geometry above, none of which ever
+exceeds the outline rect's own edges). `coteta-47-mare883`'s own
+`svg/@width`/`@height` diff (113 vs 109, before the reverted trial fix)
+matches its composite's own `rect/@width` diff (91 vs 87) EXACTLY (delta 4
+on both) — strong evidence the document-canvas ink-extent formula ITSELF
+has NO independent composite-specific error component; the residual
+document-size gap traces entirely through mechanism 7's own wrapper-sizing
+gap, not a separate ink-rule bug. NOT independently verified byte-exact
+this iteration (no corpus fixture has a fully mechanism-7-correct
+composite box yet to confirm a TRUE zero residual) — doc comment left
+as-is (still marked "best-effort, not independently jar-verified"), a
+re-verification queued for whenever mechanism 7 lands.
+
+### Item 3 (entity-vs-cluster wrap split): assessed, confirmed NOT bounded this iteration
+
+Direct inspection of `bajelo-54-dixe684`'s `Track_FSM.Run` (the `cluster`/
+non-autonom sibling to `Do_Sector`'s own `entity`/autonom case) confirms
+this is a MATERIALLY DIFFERENT upstream code path, not just a different
+wrap `class` attribute: `Run`'s own header height (19) does NOT match the
+`EntityImageState`/`InnerStateAutonom` MARGIN formula (24) that BOTH the
+leaf box (mission G4 S2) and mechanism 6's own autonom-composite box use —
+it is sized via graphviz's OWN cluster-label mechanism
+(`DotInputCluster.label`/`labelWidth`/`labelHeight`, already fed by
+`state-composite-cluster.ts#resolveClusterComposite`'s existing
+`measureClusterTitle`, but never consumed on the RENDER side, and
+`DotLayoutResult` carries NO cluster bounding-box data at all —
+`materializeCluster`'s own `boundingBox(children)` recomputes a LOCAL
+approximation with a flat `BOX_PAD=12`, unrelated to graphviz's real
+cluster-label-reserved rectangle). Landing this would require: (1)
+exposing real cluster bounding boxes from the graphviz-ts layout result (a
+library-level or `graph-layout.ts`-level change, the SAME class of item
+the mission brief's "fenced sub-item 4" describes, requiring census proof
+across ALL cluster-bearing diagram types before keeping it) OR (2)
+reserving label height in `materializeCluster`'s own local bbox
+computation as a state-only approximation (never byte-exact, since dot's
+REAL cluster label placement/sizing algorithm is not reproduced) — neither
+is a same-iteration, single-mechanism fix. Deferred, matching S1's own
+original framing (`renderer-group.ts`'s "NOT MODELED" doc comment,
+unchanged this iteration).
+
+### Also discovered, out of S3's write-set (named, not fixed)
+
+- Nothing new beyond mechanism 7 and the position-offset residual above —
+  both already named as this iteration's own primary findings, not
+  incidental discoveries.
+
+### Ratchet / pins
+
+9 fixtures remain pinned (UNCHANGED set: `dutefi-86-kesa899`, `fuxavu-11-
+goco024`, `gizati-67-kora187`, `jocela-05-niba392`, `pujini-03-vasi565`,
+`sezoxa-56-jefi030`, `suzope-95-suvu383`, `votoki-67-gufa610`, `xuzapa-55-
+xoli880`) — verified via a freshly-regenerated `parity-state.json`
+(271/271 surveyed, 9/271 conformant, `dotEqual:true` on all 9, byte-
+identical to S2's own set). `state.golden.ratchet.test.ts`: still 11 tests
+(9× AC1 + AC2 + AC3), all passing — no new pins this iteration (mechanism
+6 alone did not push any additional fixture to genuine zero-diff; the
+composite-bearing fixtures closest to zero are still blocked by mechanism
+7's own wrapper-sizing gap and/or the pre-existing, unrelated transition-
+routing family).
+
+### Census (state), before/after this iteration
+
+```
+Before (S2): 9/271 -- 1-3:18, 4-10:187, 11-30:37, 31+:20, errors:0
+After  (S3): 9/271 -- 1-3:17, 4-10:182, 11-30:40, 31+:23, errors:0
+```
+
+### Files changed (S3)
+
+- `src/diagrams/state/renderer-composite-box.ts` — NEW (mechanism 6's
+  measured composite-box shape + the pre-S3 dashed-rect fallback, moved
+  verbatim out of `renderer.ts`).
+- `src/diagrams/state/state-composite-autonom.ts` — NEW (`state-composite-
+  pass.ts`'s `buildPlainAutonomSpec`/`buildAutonomSpec`/
+  `resolveAllAutonomPasses` moved out for the 500-line cap; `
+  buildPlainAutonomSpec` threads `buildStateGeoTextFields`).
+- `src/diagrams/state/renderer.ts` — `renderCompositeShape` removed,
+  delegates to `renderer-composite-box.ts#renderComposite`; `rect` import
+  dropped (no longer used directly).
+- `src/diagrams/state/state-composite-pass.ts` — the 3 moved functions
+  removed; `sweepOrphanEdges` exported; `GeoSpec`'s `'autonom'` variant
+  gains `headerLines`/`bodyLines`/`color`.
+- `src/diagrams/state/state-composite-cluster.ts` — `tightContentDimension`
+  exported (mechanism 7's diagnosed-but-reverted fix, kept for S4 reuse);
+  doc comments updated with the mechanism-7 cross-reference.
+- `src/diagrams/state/state-composite-concurrent.ts` — `combineConcurrentPasses`
+  threads `buildStateGeoTextFields` too (a concurrent-region-owning
+  composite is ALSO `InnerStateAutonom`-wrapped).
+- `src/diagrams/state/state-composite-geo.ts` — `materializeAutonom`
+  threads `spec.headerLines`/`bodyLines`/`color` onto the returned
+  `StateNodeGeo`.
+- `tests/unit/state/renderer-composite-box.test.ts` — NEW, 13 tests
+  (fallback shape, no-body-lines measured shape byte-verified against
+  `Track_FSM`, with-body-lines measured shape byte-verified against
+  `Do_Sector`, per-node `#color` override).
+- `tests/unit/state/layout.test.ts` — 6 new tests (autonom composite
+  headerLines/bodyLines/color threading, concurrent-region-owning
+  composite threading, non-autonom/cluster composite correctly does NOT
+  get headerLines).
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated (271/271
+  surveyed, 9/271 conformant, UNCHANGED `dotEqual` set).
+
+### Gates (S3, final)
+
+- `state` census: `9/271` -- `1-3:17, 4-10:182, 11-30:40, 31+:23,
+  errors:0`.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census: **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified BEFORE and AFTER
+  every mechanism landed/attempted this iteration.
+- `npm test -- --run`: 9955/9955 passing (364 files, +19 vs S2's 9936 —
+  the 13 new `renderer-composite-box.test.ts` assertions + 6 new
+  `layout.test.ts` assertions).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: 11 tests (9 pins), unchanged.
+
+### S4+ queue
+
+1. **Mechanism 7** (composite wrapper width/height sizing gap) — land
+   `tightContentDimension(result) + SVEK_RESULT_DELTA` (already diagnosed
+   and exported, `state-composite-cluster.ts`) COMBINED with a correct
+   derivation of the child POSITION-offset residual (currently off by a
+   consistent ~7px on both axes for a single-node child pass, not yet
+   traced to an exact upstream constant) — landing the width/height piece
+   ALONE is proven to regress 2 pinned `size-backlog.json` entries, so
+   both pieces need to land together, jar-verified against `coteta-47-
+   mare883`/`lonuti-97-voko521` (both should reach exact composite-box
+   byte match) AND `nelupe-49-xova546`/`pesita-10-dene726` (both must NOT
+   regress past their own pinned allowance).
+2. **Composite ink-extent** re-verification — once mechanism 7 lands,
+   confirm `addStateBoxInk`'s composite reuse is byte-exact (this
+   iteration's own algebraic evidence suggests it already is, pending a
+   fixture with a fully-correct composite box to confirm).
+3. **Entity-vs-cluster wrap split** (item 3, confirmed NOT bounded this
+   iteration) — requires either exposing real graphviz cluster bounding
+   boxes (a `graph-layout.ts`/library-level change, needs the SAME
+   cross-diagram-type census proof the mission brief's fenced sub-item 4
+   describes) or a state-only local-bbox approximation (never byte-exact).
+4. **`<<sdlreceive>>` unwrapped-entity gap** — unchanged from S1/S2, still
+   a genuinely new `StateNodeGeo` stereotype-awareness field.
+5. **Notes never render** — unchanged from S1, still a genuinely new
+   geometry+render write-set expansion.
+6. **Transition routing/positioning** (`svg/g/g/path/@d`) — unchanged from
+   S2, the dominant residual on several near-zero, non-composite fixtures;
+   needs its own diagnosis pass, unrelated to mechanisms 5/6/7.
+7. Re-run the census and `--families` report FRESH again once mechanism 7
+   lands — composite-bearing fixtures should finally drop out of the
+   dominant `svg/@viewBox`/`@width`/`@height` family, exposing the true
+   remaining non-composite surface for the first time this mission.

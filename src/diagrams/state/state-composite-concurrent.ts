@@ -23,6 +23,16 @@
  * composites via `ctx.resolvedAutonom` (./state-composite-pass.ts's
  * `resolveMember` doc).
  *
+ * Mission G4 S3 (mechanism 6): `combineConcurrentPasses` now threads
+ * `buildStateGeoTextFields(s, ...)` onto the returned spec too -- a
+ * concurrent-region-OWNING composite (`state X { region1 -- region2 }`) is
+ * still wrapped by `InnerStateAutonom`'s own title/border box exactly like a
+ * plain (region-free) autonom composite (`measureAutonomWrapper` is already
+ * called for this case, above) -- only its INNER content differs (stacked
+ * region images instead of a single child pass). See
+ * `state-composite-autonom.ts#buildPlainAutonomSpec`'s identical threading
+ * for the region-free case.
+ *
  * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
  * @see ~/git/plantuml/.../svek/GroupMakerState.java#getImage
  */
@@ -30,6 +40,7 @@
 import type { State, Transition } from './ast.js';
 import type { DotLayoutResult } from '../../core/graph-layout.js';
 import type { TransitionGeo } from './state-geo-types.js';
+import { buildStateGeoTextFields } from './state-sizing.js';
 import { measureAutonomWrapper, stackConcurrentRegions, type AutonomWrapper } from './state-composite-sizing.js';
 import {
   type DiagramCtx,
@@ -114,7 +125,7 @@ export function buildConcurrentAutonomSpec(s: State, ctx: DiagramCtx): Extract<G
 
   const stacked = stackConcurrentRegions(passes.map((p) => ({ width: p.result.width, height: p.result.height })));
   const wrapper = measureAutonomWrapper(s, stacked, ctx.theme, ctx.measurer);
-  return combineConcurrentPasses(s, passes, wrapper);
+  return combineConcurrentPasses(s, passes, wrapper, ctx);
 }
 
 /** Build and run ONE region's (or region-0's) pass — called either directly
@@ -181,6 +192,7 @@ function combineConcurrentPasses(
   s: State,
   passes: readonly ConcurrentRegionPassResult[],
   wrapper: AutonomWrapper,
+  ctx: DiagramCtx,
 ): Extract<GeoSpec, { kind: 'autonom' }> {
   const localStates: GeoSpec[] = [];
   const localTransitions: TransitionGeo[] = [];
@@ -202,6 +214,7 @@ function combineConcurrentPasses(
     localStates,
     localPositions: { nodes: allNodes, edges: [], width: wrapper.width, height: wrapper.height },
     localTransitions,
+    ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer),
   };
   // #lizard forgives -- faithful port of ConcurrentStates' vertical stack;
   // most of this function is a single accumulation loop.

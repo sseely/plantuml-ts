@@ -226,6 +226,78 @@ describe('layoutState — composite state with 2 children', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Mission G4 S3, mechanism 6: composite headerLines/bodyLines threading
+// ---------------------------------------------------------------------------
+
+describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
+  it('an autonom composite (no crossing links) carries measured headerLines for its own title', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.headerLines).toEqual([{ text: 'Composite', width: measurer.measure('Composite', { family: theme.fontFamily, size: theme.fontSize }).width }]);
+  });
+
+  it('an autonom composite with a description line carries measured bodyLines', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child], description: ['entry / go();'] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.bodyLines).toEqual([
+      { text: 'entry / go();', width: measurer.measure('entry / go();', { family: theme.fontFamily, size: theme.fontSize }).width },
+    ]);
+  });
+
+  it('an autonom composite with NO description line carries an empty bodyLines array', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.bodyLines).toEqual([]);
+  });
+
+  it('a per-composite #color override threads through onto the materialized StateNodeGeo', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child], color: '#red' });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.color).toBe('#red');
+  });
+
+  it('a concurrent-region-owning composite ALSO carries headerLines for its own title (not just plain autonom composites)', () => {
+    const region1 = [makeState('R1A')];
+    const region2 = [makeState('R2A')];
+    const composite = makeState('Composite', { concurrentRegions: [region1, region2] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.headerLines).toEqual([{ text: 'Composite', width: measurer.measure('Composite', { family: theme.fontFamily, size: theme.fontSize }).width }]);
+  });
+
+  it('a NON-autonom (cluster) composite does NOT carry headerLines -- the boundary a link crossing forces', () => {
+    // A --> B crosses Composite's own boundary (B is declared elsewhere),
+    // forcing the non-autonom/cluster classification (state-composite-
+    // classify.ts) -- this port does not yet thread headerLines through
+    // the cluster path (renderer-composite-box.ts's own doc comment names
+    // this as a deliberate, non-regressing deferral).
+    const a = makeState('A');
+    const composite = makeState('Composite', { children: [a] });
+    const b = makeState('B');
+    const ast: StateDiagramAST = {
+      states: [composite, b],
+      transitions: [{ from: 'A', to: 'B' }],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.headerLines).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Acceptance criterion 3: fork node width > height (bar shape)
 // ---------------------------------------------------------------------------
 

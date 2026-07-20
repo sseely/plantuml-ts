@@ -50,6 +50,12 @@ function measureClusterTitle(display: string, ctx: DiagramCtx): { width: number;
  *  both width and height when the region re-enters its container's own
  *  pass as a flattened leaf; drawn content shifts so its own top-left
  *  sits at (6,6) inside that padded box (`moveDelta(6-minX,6-minY)`).
+ *  Mission G4 S3: `im` in `InnerStateAutonom.calculateDimensionSlow`
+ *  (`state-composite-autonom.ts#buildPlainAutonomSpec`'s own wrapped-
+ *  child-pass dimension, a PLAIN autonom composite's child content) is the
+ *  SAME `SvekResult` type as a concurrent region leaf's own `im` -- the
+ *  SAME `delta(15,15)` applies there too, exported for that module's reuse
+ *  (see its own doc comment).
  * @see ~/git/plantuml/.../svek/SvekResult.java:130-134
  */
 const REGION_LEAF_MARGIN = 15;
@@ -79,13 +85,25 @@ const EMPTY_REGION_MIN_SIZE = 50;
  *  Phase L iter 16: jijuze-43-ceva131's region-leaf size drift, verified
  *  via oracle DOT: `EMPTY_REGION_MIN_SIZE`-guarded single-state region's
  *  raw content is exactly its one node's own width/height, not
- *  `result.width`/`height`). Not exported -- `graph-layout.ts`'s `MARGIN`
- *  constant stays a private engine-internal convention; this recomputes
- *  the tight bbox from the SAME node/edge data `canvasSize` already uses,
- *  just without adding the margin.
+ *  `result.width`/`height`).
+ *
+ *  Exported (mission G4 S3): `state-composite-autonom.ts
+ *  #buildPlainAutonomSpec` has the SAME bug for a PLAIN autonom composite's
+ *  wrapped-child-pass dimension (`InnerStateAutonom.calculateDimensionSlow`'s
+ *  own `im.calculateDimension(...)`, the SAME `SvekResult#calculateDimension`
+ *  this function reproduces) -- jar-verified `coteta-47-mare883`/`lonuti-97-
+ *  voko521` (composite outer box off by a constant few px, unmasked once
+ *  mechanism 6's own box-shape fix made `childCount` match so `compareSvg`
+ *  could finally descend into the composite's own attributes). A trial fix
+ *  using THIS function was diagnosed, verified to help those two fixtures,
+ *  but ALSO verified to regress two already-pinned `size-backlog.json`
+ *  entries past their own tighten-only allowance -- NOT landed this
+ *  iteration (see that module's own doc comment for the full writeup).
+ *  Exported so S4 can reuse it once combined with the still-unresolved
+ *  child position-offset residual, rather than re-derived a second time.
  * @see ~/git/plantuml/.../svek/SvekResult.java:130-135
  */
-function tightContentDimension(result: DotLayoutResult): { width: number; height: number } {
+export function tightContentDimension(result: DotLayoutResult): { width: number; height: number } {
   let width = 0;
   let height = 0;
   for (const n of result.nodes) {
@@ -162,6 +180,8 @@ function buildConcurrentRegionLeaf(
       localTransitions: buildLevelTransitionGeos(resolved.acc, resolved.result),
     },
   };
+  // #lizard forgives -- faithful port of GroupMakerState's region-leaf
+  // dimension formula; a guard clause plus one straight-line construction.
 }
 
 /** Resolve one composite as a non-autonom `Cluster`: recurse its own

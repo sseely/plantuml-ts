@@ -11,13 +11,18 @@
  * (`renderer-arrowhead.ts`, mechanism 3), and the real `SvekResult`-style
  * document margin (`layout.ts#applyStateDocumentMargin` /
  * `layout-ink-extent.ts`, mechanism 4) — see `plans/g4-state-svg/
- * ledger.md` S1 for the full jar-verified mechanism writeups.
+ * ledger.md` S1 for the full jar-verified mechanism writeups. mission G4
+ * S2 adds the simple-state box + pseudostate content fidelity (mechanism
+ * 5, `renderer-box.ts`/`renderer-pseudostate.ts`); mission G4 S3 adds the
+ * composite box's own real 3-4-layer shape (mechanism 6,
+ * `renderer-composite-box.ts`), replacing the pre-S3 dashed-rect
+ * approximation for autonom composites.
  */
 
 import type { StateGeometry, StateNodeGeo, TransitionGeo } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
-import { rect, text, path } from '../../core/svg.js';
+import { path, text } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
 import { buildStateUidPlan } from './renderer-uid.js';
@@ -32,6 +37,7 @@ import {
   renderHistory,
 } from './renderer-pseudostate.js';
 import { renderNormal } from './renderer-box.js';
+import { renderComposite } from './renderer-composite-box.js';
 
 // ---------------------------------------------------------------------------
 // Node shape renderers
@@ -52,38 +58,11 @@ function renderJson(node: StateNodeGeo, theme: Theme): string {
   return renderNormal(node, theme);
 }
 
-/** Composite state's OWN shape only (dashed outer rect + top label) —
- *  children are NOT recursed here; {@link renderNodeWrapped} handles
- *  recursion so each child gets its own `<g>` wrap (mission G4 S1
- *  mechanism 2), unlike the pre-S1 `renderComposite` this replaces (which
- *  flattened children into the same unwrapped string). */
-function renderCompositeShape(node: StateNodeGeo, theme: Theme): string {
-  const outerBox = rect(node.x, node.y, node.width, node.height, {
-    fill: theme.colors.background,
-    stroke: theme.colors.border,
-    strokeWidth: 1,
-    strokeDasharray: '6,3',
-    rx: 8,
-  });
-  const label = text(
-    node.x + node.width / 2,
-    node.y + theme.fontSize + 4,
-    node.display,
-    {
-      textAnchor: 'middle',
-      fill: theme.colors.text,
-      fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
-    },
-  );
-  return outerBox + label;
-}
-
 /** One node's own shape markup — children NOT recursed (see {@link
- *  renderCompositeShape}'s doc comment). */
+ *  renderComposite}'s doc comment, renderer-composite-box.ts). */
 function renderShape(node: StateNodeGeo, theme: Theme): string {
   if (node.children.length > 0) {
-    return renderCompositeShape(node, theme);
+    return renderComposite(node, theme);
   }
 
   switch (node.kind) {

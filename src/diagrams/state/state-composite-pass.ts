@@ -4,18 +4,19 @@
  * composite). Pass FIRING order and tree-assembly RECURSION are decoupled
  * (mission A4 Phase L iteration 17 — `CucaDiagramSimplifierState.getOrdered`
  * port, state-composite-classify.ts's `firingOrder` doc has the full
- * mechanism): `resolveAllAutonomPasses` fires every autonom composite's own
- * `layoutGraph()` call ONCE, up front, strictly in `ctx.classify.firingOrder`
- * order (deepest nesting level first, source order as tie-break within a
- * level, WHOLE-TREE-WIDE) — NOT per-branch depth-first. `resolveMember`'s
- * tree-assembly recursion (still depth-first, unchanged in shape) merely
- * READS each autonom composite's already-computed result from
- * `ctx.resolvedAutonom` when it reaches one; it never fires a pass itself.
- * Firing-order correctness guarantees the lookup always hits: any autonom
- * composite `resolveMember` can reach during a shallower composite's (or the
- * top level's) own build is, by construction, one of ITS descendants, hence
- * strictly deeper, hence already resolved earlier in the SAME firing-order
- * loop.
+ * mechanism): `resolveAllAutonomPasses` (./state-composite-autonom.ts,
+ * mission G4 S3, moved out for the 500-line file cap) fires every autonom
+ * composite's own `layoutGraph()` call ONCE, up front, strictly in
+ * `ctx.classify.firingOrder` order (deepest nesting level first, source
+ * order as tie-break within a level, WHOLE-TREE-WIDE) — NOT per-branch
+ * depth-first. `resolveMember`'s tree-assembly recursion (still depth-first,
+ * unchanged in shape) merely READS each autonom composite's already-computed
+ * result from `ctx.resolvedAutonom` when it reaches one; it never fires a
+ * pass itself. Firing-order correctness guarantees the lookup always hits:
+ * any autonom composite `resolveMember` can reach during a shallower
+ * composite's (or the top level's) own build is, by construction, one of
+ * ITS descendants, hence strictly deeper, hence already resolved earlier in
+ * the SAME firing-order loop.
  *
  * Non-autonom composites are NOT a pass boundary: their members recurse
  * straight into the CURRENT pass's node/edge/cluster accumulator, nested via
@@ -39,18 +40,15 @@ import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph } from '../../core/graph-layout.js';
 import type { DotInputNode, DotInputEdge, DotInputCluster, DotInputGraph, DotLayoutResult } from '../../core/graph-layout.js';
 import { CIRCLE_START_SIZE, CIRCLE_END_SIZE, buildStateGeoTextFields } from './state-sizing.js';
-import { measureAutonomWrapper, type AutonomOffset } from './state-composite-sizing.js';
+import type { AutonomOffset } from './state-composite-sizing.js';
 import { classifyDiagram, resolveEndpoint, type ClassifyResult } from './state-composite-classify.js';
 import { hasLocalContent } from './state-composite-detect.js';
 import { buildLeafNode } from './state-leaf-node.js';
 import type { TransitionGeo, StateTextLine } from './state-geo-types.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import { buildEdgeAttrs } from './state-composite-edge-label.js';
-import {
-  buildConcurrentAutonomSpec,
-  buildConcurrentRegionPass,
-  type ConcurrentRegionPassResult,
-} from './state-composite-concurrent.js';
+import { resolveAllAutonomPasses } from './state-composite-autonom.js';
+import type { ConcurrentRegionPassResult } from './state-composite-concurrent.js';
 import { resolveClusterComposite } from './state-composite-cluster.js';
 import { buildNoteGraphPartsByScope, sweepOrphanNoteEdges, type NoteEdgeCandidate, type ScopeNoteParts } from './state-note-layout.js';
 
@@ -118,6 +116,24 @@ export type GeoSpec =
       localStates: readonly GeoSpec[];
       localPositions: DotLayoutResult;
       localTransitions: readonly TransitionGeo[];
+      /** mission G4 S3 (mechanism 6) -- the composite box's OWN title
+       *  (`headerLines`, from `state.display`) and optional entry/exit
+       *  action-zone text (`bodyLines`, from `state.description`), measured
+       *  the SAME way a leaf `'state'` spec is (`state-sizing.ts
+       *  #buildStateGeoTextFields`) -- see `state-composite-autonom.ts
+       *  #buildPlainAutonomSpec`'s own doc comment for the jar-verified
+       *  fixtures. `undefined` for a concurrent-region LEAF (`state-
+       *  composite-cluster.ts#buildConcurrentRegionLeaf`), which upstream
+       *  never wraps in `InnerStateAutonom`'s own title/border box at all
+       *  (`GroupMakerState.getImage()` returns a region's raw graph image
+       *  DIRECTLY) -- `renderer-composite-box.ts` falls back to the
+       *  pre-mechanism-6 dashed-rect shape whenever `headerLines` is
+       *  `undefined`, which is also correct for THIS case by construction
+       *  (a named, deliberately-unchanged pre-existing approximation, not a
+       *  new gap -- see that module's own doc comment). */
+      headerLines?: readonly StateTextLine[];
+      bodyLines?: readonly StateTextLine[];
+      color?: string;
     }
   | { kind: 'cluster'; id: string; display: string; children: readonly GeoSpec[] };
 
@@ -297,9 +313,12 @@ function collectRegularTransitions(ast: StateDiagramAST): Transition[] {
  * ever valid NODE ids in exactly one pass's accumulator (entity ids are
  * globally unique), so attempting the pool at every pass boundary can never
  * produce a duplicate edge.
+ * Exported: `state-composite-autonom.ts#buildPlainAutonomSpec` (mission G4
+ * S3, moved out for the file-cap split) reuses this SAME function rather
+ * than a re-derived copy.
  * @see ~/git/plantuml/.../svek/GraphvizImageBuilder.java#buildImage
  */
-function sweepOrphanEdges(acc: PassAccumulator, ctx: DiagramCtx): void {
+export function sweepOrphanEdges(acc: PassAccumulator, ctx: DiagramCtx): void {
   const nodeIds = new Set(acc.nodes.map((n) => n.id));
   const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
   for (const t of ctx.pool) {
@@ -374,90 +393,6 @@ export function buildLevelTransitionGeos(acc: PassAccumulator, result: DotLayout
     geos.push({ from: t.from, to: t.to, points: edgeResult.points, ...(label !== undefined ? { label } : {}) });
   }
   return geos;
-}
-
-/** Build ONE plain (region-free) composite's own child pass: recurse its
- *  children/inner transitions into a FRESH accumulator, run `layoutGraph()`
- *  (the dump — no nodeSep/rankSep, mechanisms.md §3), wrap the result per
- *  InnerStateAutonom's title+body+child-image formula.
- *
- *  `s.transitions` can hold a SELF-referencing entry (`Radio_Configuring -->
- *  Vendor_Radio_Enabled`, written literally inside `state Radio_Configuring {
- *  ... }` — upstream's per-state `:`/`-->` scoping convention repeats the
- *  CURRENT state's own name as a prefix) whose `from`/`to === s.id` resolves
- *  to the composite's OWN id — which is never a node in ITS OWN content pass
- *  (only its CHILDREN are; the composite re-enters its PARENT pass as a
- *  proxy, `resolveMember`'s autonom branch). Unlike `resolveClusterComposite`
- *  (whose `acc` is the SHARED, still-growing pass accumulator — a sibling
- *  resolved LATER in the same walk can supply the missing node before that
- *  pass's own single, deferred `layoutGraph()` call), THIS accumulator is
- *  fresh and gets its own immediate `runPass()` a few lines down: nothing
- *  will ever be added to it after this point, so a self-referencing entry
- *  can never resolve here regardless of order. Excluded from THIS call
- *  (not `addLocalPseudoNodes`, which only reads `'[*]'` endpoints and is
- *  unaffected) so it is never marked `ctx.consumed` here; `collectRegularTransitions`
- *  already pools every composite's own `.transitions` (self-referencing or
- *  not), so `sweepOrphanEdges` retries it — successfully, once against
- *  whichever pass's accumulator DOES contain this composite's re-entry proxy
- *  node (mission A4 Phase L iter 18, giniti-22-fexo000).
- * @see ~/git/plantuml/.../svek/GraphvizImageBuilder.java#buildImage (attempts
- *      EVERY diagram link; a missing SvekNode drops it at THIS pass only) */
-function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
-  const acc = newAccumulator();
-  const memberSpecs = s.children.map((c) => resolveMember(c, acc, ctx, undefined));
-  const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
-  addScopeNotes(s.id, ctx, acc);
-  const localTransitions = s.transitions.filter((t) => t.from !== s.id && t.to !== s.id);
-  addLevelEdges(s.id, localTransitions, acc, ctx);
-  sweepOrphanEdges(acc, ctx);
-  sweepOrphanNoteEdges(acc, ctx.notePool, ctx.consumedNotes, (id) => resolveEndpoint(id, ctx.classify));
-  const result = runPass(acc, ctx);
-  const wrapper = measureAutonomWrapper(s, { width: result.width, height: result.height }, ctx.theme, ctx.measurer);
-  return {
-    kind: 'autonom',
-    id: s.id,
-    display: s.display,
-    offset: wrapper.childOffset,
-    width: wrapper.width,
-    height: wrapper.height,
-    localStates: [...pseudoSpecs, ...memberSpecs],
-    localPositions: result,
-    localTransitions: buildLevelTransitionGeos(acc, result),
-  };
-}
-
-function buildAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
-  return s.concurrentRegions.length > 0 ? buildConcurrentAutonomSpec(s, ctx) : buildPlainAutonomSpec(s, ctx);
-}
-
-/**
- * Fire every autonom composite's own svek pass AND every concurrent
- * region's own pass ONCE, in `ctx.classify.firingOrder` order (deepest
- * nesting level first, source order as tie-break within a level — mission
- * A4 Phase L iteration 17, extended iteration 19 to cover regions;
- * `CucaDiagramSimplifierState.getOrdered` port; firingOrder's doc,
- * state-composite-classify.ts, has the full equivalence argument). Must run
- * BEFORE any `resolveMember` walk (top-level or nested) so every lookup in
- * `resolveMember`'s autonom branch hits, AND before any
- * `buildConcurrentAutonomSpec` call so every region lookup hits too.
- *
- * `buildAutonomSpec`/`buildConcurrentAutonomSpec` are otherwise UNCHANGED
- * (still recurse via `resolveMember` for their own children, and now via a
- * pure `ctx.resolvedRegions` lookup for their own regions) — firing order
- * correctness alone guarantees any autonom composite or region reachable
- * from a shallower build is already resolved, so decoupling firing from
- * assembly required no change to `resolveClusterComposite` either, only to
- * WHEN and WHERE each lookup reads its result from.
- * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
- */
-function resolveAllAutonomPasses(ctx: DiagramCtx): void {
-  for (const unit of ctx.classify.firingOrder) {
-    if (unit.kind === 'composite') {
-      ctx.resolvedAutonom.set(unit.id, buildAutonomSpec(unit.state, ctx));
-    } else {
-      ctx.resolvedRegions.set(unit.id, buildConcurrentRegionPass(unit.owner, unit.regionIndex, unit.members, ctx));
-    }
-  }
 }
 
 /** Top-level entry point: resolve the whole diagram's top scope into ONE

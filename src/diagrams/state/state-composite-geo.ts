@@ -58,6 +58,13 @@ function boundingBox(children: readonly StateNodeGeo[]): { x: number; y: number;
   };
 }
 
+/** mission G4 S3 (mechanism 6): threads `spec.headerLines`/`bodyLines`/
+ *  `color` onto the materialized `StateNodeGeo` — `undefined` for a
+ *  concurrent-region LEAF spec (`state-composite-cluster.ts
+ *  #buildConcurrentRegionLeaf`, which never sets these fields, see
+ *  `GeoSpec`'s own `'autonom'` variant doc comment in state-composite-
+ *  pass.ts) so `renderer-composite-box.ts#renderComposite` falls back to
+ *  the pre-mechanism-6 shape for that case, unchanged. */
 function materializeAutonom(
   spec: Extract<GeoSpec, { kind: 'autonom' }>,
   posMap: PosMap,
@@ -71,7 +78,12 @@ function materializeAutonom(
   const localOut: TransitionGeo[] = [];
   const children = materializeSpecs(spec.localStates, localPosMap, localOut).map((g) => shiftGeo(g, dx, dy));
   for (const t of [...spec.localTransitions, ...localOut]) outTransitions.push(shiftTransition(t, dx, dy));
-  return { id: spec.id, kind: 'normal', display: spec.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height, children };
+  return {
+    id: spec.id, kind: 'normal', display: spec.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height, children,
+    ...(spec.headerLines !== undefined ? { headerLines: spec.headerLines } : {}),
+    ...(spec.bodyLines !== undefined ? { bodyLines: spec.bodyLines } : {}),
+    ...(spec.color !== undefined ? { color: spec.color } : {}),
+  };
 }
 
 function materializeCluster(
