@@ -68,11 +68,11 @@ function buildPseudoNodeGeos(posMap: Map<string, DotLayoutResult['nodes'][number
   const geos: StateNodeGeo[] = [];
   const initial = posMap.get(INITIAL_ID);
   if (initial !== undefined) {
-    geos.push({ id: INITIAL_ID, kind: 'initial', display: '', x: initial.x, y: initial.y, width: initial.width, height: initial.height, children: [] });
+    geos.push({ id: INITIAL_ID, kind: 'initial', display: '', x: initial.x, y: initial.y, width: initial.width, height: initial.height, children: [], transitions: [] });
   }
   const final = posMap.get(FINAL_ID);
   if (final !== undefined) {
-    geos.push({ id: FINAL_ID, kind: 'final', display: '', x: final.x, y: final.y, width: final.width, height: final.height, children: [] });
+    geos.push({ id: FINAL_ID, kind: 'final', display: '', x: final.x, y: final.y, width: final.width, height: final.height, children: [], transitions: [] });
   }
   return geos;
 }
@@ -84,12 +84,13 @@ function buildFlatStateGeos(
   measurer: StringMeasurer,
 ): StateNodeGeo[] {
   const geos: StateNodeGeo[] = [];
+  const hideEmptyDescription = ast.hideEmptyDescription ?? false;
   for (const s of ast.states) {
     const pos = posMap.get(s.id);
     if (pos === undefined) continue;
     geos.push({
       id: s.id, kind: s.kind, display: s.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height,
-      children: [], ...buildStateGeoTextFields(s, theme, measurer),
+      children: [], transitions: [], ...buildStateGeoTextFields(s, theme, measurer, hideEmptyDescription),
     });
   }
   geos.push(...buildPseudoNodeGeos(posMap));
@@ -146,7 +147,13 @@ function layoutFlat(ast: StateDiagramAST, theme: Theme, measurer: StringMeasurer
  *  formula (`computeStateDocumentDims`) instead of dot's own unrelated
  *  layout-margin convention. */
 function shiftStateNode(g: StateNodeGeo, dx: number, dy: number): StateNodeGeo {
-  return { ...g, x: g.x + dx, y: g.y + dy, children: g.children.map((c) => shiftStateNode(c, dx, dy)) };
+  return {
+    ...g,
+    x: g.x + dx,
+    y: g.y + dy,
+    children: g.children.map((c) => shiftStateNode(c, dx, dy)),
+    transitions: g.transitions.map((t) => shiftStateTransition(t, dx, dy)),
+  };
 }
 
 function shiftStateTransition(t: TransitionGeo, dx: number, dy: number): TransitionGeo {

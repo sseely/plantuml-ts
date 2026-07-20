@@ -173,14 +173,22 @@ function addDiamondInk(box: InkBox, cx: number, cy: number, size: number): void 
   addPoint(box, cx + size + HACK_X_FOR_POLYGON, cy + size);
 }
 
-/** One node's own ink contribution (recurses into composite children —
- *  `state-composite-geo.ts` already positions children in the SAME
- *  absolute coordinate space `StateGeometry.states` uses, no re-basing
- *  needed here). */
-function addNodeInk(box: InkBox, node: StateNodeGeo): void {
+/** One node's own ink contribution (recurses into composite children AND
+ *  this node's own nested `.transitions` — `state-composite-geo.ts`
+ *  already positions both in the SAME absolute coordinate space
+ *  `StateGeometry.states` uses, no re-basing needed here. Mission G4 S5:
+ *  a composite node's own pass edges live on `node.transitions` now (the
+ *  transition-nesting mechanism), not a separate flat array threaded in by
+ *  the caller — walking them here keeps every ink-box call site's own
+ *  signature unchanged while still covering the SAME ink this recursion
+ *  covered before the restructuring (previously via a flat
+ *  `outTransitions` accumulator merged into the top-level `transitions`
+ *  array by the caller). */
+function addNodeInk(box: InkBox, node: StateNodeGeo, includeArrowheadInk: boolean): void {
   if (node.children.length > 0) {
     addStateBoxInk(box, node.x, node.y, node.width, node.height);
-    for (const child of node.children) addNodeInk(box, child);
+    for (const child of node.children) addNodeInk(box, child, includeArrowheadInk);
+    for (const t of node.transitions) addTransitionInk(box, t, includeArrowheadInk);
     return;
   }
   switch (node.kind) {
@@ -238,7 +246,7 @@ function buildInkBox(
   includeArrowheadInk: boolean,
 ): InkBox {
   const box = newInkBox();
-  for (const n of states) addNodeInk(box, n);
+  for (const n of states) addNodeInk(box, n, includeArrowheadInk);
   for (const t of transitions) addTransitionInk(box, t, includeArrowheadInk);
   return box;
 }

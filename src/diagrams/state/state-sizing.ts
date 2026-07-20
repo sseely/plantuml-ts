@@ -322,12 +322,33 @@ export interface StateGeoTextFields {
   headerLines?: readonly StateTextLine[];
   bodyLines?: readonly StateTextLine[];
   color?: string;
+  /** mission G4 S5 -- see `StateNodeGeo.emptyDescription`'s own doc comment. */
+  emptyDescription?: true;
 }
 
-export function buildStateGeoTextFields(state: State, theme: Theme, measurer: StringMeasurer): StateGeoTextFields {
+/**
+ * mission G4 S5: `hideEmptyDescription` threads the SAME
+ * `isHideEmptyDescriptionForState && rawBody.size()==0` gate
+ * {@link measureNormalKind} already dimensions with (`plans/g4-state-svg/
+ * ledger.md` S5) onto the RENDERED shape too, via the returned
+ * `emptyDescription` marker (`StateNodeGeo.emptyDescription`'s own doc
+ * comment) — `false` for every composite-title call site
+ * (`state-composite-autonom.ts`/`state-composite-concurrent.ts`), since a
+ * composite's own title never takes this leaf-only upstream branch.
+ */
+export function buildStateGeoTextFields(
+  state: State,
+  theme: Theme,
+  measurer: StringMeasurer,
+  hideEmptyDescription = false,
+): StateGeoTextFields {
   const font: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const fields: StateGeoTextFields = {};
-  if (state.kind === 'normal') {
+  const hasBody = (state.description?.length ?? 0) > 0;
+  if (state.kind === 'normal' && hideEmptyDescription && !hasBody) {
+    fields.headerLines = measureTextLines(state.display, font, measurer);
+    fields.emptyDescription = true;
+  } else if (state.kind === 'normal') {
     fields.headerLines = measureTextLines(state.display, font, measurer);
     fields.bodyLines = measureBodyTextLines(state.description, font, measurer);
   } else if (state.kind === 'history' || state.kind === 'deepHistory') {

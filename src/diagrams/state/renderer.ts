@@ -103,9 +103,17 @@ function renderShape(node: StateNodeGeo, theme: Theme): string {
  * `renderer-group.ts`'s own "NOT MODELED" doc-comment note for the
  * jar-verified `entity`-vs-`cluster` (autonom vs non-autonom) split this
  * simplification does not yet capture.
+ *
+ * mission G4 S5: `node.emptyDescription === true` (the
+ * `EntityImageStateEmptyDescription` shape, `renderer-box.ts
+ * #renderEmptyDescription`'s own doc comment) draws UNWRAPPED too --
+ * jar-verified `gopumi-11-pise779`'s own `S1` (bare `<rect>`+`<text>`
+ * siblings, no `<g>` at all, matching fork/join/history/deepHistory's
+ * existing unwrapped precedent above).
  */
 function wrapClassFor(node: StateNodeGeo): 'entity' | 'start_entity' | 'end_entity' | undefined {
   if (node.children.length > 0) return 'entity';
+  if (node.emptyDescription === true) return undefined;
   switch (node.kind) {
     case 'initial':
       return 'start_entity';
@@ -127,11 +135,19 @@ function wrapClassFor(node: StateNodeGeo): 'entity' | 'start_entity' | 'end_enti
 
 /** Renders one node (recursing into composite children) with its jar
  *  `<g>` wrap applied — the mechanism-2 replacement for the pre-S1
- *  `renderNode`'s flat, unwrapped recursion. */
+ *  `renderNode`'s flat, unwrapped recursion. mission G4 S5 (transition-
+ *  nesting mechanism): this node's OWN pass edges (`node.transitions`)
+ *  render as siblings of `childrenMarkup`, INSIDE this node's own wrap --
+ *  matching jar's real document nesting (a pass's own edges are direct
+ *  children of that pass's own image, `renderer-group.ts`'s doc comment,
+ *  `bajelo-54-dixe684` jar-verified). */
 function renderNodeWrapped(node: StateNodeGeo, theme: Theme, uidPlan: StateUidPlan): string {
   const ownShape = renderShape(node, theme);
   const childrenMarkup = node.children.map((c) => renderNodeWrapped(c, theme, uidPlan)).join('');
-  const inner = ownShape + childrenMarkup;
+  const ownTransitionsMarkup = node.transitions
+    .map((t) => renderTransitionWrapped(t, theme, uidPlan))
+    .join('');
+  const inner = ownShape + childrenMarkup + ownTransitionsMarkup;
   const wrapClass = wrapClassFor(node);
   if (wrapClass === undefined) return inner;
   const uid = uidPlan.nodeUid.get(node.id) ?? '';
@@ -224,11 +240,10 @@ function renderTransitionWrapped(
   transition: TransitionGeo,
   theme: Theme,
   uidPlan: StateUidPlan,
-  index: number,
 ): string {
   const inner = buildTransitionInnerMarkup(transition, theme);
   if (inner === '') return '';
-  const uid = uidPlan.edgeUid[index] ?? '';
+  const uid = uidPlan.edgeUid.get(transition) ?? '';
   return wrapLink(
     {
       from: transition.from,
@@ -255,8 +270,8 @@ export function renderState(geo: StateGeometry, theme: Theme): RenderFragment {
   for (const node of geo.states) {
     children.push(renderNodeWrapped(node, theme, uidPlan));
   }
-  geo.transitions.forEach((transition, index) => {
-    children.push(renderTransitionWrapped(transition, theme, uidPlan, index));
+  geo.transitions.forEach((transition) => {
+    children.push(renderTransitionWrapped(transition, theme, uidPlan));
   });
 
   // mission G4 S1 mechanism 1: background is communicated via the shell's

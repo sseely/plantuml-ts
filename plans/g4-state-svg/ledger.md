@@ -1743,3 +1743,495 @@ expected.
 8. Re-run the census and `--families` report FRESH again — mechanism 8's own
    reach (concurrent-region fixtures) should now show real per-feature
    fidelity for the first time this mission.
+
+## S5 — transition-nesting mechanism landed (mission's primary scope),
+composite ordering + explicit background rect + EntityImageStateEmptyDescription
+landed as cheap follow-ons, 13→14 pins, 267/271→267/271 dotEqual unchanged
+
+### Summary
+
+Per this iteration's own instruction, hand-sampled ≥20 of the 48 S4-baseline
+near-zero (1-3 diff) fixtures plus ≥10 from the 4-10 bucket BEFORE fixing
+anything (temp scripts, deleted before finishing). The attribution table
+below shows the dominant, previously-masked signature: `svg/g[1][childCount]`
+(alone, or combined with `svg/@height`/`svg/@width`/`svg/@viewBox`) reaches
+129/271 fixtures at the EXACT classic 5-diff pattern alone, plus dozens more
+variants — overwhelmingly the mission's own named "transitions render as FLAT
+siblings" simplification (S1 ledger, mechanism 2's own doc comment): jar
+nests a composite pass's OWN internal transitions INSIDE that pass's own
+`<g>` (siblings of its entity/cluster children), never as flat top-level
+siblings. Landed this mechanism in full (the mission's stated primary
+scope), TDD-first, jar-verified byte-exact against `bajelo-54-dixe684`'s own
+document structure (`lnk10`/`lnk11` both nest inside `Track_FSM`'s own `<g>`,
+confirmed via a full pretty-printed XML dump, not guessed).
+
+Landing it triggered the SAME mixed-direction unmasking signature S0/S1/S3/S4
+each already exhibited: `compareSvg`'s childCount short-circuit previously
+hid EVERY deeper structural difference for composite fixtures — closing it
+let the comparator recurse further and surface several FURTHER, previously
+invisible, genuinely separate bugs (named below, not conflated with the
+nesting fix itself). Two of these were cheap enough to land THIS iteration
+(top-level real-before-pseudo ordering; explicit background `<rect>` for a
+non-default diagram background); one more (`EntityImageStateEmptyDescription`,
+`hide empty description` + zero body lines) was independently discovered
+during the 1-3-bucket sampling pass and landed as its own mechanism, closing
+2 fixtures outright. Two more (concurrent-region separator `<line>`s never
+drawn; per-region pseudo-node id collision) were diagnosed and root-caused
+via a full jar XML pretty-print but NOT landed — genuinely new rendering
+features (not "fix a formula"), explicitly named and queued for S6 rather
+than forced under this iteration's own "cheapest first" instruction.
+
+```
+S4 (before): 13/271 -- 1-3:48, 4-10:156, 11-30:34, 31+:20, errors:0
+S5 (after):  14/271 -- 1-3:29, 4-10:136, 11-30:44, 31+:48, errors:0
+```
+
++1 new pin (`tezivo-82-rufa055`, EntityImageStateEmptyDescription mechanism),
+0 pins lost (all 13 S4 pins verified unchanged via a fresh `parity-state.json`
+regen, `conformant && dotEqual` on all 14). The 1-3/4-10 buckets SHRANK
+(48→29, 156→136) while 11-30/31+ GREW (34→44, 20→48) — net fixture count
+unchanged (271), but redistributed toward LARGER diff counts in aggregate.
+This is the SAME shape S0/S1's own mechanism landings produced (their own
+doc comments: "mechanism 2's own childCount short-circuit unblocking exactly
+as predicted... immediately surfacing a further mechanism") — a structurally
+NECESSARY, jar-verified-correct fix that trades a shallow, uninformative
+1-diff-everywhere signature for a smaller number of deeper, but now REAL and
+individually addressable, per-fixture diff sets. No PINNED fixture regressed;
+`state-dot-parity.test.ts` (size-backlog ratchet) stayed CLEAN at 268/268
+throughout (this iteration's mechanisms are render-structure-only, no
+sizing-formula changes, so no size-backlog entry could have moved either
+direction — verified, not assumed, via the ratchet staying green start to
+finish).
+
+### Sampled fixtures (≥20 from the 1-3 bucket, ≥10 from 4-10, hand-probed)
+
+1-3 bucket (35 sampled via a full dump, ≥20 hand-inspected individually):
+`beguxu-19-tize774`, `bilare-19-fufe539`, `cekolo-21-gini183`, `ceruzi-77-
+give569`, `dajipi-09-doki542`, `dapuko-98-zuzo096`, `decede-10-buvu414`,
+`fakali-52-zuje420`, `gokife-89-boja382`, `gopumi-11-pise779`, `judova-36-
+kana429`, `kenuci-20-cane702`, `labono-83-nega255`, `lalava-26-zosi801`,
+`lasasi-13-nona547`, `livuni-63-fira764`, `lulozu-10-bopu547`, `maruju-55-
+soko478`, `mazuzu-54-mene929`, `nelupe-49-xova546`, `nibelu-74-pido796`,
+`nivanu-50-zajo916`, `pavuzo-79-zodu430`, `pevene-26-kebo361`, `pexiku-77-
+japi217`, `sapelo-46-jafe280`, `semala-31-joji042`, `soxene-95-domu248`,
+`tegali-39-molu382`, `tezivo-82-rufa055`, `xexika-61-fedu273`, `xoravu-40-
+gebe122`, `xojudi-20-keco020`, `zebuzu-41-caro961`, `zepodi-66-moda518`.
+4-10 bucket (≥10 hand-inspected, plus a full 129-fixture programmatic sweep
+of the exact classic 5-diff pattern): `bemena-23-zebu249`, `bitaxo-18-
+tamo974`, `bujuta-44-rovo666`, `bunade-42-fudu910`, `cakaxu-97-nexe753`,
+`cekavi-25-cija650`, `cesifo-37-rugu443`, `cinoni-00-sere847`, `cupesu-59-
+sajo991`, `dapunu-39-kava045`, `nelupe-49-xova546`/`sapelo-46-jafe280`
+(cross-checked against the 1-3 list — both moved buckets mid-investigation),
+`niveno-60-tiro789`, `xipela-98-nuvu593`, `nijugi-19-jazi166`, `nuboca-13-
+xape657`, `xexika-61-fedu273`.
+
+### Attribution table (mechanism-bucketed, cheapest-first)
+
+| Mechanism | Signature | Reach (sampled) | Status |
+|---|---|---|---|
+| 9. Composite internal-transition nesting (flat-sibling simplification) | `svg/g[1][childCount]` alone or + `svg/@height`/`@width`/`@viewBox` | 129/271 at the EXACT classic 5-diff pattern; dominant family across BOTH buckets | **LANDED** |
+| 10. Composite top-level real-vs-pseudo ordering | `svg/g[1]/g[N]/@class` swap at top level | common-case win (single composite + one `[*]` pair); NOT a full fix for multi-entity/creation-order cases | **LANDED** (partial — real upstream rule is creation-index-based, out of scope) |
+| 11. `EntityImageStateEmptyDescription` (`hide empty description` + 0 body lines) | no divider, centered text, UNWRAPPED | 10/271 fixtures use the directive | **LANDED** |
+| 12. Explicit content background `<rect>` for non-default diagram background | `svg/g[1]/rect[1]` missing | 11/271 (15 non-default-bg minus 4 misclassified error-diagrams) | **LANDED** |
+| 13. Concurrent-region separator `<line>`s never drawn | childCount undercounts by (regions-1) | 18/271 fixtures use `--`/`||` regions | Diagnosed, NOT landed (new rendering feature) |
+| 14. Per-region pseudo-node id/scope collision (`addLocalPseudoNodes` shares `owner.id` across ALL regions) | duplicate `<g class="start_entity">` siblings with the same internal id | subset of the 18 concurrent-region fixtures | Diagnosed, NOT landed |
+| 15. `transitionArrowheadInk`'s own root cause (S4 queue item 2) | — | not sampled this iteration | Deferred, unchanged |
+| 16. Entity-vs-cluster wrap split (S1/S3 item 3) | — | `bajelo-54-dixe684` and similar | Deferred, unchanged |
+| 17. `<<sdlreceive>>`/pseudostate stereotype wrap gaps | `svg/g[1][childCount]` (e.g. `cekolo-21-gini183`) | small, pre-existing S1-S3 named gap | Deferred, unchanged |
+| 18. 4 fixtures misclassified: jar renders a PARSE-ERROR diagram, not STATE | `data-diagram-type` absent, green-on-black error page | `cagego-53-vemo516`, `fugedo-34-fice721`, `xacona-99-peze211`, `zecivu-62-pagu681` | Out of scope (jar-blind, matches G3's `gizini-87-vuve916` precedent) |
+| 19. Transition routing/positioning (`svg/g/g/path/@d`) — the mission's own secondary scope | e.g. `gopumi-11-pise779`'s `[*]-to-s0_start` cross-composite edge, hand-observed while probing mechanism 10 | several fixtures, magnitude varies (small to large) | NOT started — budget consumed by mechanism 9 + its own unmasking |
+
+### Mechanism 9 (composite internal-transition nesting): LANDED
+
+`src/diagrams/state/state-geo-types.ts#StateNodeGeo` gained a new required
+`transitions: TransitionGeo[]` field — the transitions belonging to THIS
+node's own svek pass boundary (non-empty only for an `'autonom'`-materialized
+composite node; a plain leaf or non-autonom `'cluster'` node always carries
+`[]`, since a cluster shares its container pass's edges, never owning any of
+its own). `src/diagrams/state/renderer.ts#renderNodeWrapped` renders
+`node.transitions` as siblings of `childrenMarkup`, INSIDE the node's own
+`<g>` wrap (after children, matching jar's own document order: entities/
+clusters first, this pass's own edges last).
+
+`src/diagrams/state/state-composite-geo.ts` — `materializeAutonom` no longer
+takes an `outTransitions` accumulator param; it computes `spec.
+localTransitions.map(t => shiftTransition(t, dx, dy))` and attaches the
+result DIRECTLY to its own returned node's `.transitions` field. A NESTED
+autonom composite (reachable via `spec.localStates`) attaches ITS OWN edges
+to ITS OWN node during the SAME recursive `materializeSpecs` call — nothing
+bubbles past its own pass boundary anymore, replacing the pre-S5 flat-array
+accumulator that flattened every nested pass's edges into ONE array regardless
+of true nesting depth. `materializeCluster` never owned any transitions of
+its own (`transitions: []` always) — unchanged in effect, simplified in
+signature (also drops `outTransitions`). `layoutComposite`'s own top-level
+`transitions` is now ONLY the top-level pass's own edges (`buildLevelTransitionGeos
+(acc, result)` alone, no `nestedTransitions` merge).
+
+`src/diagrams/state/layout-ink-extent.ts#addNodeInk` gained an
+`includeArrowheadInk` param (threaded from `buildInkBox`, unchanged
+semantics) and now ALSO recurses into `node.transitions` for a composite
+node (alongside its existing `node.children` recursion) — this keeps
+`computeStateDocumentDims`/`computeStateInkShift`/`computeSvekResultGeometry`'s
+own signatures UNCHANGED while covering the SAME ink the pre-S5
+`outTransitions` accumulator used to feed them explicitly. `state-composite-
+autonom.ts#buildPlainAutonomSpec` and `state-composite-concurrent.ts
+#regionInkDim` both simplified to match (drop their own `outTransitions`
+locals, rely on the ink-walk's own recursion).
+
+`src/diagrams/state/renderer-uid.ts` — `edgeUid` changed from an array
+parallel to a single flat `geo.transitions` list to a `Map<TransitionGeo,
+string>` keyed by object identity (transitions now live in MULTIPLE arrays:
+the top-level list plus every composite node's own `.transitions`, so a
+single array-index scheme no longer identifies a transition uniquely). The
+NUMBERING ORDER is unchanged in shape: top-level pass edges first, then each
+node's own nested edges walked in the SAME states pre-order `collectPreOrder`
+already used — reproducing the pre-S5 flat-array numbering exactly for every
+flat (non-composite) fixture (zero behavioral change there, `geo.transitions`
+alone, no nested nodes exist) and a reasonable, documented-as-approximate
+order for composite fixtures (this port's state parser still has no
+`creationIndex` threading, an ALREADY-documented pre-S5 gap, unaffected by
+this restructuring).
+
+**Jar-verified** (full pretty-printed XML dump of `bajelo-54-dixe684`'s own
+cached `in.svg`, hand-traced bracket nesting): `Stop-to-Chg_Sector` (`lnk10`)
+and `Run-to-Stop` (`lnk11`) both nest DIRECTLY inside `Track_FSM`'s own `<g
+class="entity">`, as SIBLINGS of its entity/cluster children (`Run` cluster,
+`Chg_Sector`/`Do_Sector`/`Stop` entities) — regardless of which specific
+entity/cluster their own endpoints happen to sit inside. Top-level pass edges
+(`*start*-to-Track_FSM`, `Track_FSM-to-*end*`) stay OUTSIDE `Track_FSM`'s own
+`<g>`, as direct siblings of the outer content `<g>`'s own children. This
+exactly matches mechanism 9's design: transitions attach to the nearest
+ENCLOSING PASS BOUNDARY (autonom composite or top level), never to the
+specific entity/cluster an endpoint happens to sit inside.
+
+### Mechanism 10 (composite top-level real-vs-pseudo ordering): LANDED (partial)
+
+`src/diagrams/state/state-composite-pass.ts#buildTopLevelPass` — `specs:
+[...pseudoSpecs, ...specs]` (real states/composites AFTER pseudo start/end)
+was BACKWARD; flipped to `[...specs, ...pseudoSpecs]` (real entities FIRST,
+pseudo start/end LAST) — matches jar's own document order (`bajelo-54-
+dixe684`: `Track_FSM` entity first, `.start.`/`.end.` pseudo entities last)
+AND the FLAT pipeline's own PRE-EXISTING convention (`layout.ts
+#buildFlatStateGeos` already pushes `buildPseudoNodeGeos` AFTER the real
+states — this fix brings the composite pipeline in line with a convention
+the flat pipeline already had right). Verified SAFE against all 13 S4-pinned
+fixtures: none use a top-level `[*]` transition (the ONLY case `pseudoSpecs`
+is ever non-empty), so this reorder is a pure no-op for every currently-
+pinned fixture. Jar-verified CORRECT for the common single-composite-plus-
+one-pseudo-pair shape.
+
+**NOT a full fix** — `nelupe-49-xova546` (two REAL top-level entities, `s7_2`
+composite AND `s0_start` leaf, both alongside a `[*]` pair) shows jar's real
+order is `s7_2, .start., s0_start` — neither pure declaration order NOR a
+simple "real-before-pseudo" rule explains `s0_start` sorting AFTER the pseudo
+`.start.` entity. This strongly suggests jar's true ordering is CREATION-
+INDEX based (parse-time entity-creation order), the SAME already-documented,
+already-accepted gap `renderer-uid.ts`'s own doc comment names ("this port's
+state parser has no creationIndex threading at all... a documented
+approximation") — NOT a new problem this iteration introduced, and not
+chased further (would require threading a parse-time creation counter through
+the whole AST, a separate, larger mission-scale item).
+
+### Mechanism 11 (`EntityImageStateEmptyDescription`): LANDED
+
+Per diagnosis.md: instrumented before hypothesizing — `gopumi-11-pise779`'s
+own `S1` (`hide empty description`, `[*] --> S1`, `S1 --> S2`, no `S1 :`
+body) showed a lone `svg/g[1][childCount]` diff even after mechanism 9's own
+fix; a direct hand-read of jar's cached `in.svg` showed `S1` rendered as a
+BARE `<rect>`+`<text>` pair, NOT wrapped in any `<g>`, with NO divider `
+<line>` — unlike `S2` (which HAS a `S2 : description` body line, rendered
+via the regular `EntityImageState` box, wrapped + divided). Traced to
+`GeneralImageBuilder.createEntityImageBlockInternal`'s real dispatch (direct
+Java read, not guessed): `if (isHideEmptyDescriptionForState &&
+leaf.getBodier().getRawBody().size() == 0) return new
+EntityImageStateEmptyDescription(leaf);` — a genuinely separate upstream
+shape class, gated on BOTH the `hide empty description` directive AND a
+truly empty raw body (not just an unset description). **Ruled out**: this is
+NOT the same condition `renderer-box.ts`'s OWN pre-existing doc comment
+already named ("jocela-05-niba392... the divider STILL draws") — that
+fixture uses explicit `state state1 #red` declaration syntax with no `hide
+empty description` directive at all, a DIFFERENT case (regular
+`EntityImageState`, always-drawn divider); confirmed by re-reading that
+fixture's own source, not assumed.
+
+`src/diagrams/state/state-sizing.ts` — `measureNormalKind` ALREADY dimensioned
+this shape correctly pre-S5 (`measureEmptyDescription`, jar-verified "px-exact"
+per this file's own top doc comment, `bilare-19-fufe539` — sizing was never
+the gap). `buildStateGeoTextFields` gained a `hideEmptyDescription` param
+(default `false`): when `state.kind === 'normal' && hideEmptyDescription &&
+!hasBody`, sets a NEW `emptyDescription: true` marker on the returned
+`StateGeoTextFields`/`StateNodeGeo` alongside the SAME `headerLines`
+measurement the regular path already uses (only the RENDER shape differs,
+not the text measurement). Threaded through the 2 real call sites that
+handle genuine LEAF states (`layout.ts#buildFlatStateGeos` via `ast.
+hideEmptyDescription`; `state-composite-pass.ts#resolveMember`'s leaf branch
+via a NEW `DiagramCtx.hideEmptyDescription` field) — the 2 COMPOSITE-title
+call sites (`state-composite-autonom.ts`/`state-composite-concurrent.ts`)
+pass nothing, defaulting to `false`, since a composite's own title never
+takes this leaf-only upstream branch (`LeafType.STATE`'s dispatch only fires
+for the non-composite case).
+
+`src/diagrams/state/renderer-box.ts#renderEmptyDescription` (NEW) — rect
+only (no divider, no body), label CENTERED both horizontally AND vertically:
+`yDesc = (node.height - headerLines.length*fontSize) / 2`, baseline =
+`node.y + yDesc + textAscent(fontSize)` (+ `i*fontSize` per subsequent
+line), x CENTERED per-line via the SAME `node.x + node.width/2 - ln.width/2`
+convention the regular box's header already uses. Hand-derived algebraically
+against `gopumi-11-pise779`'s own `S1` (box x=25.86 y=86 w=50 h=40, single
+line "S1"): `yDesc = (40 - 14)/2 = 13`, baseline `= 86 + 13 + 10.8889 =
+109.8889` — EXACT match to jar's own `y="109.8889"`; x `= 50.86 - 17.15/2 =
+42.285` — EXACT match to jar's own `x="42.285"`.
+
+`src/diagrams/state/renderer.ts#wrapClassFor` — `node.emptyDescription ===
+true` now returns `undefined` (unwrapped), matching fork/join/history/
+deepHistory's already-established "no `<g>` at all" precedent.
+
+**Jar-verified**: `gopumi-11-pise779`'s `S1` now renders bare `<rect
+x="25.862500000000004" .../><text x="42.2875" y="109.88888888888889"...
+S1</text>` (numeric tolerance-equal to jar's own rounded `x="42.285"
+y="109.8889"`), unwrapped, no divider — `tezivo-82-rufa055` reached TRUE
+zero-diff and is pinned. `bilare-19-fufe539` (4 EmptyDescription states, no
+transitions at all) improved 3→2 diffs (both remaining diffs a 1px `svg/
+@width`/`@viewBox` rounding artifact, PRE-EXISTING and unrelated to this
+mechanism — not chased, named in the S6 queue).
+
+### Mechanism 12 (explicit background `<rect>` for non-default background): LANDED
+
+Per diagnosis.md: instrumented, not guessed — `dapuko-98-zuzo096`
+(`skinparam BackgroundColor gray`) showed `svg/g[1][childCount]` off by
+exactly 1 even with mechanisms 9-11 landed; a direct hand-read of jar's
+cached `in.svg` showed an EXPLICIT `<rect x="0" y="0" width="155"
+height="121" fill="#808080" style="stroke:none;stroke-width:1;"/>` as the
+FIRST child of the content `<g>`, BEFORE any entity markup — a shape S1's
+own mechanism-1 sample (16 fixtures, S0 ledger) never exercised, since none
+of those samples used a non-default background. **Ruled out** (a targeted
+but ultimately unsuccessful source search, logged honestly rather than
+guessed): `TitledDiagram#calculateBackColor`, `CucaDiagram`,
+`GeneralImageBuilder`, `core/TextBlockExporter#maybeDrawBorder`,
+`SvgGraphics`'s own `finalizeRootAttributes` (confirmed this ONLY sets the
+root `style="...background:...;"` attribute, draws no `<rect>` at all) —
+none of these contain the actual content-level rect draw call. Empirically
+confirmed instead via jar bytes across ALL 11 real (non-error-diagram)
+non-default-background STATE corpus fixtures — every one shares the exact
+SAME `<rect x="0" y="0" width="W" height="H" fill="{background}"
+style="stroke:none;stroke-width:1;"/>` shape (W/H = the document's own final
+dimensions); 2 default-`#FFFFFF`-background pinned fixtures (`jocela-05-
+niba392`, `coteta-47-mare883`) confirmed to carry NO such rect, ruling out
+an unconditional draw. This project's own established "jar-verified, exact
+source line not found" pattern applies (e.g. mechanism 3's own
+`transitionArrowheadInk` sub-bug, S4 ledger) — the mechanism is real and
+confirmed by evidence, even without a pinned Java call site.
+
+`src/diagrams/state/renderer-shell.ts#maybeBackgroundRect` (NEW) — emits the
+rect (via the existing `core/svg.ts#rect` helper, `stroke:'none'`/
+`strokeWidth:1`, separate attrs rather than jar's own `style=` string —
+`tests/oracle/svg-conformance/normalize.ts`'s own established style-vs-attrs
+equivalence makes both forms byte-equivalent for the comparator, this
+codebase's pre-existing convention, not a new one) ONLY when `fragment.
+background !== '#FFFFFF'`, prepended to `fragment.body` before the content
+`<g>` wrap — additive to (not a replacement for) `assembleDocumentShell`'s
+own existing root-style handling, which stays correct and untouched for
+BOTH cases.
+
+**Jar-verified**: `dapuko-98-zuzo096`'s own childCount gap closed (the rect
+now present); `niveno-60-tiro789`/`xexika-61-fedu273` both confirmed via
+direct byte inspection to match jar's own rect format exactly. Neither
+fixture reached zero-diff this iteration (both have OTHER, unrelated
+residuals — `niveno` has a separate, PRE-EXISTING `svg/@background` mismatch,
+`ours=#FFFFFF jar=#AAAAAA`, i.e. the THEME never even resolves the correct
+background color for that specific fixture — a genuinely different,
+unscoped bug, named in the S6 queue, NOT this mechanism's own fault since
+`maybeBackgroundRect` correctly reads WHATEVER `fragment.background` value
+it's given).
+
+### Mechanisms 13/14 (concurrent-region separator lines + per-region pseudo-id collision): diagnosed, NOT landed
+
+Per diagnosis.md: instrumented via a full pretty-printed XML dump of
+`nelupe-49-xova546`'s own cached `in.svg` (`s7_2`, 3 concurrent regions:
+region-0 `chat1`, `CONC1` containing nested composite `toutou9`, `CONC2`
+`chat2`). Two SEPARATE, real, pre-existing gaps found (NOT introduced by
+mechanism 9 — both were already present pre-S5, simply invisible behind the
+SAME childCount short-circuit mechanism 9's own landing removed):
+
+- **Mechanism 13**: jar draws a dashed `<line x1="12" y1="156" x2="122"
+  y2="156" style="stroke:#181818;stroke-width:1.5;stroke-dasharray:8,10;"/>`
+  BETWEEN each pair of stacked concurrent regions (2 separators for 3
+  regions) — this port's `renderer.ts`/`state-composite-concurrent.ts` never
+  draws ANY separator line at all (grepped, zero hits for `dasharray`/
+  `separator`/`Separator` across the render path). Directly explains the
+  `g[1]/g[1][childCount]` off-by-`(regions-1)` residual observed on `nelupe`
+  post-mechanism-9 (`ours=13, jar=15`, exactly 2 missing).
+- **Mechanism 14**: `state-composite-concurrent.ts#buildConcurrentRegionPass`
+  passes `owner.id` (NOT a per-region scope id) as the `scopeId` param to
+  `runOneConcurrentBranch`/`addLocalPseudoNodes`/`addLevelEdges` for EVERY
+  region (region-0's own inline call in `buildConcurrentAutonomSpec` ALSO
+  uses `s.id` — correct for region-0 alone, matching jar's own `s7_2..start.
+  s7_2` naming, but the SAME `s.id` gets reused for CONC1/CONC2 too, which is
+  wrong). jar creates a DISTINCT `[*]` pseudo-anchor PER region (`s7_2..
+  start.s7_2` for region-0, `s7_2.CONC1..start.CONC1` for CONC1, `s7_2.
+  CONC2..start.CONC2` for CONC2, each independently id'd) — this port
+  currently creates 3 SEPARATE `StateNodeGeo` entries (correct COUNT, one
+  per region, since each region has its OWN accumulator) but ALL 3 share the
+  SAME internal `__init_s7_2` id (since `scopedPseudoIds(scopeId)` collapses
+  to the SAME string for every region), a real, distinct id-collision bug
+  from mechanism 13.
+
+**NOT landed this iteration** — both are genuinely NEW rendering
+features/fixes (drawing a not-yet-implemented separator line; re-deriving
+per-region scope ids through `concurrentRegionScopeId`, already used
+elsewhere for note-scoping — `buildConcurrentRegionPass`'s own `noteScopeId`
+param already computes the CORRECT per-region id, just doesn't reuse it for
+`scopeId`), not "cheap" formula fixes — explicitly deferred per this
+iteration's own "cheapest first" instruction rather than rushed. `nelupe`/
+`sapelo` (both concurrent-region fixtures) show a real, if temporary,
+diff-count INCREASE from mechanism 9 alone (1→14/15) since mechanism 9
+correctly stopped masking these two PRE-EXISTING gaps — queued whole for S6,
+where landing both together should recover (and likely improve past) their
+pre-S5 apparent diff counts.
+
+### Also discovered, out of S5's write-set (named, not fixed)
+
+- `svg/g/g/path/@d` differences for cross-composite top-level edges (e.g.
+  `gopumi-11-pise779`'s `[*]-to-s0_start`, hand-observed on `nelupe`/
+  `sapelo` too post-mechanism-9) — the mission's OWN secondary scope item,
+  NOT started this iteration (budget fully consumed by mechanism 9's own
+  scope + its unmasking cascade). Queued whole for S6.
+- `bilare-19-fufe539`'s own residual 1px `svg/@width`/`@viewBox` rounding
+  gap (unrelated to mechanism 11, present both before and after) — small,
+  not chased.
+- `niveno-60-tiro789`'s own `svg/@background` mismatch (theme resolution
+  failure for that specific fixture's background color, unrelated to
+  mechanism 12) — named, not chased.
+- 4 fixtures (`cagego-53-vemo516`, `fugedo-34-fice721`, `xacona-99-peze211`,
+  `zecivu-62-pagu681`) discovered to be jar-classified PARSE-ERROR diagrams
+  (green-on-black error page, `data-diagram-type` attribute absent), not
+  real STATE diagrams at all — matches G3's own `gizini-87-vuve916`
+  precedent (a corpus bucket can contain fixtures the jar itself classifies
+  as a different type). Out of scope; not chased.
+- Mechanism 10's own creation-index-based ordering gap (see that mechanism's
+  own "NOT a full fix" section) — unchanged, pre-existing, named again here
+  for visibility.
+
+### Ratchet / pins
+
+14 fixtures pinned (was 13; +1: `tezivo-82-rufa055`) — `oracle/goldens/
+svg-state/ratchet.json` updated, 1 new golden dir added (`in.puml`+
+`golden.svg`, copied verbatim from `test-results/dot-cache/state/tezivo-82-
+rufa055/`). `state.golden.ratchet.test.ts`: **16 tests** (was 15; 14×AC1 +
+AC2 + AC3), all passing. `parity-state.json` regenerated clean: 271/271
+surveyed, 267/271 `dotEqual`, 14/271 `conformant`, 0 timeouts/errors.
+
+### size-backlog.json: unchanged (0 entries touched)
+
+This iteration's mechanisms are ALL render-structure-only (transition
+nesting, top-level ordering, box shape/wrap decisions, an additive
+background rect) — none touch a sizing/layout FORMULA, so no fixture's own
+`maxSizeDeltaIn` could have moved in either direction. Verified, not
+assumed: `state-dot-parity.test.ts` stayed at **268/268** passing throughout
+the ENTIRE iteration (checked before mechanism 9, after mechanism 9, and
+again after mechanisms 10-12), confirming zero sizing-side impact. No
+tighten-only edits made to `oracle/goldens/state/size-backlog.json` this
+iteration (nothing to tighten).
+
+### Files changed (S5)
+
+- `src/diagrams/state/state-geo-types.ts` — `StateNodeGeo.transitions`
+  (NEW, mechanism 9), `StateNodeGeo.emptyDescription` (NEW, mechanism 11).
+- `src/diagrams/state/layout.ts` — `buildPseudoNodeGeos`/`buildFlatStateGeos`
+  populate `transitions: []`; `buildFlatStateGeos` threads `ast.
+  hideEmptyDescription` (mechanism 11); `shiftStateNode` recurses into
+  `.transitions` too (mechanism 9).
+- `src/diagrams/state/state-composite-geo.ts` — `materializeAutonom`/
+  `materializeCluster`/`materializeSpecs`/`layoutComposite` rewritten
+  (mechanism 9, drop `outTransitions` accumulator); `shiftGeo` recurses into
+  `.transitions` too.
+- `src/diagrams/state/state-composite-pass.ts` — `DiagramCtx.
+  hideEmptyDescription` (NEW, mechanism 11); `resolveMember`'s leaf branch
+  threads it; `buildTopLevelPass`'s own `specs` order flipped (mechanism 10).
+- `src/diagrams/state/state-composite-autonom.ts` — `buildPlainAutonomSpec`
+  simplified (mechanism 9, drop `inkOutTransitions`).
+- `src/diagrams/state/state-composite-concurrent.ts` — `regionInkDim`
+  simplified (mechanism 9, drop `out` accumulator).
+- `src/diagrams/state/layout-ink-extent.ts` — `addNodeInk` gains
+  `includeArrowheadInk` param + recurses into `node.transitions` (mechanism 9).
+- `src/diagrams/state/renderer.ts` — `renderNodeWrapped` renders
+  `node.transitions` inside its own wrap (mechanism 9); `renderTransitionWrapped`
+  drops its `index` param (Map-based uid lookup); `wrapClassFor` returns
+  `undefined` for `emptyDescription` nodes (mechanism 11).
+- `src/diagrams/state/renderer-uid.ts` — `edgeUid` changed from array to
+  `Map<TransitionGeo, string>` (mechanism 9); `collectTransitionsInOrder`
+  (NEW).
+- `src/diagrams/state/renderer-box.ts` — `renderEmptyDescription` (NEW,
+  mechanism 11).
+- `src/diagrams/state/renderer-shell.ts` — `maybeBackgroundRect` (NEW,
+  mechanism 12).
+- `src/diagrams/state/state-sizing.ts` — `buildStateGeoTextFields` gains
+  `hideEmptyDescription` param + `emptyDescription` marker (mechanism 11).
+- `tests/unit/state/renderer-nested-transitions.test.ts` — NEW (mechanism 9).
+- `tests/unit/state/renderer-shell.test.ts` — NEW (mechanism 12).
+- `tests/unit/state/renderer.test.ts` — `makeNode` gains `transitions: []`
+  default; new `EntityImageStateEmptyDescription` describe block (mechanism
+  11).
+- `tests/unit/state/renderer-composite-box.test.ts` — `makeComposite` gains
+  `transitions: []` defaults.
+- `tests/unit/state/layout.test.ts` — the 2 pre-existing composite-internal-
+  transition tests updated to assert the NEW per-node attachment (mechanism
+  9 changes their own documented behavior deliberately, not a regression —
+  see diagnosis.md discipline: pre-existing tests encoding the OLD, now-
+  incorrect flat-array behavior were updated, not deleted).
+- `oracle/goldens/svg-state/ratchet.json` — 1 fixture added.
+- `oracle/goldens/svg-state/tezivo-82-rufa055/{in.puml,golden.svg}` — NEW.
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated (271/271
+  surveyed, 14/271 conformant, 267/271 dotEqual, 0 timeouts/errors).
+- `plans/g4-state-svg/README.md`, `plans/g4-state-svg/ledger.md` — this
+  entry.
+
+### Gates (S5, final)
+
+- `state` census: **14/271** zero-diff (`1-3:29, 4-10:136, 11-30:44, 31+:48,
+  errors:0`) — up from S4's `13/271` (`1-3:48, 4-10:156, 11-30:34, 31+:20`).
+  +1 new pin (`tezivo-82-rufa055`), 0 regressed.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census: **48/355**, intact, unchanged (1 pre-existing error,
+  unrelated).
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified BOTH before and after
+  every mechanism landed this iteration.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing
+  throughout — this iteration's mechanisms never touch sizing formulas.
+- `npm test -- --run`: 9970/9970 passing (366 files).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: 16 tests (14 pins), up from 15 (13 pins).
+
+### S6+ queue
+
+1. **Concurrent-region separator `<line>`s** (mechanism 13, NEW, diagnosed
+   not landed) — a genuinely new rendering feature, `stroke-width:1.5;
+   stroke-dasharray:8,10;`, drawn between each pair of stacked regions
+   inside the owning composite's own `<g>`.
+2. **Per-region pseudo-node scope-id collision** (mechanism 14, NEW,
+   diagnosed not landed) — `buildConcurrentRegionPass` needs to pass its
+   OWN `concurrentRegionScopeId(owner.id, regionIndex+1)` (already computed
+   for `noteScopeId`) as `scopeId` too, not `owner.id`. Land TOGETHER with
+   mechanism 13 (both surfaced on the SAME `nelupe`/`sapelo` fixtures).
+3. **Transition routing/positioning** (`svg/g/g/path/@d`) — the mission's
+   OWN secondary scope, entirely deferred this iteration (mechanism 9's own
+   scope + cascade consumed the full budget). The dominant residual on
+   several near-zero fixtures once mechanisms 9-14 all land.
+4. **Mechanism 10's own creation-index ordering gap** — `nelupe-49-xova546`-
+   style multi-real-entity-plus-pseudo diagrams need true parse-time
+   creation-order threading (a separate, larger item) to close fully.
+5. `transitionArrowheadInk`'s own root cause (S4 queue item 2) — unchanged.
+6. Entity-vs-cluster wrap split (S1/S3 item 3) — unchanged.
+7. `<<sdlreceive>>` unwrapped-entity gap — unchanged from S1-S4.
+8. Notes never render — unchanged from S1-S4.
+9. `lonuti-97-voko521`'s own `<style>`-tag `FontColor` cascade gap —
+   unchanged from S4.
+10. `bilare-19-fufe539`'s own 1px `svg/@width` rounding residual (NEW,
+    small) and `niveno-60-tiro789`'s own `svg/@background` theme-resolution
+    bug (NEW, unrelated to mechanism 12) — both named this iteration, not
+    chased.
+11. Re-run the census and `--families` report FRESH again once mechanisms
+    13/14 land — the concurrent-region family (18 fixtures) should show
+    real per-feature fidelity for the first time this mission.

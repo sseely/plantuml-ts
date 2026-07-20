@@ -89,6 +89,13 @@ export interface DiagramCtx {
    *  `buildConcurrentAutonomSpec` (./state-composite-concurrent.ts) reads
    *  from this map instead of building a region's pass inline. */
   resolvedRegions: Map<string, ConcurrentRegionPassResult>;
+  /** mission G4 S5: `ast.hideEmptyDescription`, threaded onto `ctx` so
+   *  `resolveMember`'s LEAF branch can pass it to `buildStateGeoTextFields`
+   *  (`StateNodeGeo.emptyDescription`'s own doc comment) -- a composite's
+   *  own title (`buildPlainAutonomSpec`/`combineConcurrentPasses`) never
+   *  reads this field, since composites are never eligible for the
+   *  EmptyDescription shape upstream (leaf-only branch). */
+  hideEmptyDescription: boolean;
 }
 
 /** Geometry-tree spec — mirrors visual nesting (unlike the flat
@@ -347,7 +354,7 @@ export function resolveMember(s: State, acc: PassAccumulator, ctx: DiagramCtx, p
   const isComposite = hasLocalContent(s);
   if (!isComposite) {
     acc.nodes.push(buildLeafNode(s, ctx));
-    return { kind: 'state', id: s.id, stateKind: s.kind, display: s.display, ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer) };
+    return { kind: 'state', id: s.id, stateKind: s.kind, display: s.display, ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer, ctx.hideEmptyDescription) };
   }
   if (ctx.classify.kindOf.get(s.id) === 'autonom') {
     const spec = ctx.resolvedAutonom.get(s.id);
@@ -411,7 +418,7 @@ export function buildTopLevelPass(
   const ctx: DiagramCtx = {
     theme, measurer, rankdir, classify, pool, consumed: new Set(),
     noteParts, notePool, consumedNotes: new Set(), resolvedAutonom: new Map(),
-    resolvedRegions: new Map(),
+    resolvedRegions: new Map(), hideEmptyDescription: ast.hideEmptyDescription ?? false,
   };
   resolveAllAutonomPasses(ctx);
   const acc = newAccumulator();
@@ -435,5 +442,13 @@ export function buildTopLevelPass(
     ...(acc.clusters.length > 0 ? { clusters: acc.clusters } : {}),
   };
   const result = layoutGraph(graph);
-  return { acc, result, ctx, specs: [...pseudoSpecs, ...specs] };
+  // mission G4 S5: real states/composites FIRST, pseudo start/end LAST --
+  // matches jar's own document order (`bajelo-54-dixe684`: `Track_FSM`
+  // entity first, `.start.`/`.end.` pseudo entities last) and the FLAT
+  // pipeline's own existing convention (`layout.ts#buildFlatStateGeos`
+  // pushes `buildPseudoNodeGeos` AFTER the real states). The pre-S5
+  // `[...pseudoSpecs, ...specs]` order was backward -- previously masked
+  // by the flat-transitions childCount short-circuit (S1), only visible
+  // once that mismatch was fixed (S5's own transition-nesting mechanism).
+  return { acc, result, ctx, specs: [...specs, ...pseudoSpecs] };
 }

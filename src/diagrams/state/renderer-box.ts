@@ -81,6 +81,33 @@ function renderUnmeasuredFallback(node: StateNodeGeo, theme: Theme, box: string)
   );
 }
 
+/**
+ * mission G4 S5: `EntityImageStateEmptyDescription.drawU` -- rect ONLY (no
+ * divider, no body), label CENTERED both horizontally AND vertically
+ * (`xDesc = (dimTotal.width - dimHeader.width) / 2`, `yDesc = (dimTotal
+ * .height - dimHeader.height) / 2` in upstream's own coordinates; `
+ * dimHeader.height` is `headerLines.length * fontSize`, matching every
+ * other box's own `MEASURE_LINES`-derived text-block-height convention).
+ * jar-verified `gopumi-11-pise779`'s `S1` (single line, MIN 50x40 box):
+ * box x=25.86 y=86 w=50 h=40, text x=42.285 y=109.8889 -- `yDesc = (40 -
+ * 14)/2 = 13`, baseline = `node.y + 13 + textAscent(14) = 86 + 23.8889 =
+ * 109.8889`, EXACT match.
+ * @see ~/git/plantuml/.../svek/image/EntityImageStateEmptyDescription.java
+ */
+function renderEmptyDescription(node: StateNodeGeo, theme: Theme, box: string): string {
+  const headerLines = node.headerLines!;
+  const ascent = textAscent(theme.fontSize);
+  const textBlockHeight = headerLines.length * theme.fontSize;
+  const yDesc = (node.height - textBlockHeight) / 2;
+  const headerMarkup = renderTextLines(
+    headerLines,
+    (ln) => node.x + node.width / 2 - ln.width / 2,
+    node.y + yDesc + ascent,
+    theme,
+  );
+  return box + headerMarkup;
+}
+
 export function renderNormal(node: StateNodeGeo, theme: Theme): string {
   const fill = resolveStateFill(node, STATE_DEFAULT_BACKGROUND);
   const border = theme.colors.border;
@@ -94,6 +121,10 @@ export function renderNormal(node: StateNodeGeo, theme: Theme): string {
 
   if (node.headerLines === undefined) {
     return renderUnmeasuredFallback(node, theme, box);
+  }
+
+  if (node.emptyDescription === true) {
+    return renderEmptyDescription(node, theme, box);
   }
 
   const ascent = textAscent(theme.fontSize);

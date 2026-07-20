@@ -17,12 +17,23 @@
  * Numbering order: states in `StateGeometry.states` pre-order (parent
  * before children, matching real declaration order for a `state Foo { ... }`
  * block — the child states are declared AFTER their container), then
- * transitions in `StateGeometry.transitions` array order (the diagram's own
- * source order, `StateDiagramAST.transitions`).
+ * transitions: `StateGeometry.transitions` (the diagram's own top-level
+ * pass, source order) FIRST, then each node's own `.transitions` (mission
+ * G4 S5, the transition-nesting mechanism) walked in the SAME states
+ * pre-order — this exactly reproduces the pre-S5 flat-array numbering shape
+ * (top-pass edges first, then nested pass edges in materialization order),
+ * since S5's own restructuring moved nested edges OFF the flat array and
+ * onto their owning node without changing the underlying traversal order.
  *
- * @see plans/g4-state-svg/ledger.md (S1, mechanism 2)
+ * mission G4 S5: `edgeUid` is now a `Map` keyed by `TransitionGeo` object
+ * identity rather than an array parallel to a single flat list — transitions
+ * now live in MULTIPLE arrays (the top-level list plus every composite
+ * node's own `.transitions`), so a single array-index scheme no longer
+ * identifies a transition uniquely.
+ *
+ * @see plans/g4-state-svg/ledger.md (S1, mechanism 2; S5, transition nesting)
  */
-import type { StateGeometry, StateNodeGeo } from './state-geo-types.js';
+import type { StateGeometry, StateNodeGeo, TransitionGeo } from './state-geo-types.js';
 
 /** `StringUtils.getUid("ent", n)` — `"ent" + "%04d".format(n)`. */
 function entUid(n: number): string {
@@ -37,8 +48,9 @@ function lnkUid(n: number): string {
 export interface StateUidPlan {
   /** `StateNodeGeo.id` (at any nesting depth) → assigned `ent%04d` uid. */
   readonly nodeUid: ReadonlyMap<string, string>;
-  /** Parallel to `geo.transitions` — the assigned `lnkN` uid per transition. */
-  readonly edgeUid: readonly string[];
+  /** Keyed by `TransitionGeo` object identity — the assigned `lnkN` uid per
+   *  transition, resolved via {@link resolveEdgeUid} at render time. */
+  readonly edgeUid: ReadonlyMap<TransitionGeo, string>;
   /** Resolves a raw `TransitionGeo.from`/`.to` endpoint id to its assigned
    *  node uid, falling back to the raw string itself when unresolved
    *  (mirrors `ClassUidPlan.resolveEntityUid`'s own fallback). */
@@ -52,6 +64,15 @@ function collectPreOrder(nodes: readonly StateNodeGeo[], out: StateNodeGeo[]): v
   }
 }
 
+/** `<top-level pass edges>, then <each node's own nested edges in states
+ *  pre-order>` — see this module's own doc comment for why this exactly
+ *  reproduces the pre-S5 flat-array numbering shape. */
+function collectTransitionsInOrder(geo: StateGeometry, flatNodes: readonly StateNodeGeo[]): TransitionGeo[] {
+  const out: TransitionGeo[] = [...geo.transitions];
+  for (const n of flatNodes) out.push(...n.transitions);
+  return out;
+}
+
 export function buildStateUidPlan(geo: StateGeometry): StateUidPlan {
   const flat: StateNodeGeo[] = [];
   collectPreOrder(geo.states, flat);
@@ -63,10 +84,11 @@ export function buildStateUidPlan(geo: StateGeometry): StateUidPlan {
     nodeUid.set(n.id, entUid(counter));
   }
 
-  const edgeUid = geo.transitions.map(() => {
+  const edgeUid = new Map<TransitionGeo, string>();
+  for (const t of collectTransitionsInOrder(geo, flat)) {
     counter += 1;
-    return lnkUid(counter);
-  });
+    edgeUid.set(t, lnkUid(counter));
+  }
 
   const resolveNodeUid = (id: string): string => nodeUid.get(id) ?? id;
 

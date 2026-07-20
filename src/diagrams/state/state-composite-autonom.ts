@@ -13,7 +13,6 @@
 
 import type { State } from './ast.js';
 import type { DotLayoutResult } from '../../core/graph-layout.js';
-import type { TransitionGeo } from './state-geo-types.js';
 import { buildStateGeoTextFields } from './state-sizing.js';
 import { measureAutonomWrapper } from './state-composite-sizing.js';
 import { computeSvekResultGeometry } from './layout-ink-extent.js';
@@ -163,9 +162,14 @@ export function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonom
 
   const localSpecs = [...pseudoSpecs, ...memberSpecs];
   const rawPosMap: PosMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const inkOutTransitions: TransitionGeo[] = [];
-  const inkStates = materializeSpecs(localSpecs, rawPosMap, inkOutTransitions);
-  const inkTransitions = [...buildLevelTransitionGeos(acc, result), ...inkOutTransitions];
+  // mission G4 S5: `materializeSpecs` no longer takes an `outTransitions`
+  // accumulator -- every nested pass's own edges attach directly to its
+  // own returned node's `.transitions` field, and `computeSvekResultGeometry`
+  // (via `addNodeInk`) recurses into that field, so ink coverage is
+  // unchanged (see `state-composite-geo.ts#materializeAutonom`'s own doc
+  // comment).
+  const inkStates = materializeSpecs(localSpecs, rawPosMap);
+  const inkTransitions = buildLevelTransitionGeos(acc, result);
   const geometry = computeSvekResultGeometry(inkStates, inkTransitions);
   const childImg = {
     width: Math.max(geometry.width, result.width),

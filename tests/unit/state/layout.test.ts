@@ -574,7 +574,7 @@ describe('layoutState — guard and action combined label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutState — composite state with internal transitions', () => {
-  it('composite with child-to-child transition produces inner transition geos', () => {
+  it('composite with child-to-child transition attaches the inner transition to its OWN node, not the top level', () => {
     const child1 = makeState('C1');
     const child2 = makeState('C2');
     const innerTransition = makeTransition('C1', 'C2', { label: 'next' });
@@ -587,12 +587,18 @@ describe('layoutState — composite state with internal transitions', () => {
       transitions: [],
     };
     const result = layoutState(ast, theme, measurer);
-    // The inner transition should appear in the top-level result
-    const innerT = result.transitions.find((tr) => tr.label?.text === 'next');
+    // mission G4 S5 (transition-nesting mechanism): jar nests a composite
+    // pass's own internal transitions INSIDE that pass's own <g>, never as
+    // flat top-level siblings -- see plans/g4-state-svg/ledger.md S5.
+    const outer = result.states.find((s) => s.id === 'Outer');
+    expect(outer).toBeDefined();
+    const innerT = outer?.transitions.find((tr) => tr.label?.text === 'next');
     expect(innerT).toBeDefined();
+    // Not duplicated at the top level.
+    expect(result.transitions.find((tr) => tr.label?.text === 'next')).toBeUndefined();
   });
 
-  it('composite with many children produces transitions for all inner edges', () => {
+  it('composite with many children attaches transitions for all inner edges to its OWN node', () => {
     // A chain of 3 children forces longer edges that may have >2 waypoints
     const c1 = makeState('IC1');
     const c2 = makeState('IC2');
@@ -611,9 +617,12 @@ describe('layoutState — composite state with internal transitions', () => {
       transitions: [],
     };
     const result = layoutState(ast, theme, measurer);
-    expect(result.states.find((s) => s.id === 'BigOuter')).toBeDefined();
-    // Inner transitions are propagated to top-level
-    expect(result.transitions.length).toBeGreaterThan(0);
+    const bigOuter = result.states.find((s) => s.id === 'BigOuter');
+    expect(bigOuter).toBeDefined();
+    // Inner transitions attach to the composite's OWN node (mission G4 S5),
+    // not the top-level StateGeometry.transitions array.
+    expect(bigOuter?.transitions.length).toBeGreaterThan(0);
+    expect(result.transitions.length).toBe(0);
   });
 });
 

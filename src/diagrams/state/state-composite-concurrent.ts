@@ -98,9 +98,12 @@ export interface ConcurrentRegionPassResult {
  *  composite-internal-labeled-transition residual not yet fully closed). */
 function regionInkDim(p: ConcurrentRegionPassResult): { width: number; height: number } {
   const posMap: PosMap = new Map(p.result.nodes.map((n) => [n.id, n]));
-  const out: TransitionGeo[] = [];
-  const states = materializeSpecs(p.specs, posMap, out);
-  const transitions = [...buildLevelTransitionGeos(p.acc, p.result), ...out];
+  // mission G4 S5: `materializeSpecs` no longer takes an `outTransitions`
+  // accumulator -- see `state-composite-geo.ts#materializeAutonom`'s own
+  // doc comment; `computeSvekResultGeometry`'s ink walk recurses into each
+  // materialized node's own `.transitions` field directly.
+  const states = materializeSpecs(p.specs, posMap);
+  const transitions = buildLevelTransitionGeos(p.acc, p.result);
   const ink = computeSvekResultGeometry(states, transitions);
   return { width: Math.max(ink.width, p.result.width), height: Math.max(ink.height, p.result.height) };
 }

@@ -18,6 +18,7 @@ function makeNode(overrides: Partial<StateNodeGeo> & Pick<StateNodeGeo, 'kind'>)
     width: 80,
     height: 40,
     children: [],
+    transitions: [],
     ...overrides,
   };
 }
@@ -195,6 +196,80 @@ describe('renderState — normal state', () => {
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('text-anchor="middle"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EntityImageStateEmptyDescription (mission G4 S5): `hide empty description`
+// + a leaf state with no body lines -- jar-verified `gopumi-11-pise779`'s
+// own `S1` (`hide empty description`, `S1 --> S2`, no `S1 :` body line):
+// box x=25.86 y=86 w=50 h=40, text x=42.285 y=109.8889 -- NO divider <line>,
+// and the entity is NOT wrapped in a <g> at all (bare rect+text siblings).
+// ---------------------------------------------------------------------------
+
+describe('renderState — EntityImageStateEmptyDescription (hide empty description, no body)', () => {
+  it('draws NO divider <line> for the empty-description shape', () => {
+    const node = makeNode({
+      kind: 'normal',
+      display: 'S1',
+      x: 25.86,
+      y: 86,
+      width: 50,
+      height: 40,
+      headerLines: [{ text: 'S1', width: 17.15 }],
+      emptyDescription: true,
+    });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).not.toContain('<line');
+  });
+
+  it('centers the label text horizontally AND vertically (not the regular header-line offset)', () => {
+    const node = makeNode({
+      kind: 'normal',
+      display: 'S1',
+      x: 25.86,
+      y: 86,
+      width: 50,
+      height: 40,
+      headerLines: [{ text: 'S1', width: 17.15 }],
+      emptyDescription: true,
+    });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    // jar-verified gopumi-11-pise779: x=42.285 y=109.8889 (jar's own
+    // rounded display precision; our renderer emits full float precision --
+    // compareSvg's numeric tolerance, not string equality, is the real
+    // conformance bar, see tests/oracle/svg-conformance/compare.ts).
+    expect(result).toContain('x="42.285"');
+    expect(result).toContain('y="109.88888888888889"');
+  });
+
+  it('does NOT wrap the entity in a <g> at all -- bare rect+text siblings', () => {
+    const node = makeNode({
+      kind: 'normal',
+      display: 'S1',
+      id: 'S1',
+      headerLines: [{ text: 'S1', width: 17.15 }],
+      emptyDescription: true,
+    });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).not.toContain('data-qualified-name="S1"');
+  });
+
+  it('a regular normal state (no emptyDescription flag) is UNCHANGED -- still wrapped, still has a divider', () => {
+    const node = makeNode({
+      kind: 'normal',
+      display: 'S2',
+      id: 'S2',
+      headerLines: [{ text: 'S2', width: 17.15 }],
+      bodyLines: [],
+    });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).toContain('data-qualified-name="S2"');
+    expect(result).toContain('<line');
   });
 });
 

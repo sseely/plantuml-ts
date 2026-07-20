@@ -19,7 +19,10 @@ function makeComposite(overrides: Partial<StateNodeGeo> = {}): StateNodeGeo {
     y: 0,
     width: 100,
     height: 100,
-    children: [{ id: 'child1', kind: 'normal', display: 'Child', x: 10, y: 40, width: 50, height: 50, children: [] }],
+    children: [
+      { id: 'child1', kind: 'normal', display: 'Child', x: 10, y: 40, width: 50, height: 50, children: [], transitions: [] },
+    ],
+    transitions: [],
     ...overrides,
   };
 }
