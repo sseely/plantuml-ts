@@ -33,8 +33,28 @@
  * `state-composite-autonom.ts#buildPlainAutonomSpec`'s identical threading
  * for the region-free case.
  *
+ * Mission G4 S4 (mechanism 7's own concurrent-composite companion --
+ * diagnosed while chasing `nelupe-49-xova546`'s regression, a direct read
+ * of `ConcurrentStates.java`, not guessed): EACH region's own `inner.
+ * calculateDimension()` (the value both `ConcurrentStates.calculateDimensionSlow`'s
+ * `Separator.add` stacking-sum AND `drawU`'s `separator.move(dim)` cursor
+ * advance use) is `SvekResult#calculateDimension()` -- the SAME ink-extent
+ * formula `state-composite-autonom.ts#buildPlainAutonomSpec` already applies
+ * for a plain composite's own wrapped child pass, NOT the raw `layoutGraph()`
+ * canvas size `p.result.width/height` this file used exclusively before.
+ * `buildConcurrentAutonomSpec`'s own `regionDims` (below) and
+ * `combineConcurrentPasses`'s own `yShift` BOTH now use this SAME ink-based
+ * per-region dimension -- kept consistent deliberately, since upstream ties
+ * both the reported SIZE and the actual STACK POSITION to the identical
+ * `calculateDimension()` call. `stackConcurrentRegions`'s own separator gap
+ * is `0` (see its own doc comment, state-composite-sizing.ts) -- ALSO a
+ * direct-source finding from the same investigation, not independent of it.
+ * Jar-verified via the full `size-backlog.json` DOT-parity ratchet
+ * (268/268 passing) -- see plans/g4-state-svg/ledger.md S4.
+ *
  * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
  * @see ~/git/plantuml/.../svek/GroupMakerState.java#getImage
+ * @see ~/git/plantuml/.../svek/ConcurrentStates.java
  */
 
 import type { State, Transition } from './ast.js';
@@ -42,6 +62,8 @@ import type { DotLayoutResult } from '../../core/graph-layout.js';
 import type { TransitionGeo } from './state-geo-types.js';
 import { buildStateGeoTextFields } from './state-sizing.js';
 import { measureAutonomWrapper, stackConcurrentRegions, type AutonomWrapper } from './state-composite-sizing.js';
+import { computeSvekResultGeometry } from './layout-ink-extent.js';
+import { materializeSpecs, type PosMap } from './state-composite-geo.js';
 import {
   type DiagramCtx,
   type PassAccumulator,
@@ -56,10 +78,6 @@ import {
 } from './state-composite-pass.js';
 import { concurrentRegionScopeId } from './state-parse-state.js';
 
-/** ConcurrentStates region-stack separator, reused for the composite's own
- *  non-region leaf pass's vertical offset (see state-composite-sizing.ts). */
-const REGION_GAP = 60;
-
 /** One region's (or region-0's) resolved pass — the raw laid-out content
  *  BEFORE any composite-level title/border wrapping (a region has none of
  *  its own upstream: `Display.create("")`, StateDiagram.java:204). Shared
@@ -70,6 +88,21 @@ export interface ConcurrentRegionPassResult {
   acc: PassAccumulator;
   result: DotLayoutResult;
   specs: GeoSpec[];
+}
+
+/** Mission G4 S4: `inner.calculateDimension()` — `SvekResult#calculateDimension()`'s
+ *  ink-extent-aware bbox of a region's own drawn content, `Math.max`-floored
+ *  against the raw `layoutGraph()` canvas size for the SAME non-regressing-
+ *  floor reason `state-composite-autonom.ts#buildPlainAutonomSpec`'s own
+ *  `childImg` computation is (see that call site's doc comment — a
+ *  composite-internal-labeled-transition residual not yet fully closed). */
+function regionInkDim(p: ConcurrentRegionPassResult): { width: number; height: number } {
+  const posMap: PosMap = new Map(p.result.nodes.map((n) => [n.id, n]));
+  const out: TransitionGeo[] = [];
+  const states = materializeSpecs(p.specs, posMap, out);
+  const transitions = [...buildLevelTransitionGeos(p.acc, p.result), ...out];
+  const ink = computeSvekResultGeometry(states, transitions);
+  return { width: Math.max(ink.width, p.result.width), height: Math.max(ink.height, p.result.height) };
 }
 
 /** ConcurrentStates: region 0 (`s.children` — S's own direct pre-separator
@@ -123,7 +156,7 @@ export function buildConcurrentAutonomSpec(s: State, ctx: DiagramCtx): Extract<G
   // Visual stacking order matches SOURCE order (region 0 on top).
   const passes = ownPass !== undefined ? [ownPass, ...regionPasses] : regionPasses;
 
-  const stacked = stackConcurrentRegions(passes.map((p) => ({ width: p.result.width, height: p.result.height })));
+  const stacked = stackConcurrentRegions(passes.map(regionInkDim));
   const wrapper = measureAutonomWrapper(s, stacked, ctx.theme, ctx.measurer);
   return combineConcurrentPasses(s, passes, wrapper, ctx);
 }
@@ -202,7 +235,7 @@ function combineConcurrentPasses(
     for (const n of p.result.nodes) allNodes.push({ ...n, y: n.y + yShift });
     for (const t of buildLevelTransitionGeos(p.acc, p.result)) localTransitions.push(shiftTransitionY(t, yShift));
     localStates.push(...p.specs);
-    yShift += p.result.height + REGION_GAP;
+    yShift += regionInkDim(p).height;
   }
   return {
     kind: 'autonom',

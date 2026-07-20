@@ -1425,3 +1425,321 @@ After  (S3): 9/271 -- 1-3:17, 4-10:182, 11-30:40, 31+:23, errors:0
    lands — composite-bearing fixtures should finally drop out of the
    dominant `svg/@viewBox`/`@width`/`@height` family, exposing the true
    remaining non-composite surface for the first time this mission.
+
+## S4 — mechanism 7 landed (composite wrapper sizing + child position),
+mechanism 8 discovered and landed (`ConcurrentStates` separator-gap bug),
+9→13 pins, 138→102 size-backlog entries
+
+### Summary
+
+Landed mechanism 7 (S3's own queue item 1) in full: the composite wrapper
+width/height fix (`tightContentDimension`+15, previously reverted) COMBINED
+with the child position-offset fix, both re-derived from a single, unifying
+root cause — `SvekResult#calculateDimension()`'s ink-extent-aware bbox
+(`layout-ink-extent.ts#computeSvekResultGeometry`), not the naive geometric
+box S3's own trial used. Diagnosing the child-position half by hand against
+jar's real SVG (`coteta-47-mare883`, `lonuti-97-voko521`) showed the S3-named
+"~7px, not the expected 6px" gap is EXACTLY `JAR_INK_MARGIN(6)` plus the
+leaf-state-box ink rule's own `-1` min-corner asymmetry (mechanism 4's own
+`addStateBoxInk`) — i.e. mechanism 7's position half and width/height half
+are the SAME ink-extent computation, not two independent formulas. Landing
+this surfaced two FURTHER, previously-invisible mechanisms (both
+diagnosed-and-fixed, not deferred):
+
+- A pre-existing bug in `transitionArrowheadInk` (mechanism 3, S1) that
+  massively over-reports ink span for certain edge-angle/curvature
+  combinations (self-loops; jar-verified `taxile-56-goca422`/`pebepi-32-
+  cati486`/`tigibi-80-zidi137`, all the identical `state parent { child -->
+  child }` shape) — worked around (not root-caused to an exact line) by
+  excluding arrowhead ink from `computeSvekResultGeometry`'s own walk only
+  (document-level ink, mechanism 4, is UNCHANGED, zero risk to its own
+  already-pinned fixtures).
+- Mechanism 8 (NEW, landed): `ConcurrentStates.java`'s real `calculateDimensionSlow`
+  has ZERO separator gap between stacked regions (`Separator.add` is a bare
+  sum; `drawSeparator` paints a line WITHIN the already-summed dimension,
+  never reserving extra space) — `stackConcurrentRegions`'s `CONCURRENT_SEPARATOR_GAP
+  = 60` (S1-era, explicitly self-documented "no exact upstream pixel constant
+  traced") was WRONG. Diagnosed while chasing a mechanism-7-caused cascade
+  regression on `nelupe-49-xova546` (a nested plain composite, `toutou9`,
+  becoming MORE accurate via mechanism 7 pushed an already-at-ceiling,
+  already-overshooting concurrent-composite total past its pinned
+  allowance) — direct read of `ConcurrentStates.java` (not guessed) found
+  the gap should be `0`, AND each region's own dimension should be
+  `inner.calculateDimension()` (ink-based, the SAME `computeSvekResultGeometry`
+  mechanism 7 already built), not the raw `layoutGraph()` canvas size
+  `buildConcurrentAutonomSpec` used exclusively before. Landing BOTH pieces
+  together (gap=0 + ink-based per-region dimension) fixed nelupe AND
+  resolved 2 further regressions the gap=0-alone experiment introduced
+  (`darime-88-moda428`, `lumamo-63-zupa263`) — full `state-dot-parity`
+  ratchet (268/268) passes clean.
+
+A THIRD sub-issue was diagnosed and explicitly NOT closed this iteration
+(named, not silently dropped): a composite whose own dominant content is 1-2
+short INTERNAL labeled transitions (`bunade-42-fudu910`'s `NotShooting`) still
+under-sizes slightly, because `TransitionGeo.label` carries no measured WIDTH
+field. A same-iteration attempt to measure it inline (`ctx.measurer`,
+`buildLabelInkPoints`) was jar-verified directionally correct on `bunade` but
+OVERSHOT on `beguxu-19-tize774` (single labeled edge) — a worse net result
+than not attempting it — REVERTED. `buildPlainAutonomSpec`'s own
+`Math.max(geometry.*, result.*)` floor stands in as a non-regressing
+safety net for this specific residual (queued for S5).
+
+```
+S3 (before): 9/271  -- 1-3:17, 4-10:182, 11-30:40, 31+:23, errors:0
+S4 (after): 13/271 -- 1-3:48, 4-10:156, 11-30:34, 31+:20, errors:0
+```
+
+4 new zero-diff pins: `coteta-47-mare883` (the primary S3-queued target),
+`mibabe-49-kexu237`, `noboda-97-zevo886`, `nuduni-60-mupe742` (all 3
+newly-unmasked as a side effect of mechanism 8's concurrent-region fix, not
+independently diagnosed — verified via the fresh `parity-state.json` survey,
+`dotEqual:true` + `conformant` on all 4, zero regressions on the 9
+already-pinned fixtures). `lonuti-97-voko521` (S3's OTHER named target)
+reached genuine geometry-exactness (composite box/child-position byte-exact)
+but stays non-zero overall — its own remaining 9 diffs are a title
+`<style>`-tag `FontColor` cascade + one unrelated title x-position, BOTH
+pre-existing, unrelated to mechanisms 6/7/8 (named, not chased — a `<style>
+root { FontColor Red }` cascade-to-text-fill gap, a genuinely different,
+unscoped mechanism).
+
+### Mechanism 7 (composite wrapper width/height + child position offset): LANDED
+
+`src/diagrams/state/layout-ink-extent.ts#computeSvekResultGeometry` — the
+SAME `SvekResult#calculateDimension()` recipe mechanism 4 (S1) already ports
+for the TOP-LEVEL document (`computeStateDocumentDims`/`computeStateInkShift`),
+reused for a WRAPPED CHILD PASS: an ink-extent bbox of the pass's own
+MATERIALIZED content (`state-composite-geo.ts#materializeSpecs`, exported and
+reused rather than re-derived — nested autonom/cluster composites get the
+SAME real ink-box treatment `addNodeInk` already gives them at the document
+level) yields BOTH the reported dimension (`ink-box + 15`, matching
+`.delta(15,15)`) and the position shift (`6 - ink-box.min`, matching
+`moveDelta(6-minX,6-minY)`) from the SAME walk — not two independent
+formulas, as S3's own reverted trial (naive geometric box, no ink awareness)
+assumed.
+
+`src/diagrams/state/state-composite-autonom.ts#buildPlainAutonomSpec` —
+rewritten: materializes its OWN child pass into `StateNodeGeo`/`TransitionGeo`
+(`rawPosMap`/`inkStates`/`inkTransitions`, un-shifted, LOCAL coordinates,
+mirroring what `layoutComposite`'s own top-level assembly would eventually
+produce), computes `geometry` via `computeSvekResultGeometry`, feeds
+`Math.max(geometry.width, result.width)`/height (the S3-established
+"never regress a pinned entry" floor, needed ONLY for the still-open
+label-ink residual named above) as `childImg` to `measureAutonomWrapper`, and
+applies `geometry.dx`/`dy` via a NEW `shiftDotLayoutResult` helper (a pure,
+non-mutating field-by-field translate of the child pass's own
+`DotLayoutResult`) BEFORE storing it as `localPositions` — downstream
+`state-composite-geo.ts#materializeAutonom` needed ZERO changes, since it
+already reads `spec.localPositions.nodes` as the local coordinate frame.
+
+**Jar-verified byte-for-byte** (own probe scripts, deleted before finishing):
+- `coteta-47-mare883` (1 nesting level, description-bearing leaf child):
+  composite outer box width/height AND leaf child `c`'s own absolute
+  position, EXACT match to jar; `compareSvg` reaches TRUE zero-diff overall.
+- `lonuti-97-voko521` (2 nesting levels, mixed leaf+nested-composite `A`
+  containing empty `B` and composite `C` containing leaf `c`): BOTH `A`'s and
+  `C`'s own outer box width/height, AND `c`'s own absolute position, EXACT
+  match to jar (hand-derived and independently confirmed via the code).
+- `bajelo-54-dixe684` (3 nesting levels, mechanism-6's own S3 target):
+  UNCHANGED/non-regressing — `Track_FSM`/`Do_Sector`'s own box shapes still
+  byte-exact; the fixture's remaining 5 diffs are entirely the ALREADY-named,
+  ALREADY-deferred entity-vs-cluster wrap-split gap (S1/S3 item 3, the `Run`
+  non-autonom cluster sibling), unchanged before/after (diff count identical,
+  5→5, verified via a disposable baseline `git worktree`).
+
+### Mechanism 7's own sub-bug (arrowhead-ink over-reach): diagnosed, worked around
+
+Per diagnosis.md: instrumented (not guessed) — a direct probe of
+`transitionArrowheadInk`'s own returned ink box for `taxile-56-goca422`'s
+self-loop (`child --> child`) showed a ~30px total ink span for an
+arrowhead whose own `ExtremityArrow` geometry (`xWing=9`) should bound it to
+~18px at most; a SECOND, independently-diagnosed case
+(`bunade-42-fudu910`'s `Idle --> Configuring` back-edge) showed the SAME
+class of anomaly (an unexpectedly-very-negative `minX`). **Ruled out**: not
+`place()`'s own `trim` field (`transitionArrowheadInk` never reads it). NOT
+root-caused to an exact line in `ExtremityArrow`/`rotate-point.ts` this
+iteration (would need its own dedicated diagnosis pass, out of THIS
+iteration's budget) — named as a real, PRE-EXISTING bug (mechanism 3, S1),
+not something S4 introduced; only NEWLY VISIBLE because mechanism 7 is the
+first call site where arrowhead ink can dominate a composite's own tight
+sizing (a full document's own ink is normally dominated by far larger
+node-box ink, masking this). **Fix**: `layout-ink-extent.ts#addTransitionInk`
+gained an `includeArrowheadInk` boolean; `computeSvekResultGeometry` passes
+`false`, `computeStateDocumentDims`/`computeStateInkShift` (mechanism 4, S1)
+keep `true`, UNCHANGED — zero risk to their own already-pinned fixtures.
+Jar-verified: `taxile-56-goca422`/`pebepi-32-cati486`/`tigibi-80-zidi137`
+(the identical shape) all returned to their PRE-mechanism-7 (already-passing)
+`maxSizeDeltaIn`.
+
+### Mechanism 8 (NEW) — `ConcurrentStates` separator-gap bug: diagnosed and LANDED
+
+Per diagnosis.md: instrumented before hypothesizing. Landing mechanism 7's
+width/height fix alone left EXACTLY 1 `state-dot-parity` regression,
+`nelupe-49-xova546` (`maxSizeDeltaIn` 1.555555→1.583333, its OWN allowance
+already at zero slack pre-S4). Traced the cascade: `nelupe`'s `s7_2` owns 3
+concurrent regions, one of which (`[*] --> toutou9`) contains a nested PLAIN
+composite `toutou9` (`[*] --> leo`) — mechanism 7 correctly fixed `toutou9`'s
+OWN reported size (now EXACT jar match, confirmed by direct node-size probe),
+which correctly grew the CONTAINING region's own raw canvas height by the
+SAME amount — and `stackConcurrentRegions` (unrelated to mechanisms 6/7, a
+S1-era formula, self-documented "no exact upstream pixel constant traced")
+SUMS region heights + a flat `CONCURRENT_SEPARATOR_GAP=60` PER GAP, so ANY
+correct increase to one region's own height cascades 1:1 into `s7_2`'s own
+already-overshooting total (baseline delta 1.5556in ≈ 112px, dominated by
+this SAME gap term: 2 gaps × 60px ≈ 120px, suspiciously matching). Direct
+read of `~/git/plantuml/.../svek/ConcurrentStates.java` (not guessed):
+`Separator.add(orig, other)` for the `--`/HORIZONTAL case is `new
+XDimension2D(max(orig.w,other.w), orig.h+other.h)` — a BARE SUM, zero gap
+term at all; `drawU`'s own cursor advance (`ug.apply(separator.move(dim))`)
+uses `dim = inner.calculateDimension()` directly, confirming the SAME
+zero-gap stacking at render time. `Separator.drawSeparator` paints the
+dashed rule WITHIN the already-summed space (never reserves extra layout
+room). **Ruled out**: gap=0 ALONE (without ALSO switching each region's own
+dimension from raw canvas to `inner.calculateDimension()`'s real ink-based
+formula) was tried first and INTRODUCED 2 new regressions
+(`darime-88-moda428`, `lumamo-63-zupa263`) — confirming BOTH pieces (zero
+gap AND ink-based per-region sizing) are required together, matching
+`ConcurrentStates.java`'s own `inner.calculateDimension()` call exactly
+(the SAME `SvekResult#calculateDimension()`/`computeSvekResultGeometry`
+mechanism 7 already built, reused here rather than re-derived).
+
+**Fix**: `state-composite-sizing.ts#CONCURRENT_SEPARATOR_GAP` set to `0`
+(kept, not deleted, as a named, doc-commented knob rather than silently
+removing the term). `state-composite-concurrent.ts#buildConcurrentAutonomSpec`
+gained `regionInkDim` (materializes each region's own content, runs
+`computeSvekResultGeometry`, `Math.max`-floored against raw canvas for the
+SAME non-regressing-floor reason mechanism 7's own `childImg` is) — used for
+BOTH `stackConcurrentRegions`'s own input AND `combineConcurrentPasses`'s own
+`yShift` (previously raw `p.result.height+REGION_GAP`; now the SAME
+`regionInkDim(p).height` per region, keeping reported SIZE and actual STACK
+POSITION consistent, matching upstream's own single `calculateDimension()`
+call for both purposes). Jar-verified: full `state-dot-parity.test.ts` ratchet
+268/268 passing (0 failures, down from mechanism 7's own 1); `nelupe`/
+`sapelo-46-jafe280` (the identical `toutou9`-nested-in-region shape) both now
+show ONLY an UNRELATED, already-known `svg/g[1][childCount]` diff (the S1-era
+transition-nesting simplification, item unrelated to sizing) with ZERO
+`svg/@width`/`@height` diffs — a genuine, large fidelity improvement beyond
+the single regression it was fixing.
+
+### Ratchet / pins
+
+13 fixtures pinned (was 9; +4: `coteta-47-mare883`, `mibabe-49-kexu237`,
+`noboda-97-zevo886`, `nuduni-60-mupe742`) — `oracle/goldens/svg-state/
+ratchet.json` updated, 4 new golden dirs added (`in.puml`+`golden.svg`,
+copied verbatim from `test-results/dot-cache/state/<slug>/`).
+`state.golden.ratchet.test.ts`: **15 tests** (was 11; 13×AC1 + AC2 + AC3),
+all passing. `parity-state.json` regenerated clean (0 timeouts; an earlier
+regen run under concurrent system load produced 17-130 spurious `timeout`
+verdicts on ALREADY-pinned fixtures including `xuzapa-55-xoli880` — ruled
+out as a real regression by re-running in isolation after killing stale
+concurrent survey processes; `xuzapa`'s own `AC1` byte-exact-against-golden
+test never stopped passing throughout, confirming the timeouts were a
+survey-tool/system-load artifact, not a render regression).
+
+### size-backlog.json: 138 → 102 entries (36 deleted, 51 tightened, 0 widened)
+
+Computed EVERY backlog entry's actual current `maxSizeDeltaIn` (a dedicated,
+disposable probe script, deleted before finishing) and compared against its
+pinned allowance: **0 entries worsened** (matches the DOT-parity suite's own
+clean 268/268 pass), 87 improved, of which 36 reached EXACTLY 0 (deleted,
+matching `size-backlog.json`'s own documented "Phase L size iterations drive
+entries to 0 and DELETE them" convention) and 51 shrank but not to zero
+(tightened to their new exact actual value — strictly tighten-only, verified
+`new <= old` for every entry before writing). Notable large shrinks:
+`nelupe-49-xova546` 1.555555→0 (deleted), `sapelo-46-jafe280` 1.444445→0
+(deleted), `pevene-26-kebo361` 1.541666→0 (deleted), `nivanu-50-zajo916`
+1.361112→0 (deleted), `zacajo-09-tamu628` 1.604167→0.144419, `xasoka-58-
+temi462` 1.773264→0.213889, `joleju-94-maru748` 5.916667→0.462240,
+`lonuti-97-voko521`/`soxene-95-domu248`/`lasasi-13-nona547` all →0.000034
+(effectively exact, floating-point noise) — the large concurrent-region
+fixtures (mechanism 8's own primary target) dominate the biggest shrinks, as
+expected.
+
+### Also discovered, out of S4's write-set (named, not fixed)
+
+- The label-ink under-count for internal composite transitions (named above,
+  `Math.max`-floored, not root-caused) — queued whole for S5, needs
+  `attachTransitionLabel`'s own placement formula reconciled against jar's
+  real klimt position before a byte-exact fix is possible.
+- `transitionArrowheadInk`'s own over-reach bug (worked around via
+  `includeArrowheadInk:false` for composite sizing only) — the document-level
+  call site (mechanism 4) still uses it unconditionally; NOT verified this
+  iteration whether the SAME bug could ever surface there for some
+  not-yet-sampled fixture (no evidence it does, but not exhaustively ruled
+  out either).
+
+### Files changed (S4)
+
+- `src/diagrams/state/layout-ink-extent.ts` — `computeSvekResultGeometry`
+  (NEW, mechanism 7's own dimension+shift primitive), `addTransitionInk`/
+  `buildInkBox` gain `includeArrowheadInk` (mechanism 7's own sub-bug
+  workaround).
+- `src/diagrams/state/state-composite-geo.ts` — `materializeSpecs`/`PosMap`
+  exported (reused by both `state-composite-autonom.ts` and
+  `state-composite-concurrent.ts`).
+- `src/diagrams/state/state-composite-autonom.ts` — `buildPlainAutonomSpec`
+  rewritten (mechanism 7); `shiftDotLayoutResult` (NEW).
+- `src/diagrams/state/state-composite-concurrent.ts` — `buildConcurrentAutonomSpec`/
+  `combineConcurrentPasses` rewritten (mechanism 8); `regionInkDim` (NEW);
+  `REGION_GAP` constant removed (superseded by `regionInkDim`'s own zero-gap
+  stacking).
+- `src/diagrams/state/state-composite-sizing.ts` — `CONCURRENT_SEPARATOR_GAP`
+  set `0` (mechanism 8), doc comment rewritten with the `ConcurrentStates.java`
+  citation.
+- `oracle/goldens/svg-state/ratchet.json` — 4 fixtures added.
+- `oracle/goldens/svg-state/{coteta-47-mare883,mibabe-49-kexu237,noboda-97-
+  zevo886,nuduni-60-mupe742}/{in.puml,golden.svg}` — NEW.
+- `oracle/goldens/state/size-backlog.json` — 138→102 entries (36 deleted, 51
+  tightened, tighten-only verified).
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated (271/271
+  surveyed, 13/271 conformant+1 structural-match, 0 timeouts/errors).
+- `plans/g4-state-svg/README.md`, `plans/g4-state-svg/ledger.md` — this
+  entry.
+
+### Gates (S4, final)
+
+- `state` census: **13/271** zero-diff (`1-3:48, 4-10:156, 11-30:34, 31+:20,
+  errors:0`) — up from S3's `9/271` (`1-3:17, 4-10:182, 11-30:40, 31+:23`).
+- Class census: **303/718**, intact, unchanged (`0:303,1-3:25,4-10:103,
+  11-30:19,31+:268,errors:0`).
+- Object census: **22/80**, intact, unchanged (`0:22,1-3:5,4-10:11,
+  11-30:11,31+:31,errors:0`).
+- Description census: **48/355**, intact, unchanged (`0:48,1-3:26,4-10:73,
+  11-30:67,31+:140,errors:1` — the 1 error pre-existing, unrelated).
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified BEFORE and AFTER
+  every mechanism landed this iteration.
+- `state-dot-parity.test.ts` (the size-backlog ratchet): **268/268**
+  passing (0 failures) — was 267/268 (1 pre-existing near-ceiling entry,
+  `nelupe-49-xova546`) before mechanism 8; briefly 21/268 failing mid-
+  iteration while mechanism 7 landed alone (fully resolved by mechanism 8).
+- `npm test -- --run`: 9959/9959 passing (364 files, +4 vs S3's 9955 — the
+  4 new `state.golden.ratchet.test.ts` AC1 assertions).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: 15 tests (13 pins), up from 11 (9 pins).
+
+### S5+ queue
+
+1. **Label-ink under-count** (named above) — needs `attachTransitionLabel`'s
+   own placement formula reconciled against jar's real klimt position.
+2. **`transitionArrowheadInk`'s own root cause** — the S4 workaround
+   (`includeArrowheadInk:false` for composite sizing) sidesteps rather than
+   fixes the underlying `ExtremityArrow`/`rotate-point.ts` bug; worth a
+   dedicated diagnosis pass since it could ALSO affect the document-level
+   ink call site on a not-yet-sampled fixture.
+3. **Entity-vs-cluster wrap split** (item 3, S1/S3, STILL confirmed NOT
+   bounded) — `bajelo-54-dixe684`'s `Run` cluster sibling remains the
+   dominant residual on that fixture; needs library-level graphviz cluster
+   bounding-box exposure or a state-only local-bbox approximation.
+4. **`<<sdlreceive>>` unwrapped-entity gap** — unchanged from S1/S2/S3.
+5. **Notes never render** — unchanged from S1/S2/S3.
+6. **`lonuti-97-voko521`'s own `<style>`-tag `FontColor` cascade gap** (NEW,
+   named this iteration) — a `<style> root { FontColor Red }` block's cascade
+   to text `fill` and one title `<g class="title">` x-position residual; both
+   unrelated to mechanisms 6/7/8, not chased.
+7. **Transition routing/positioning** (`svg/g/g/path/@d`) — unchanged from
+   S2/S3, the dominant residual on several near-zero, non-composite fixtures;
+   the mission's own secondary scope for S4 (deferred entirely this
+   iteration — mechanism 7+8's own scope consumed the full iteration budget).
+8. Re-run the census and `--families` report FRESH again — mechanism 8's own
+   reach (concurrent-region fixtures) should now show real per-feature
+   fidelity for the first time this mission.

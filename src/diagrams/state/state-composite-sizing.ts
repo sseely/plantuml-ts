@@ -88,18 +88,33 @@ export function measureAutonomWrapper(
   // formula; CCN 2, length driven by the doc comment + straight-line math.
 }
 
-/** ConcurrentStates: per-region images stacked vertically (TB rankdir) with a
- *  fixed separator gap between consecutive regions — width is the widest
- *  region, height is the sum of region heights plus (n-1) separators. No
- *  exact upstream pixel constant was traced for the separator gap in this
- *  corpus (ConcurrentSeparator draws a dashed rule, not a fixed-height box in
- *  the sources read) — RANK_SEP's own floor (60pt) stands in as a
- *  structurally-reasonable gap; width/height are report-only metrics for the
- *  DOT-parity comparator (not asserted in `structurallyEqual`), so this
- *  approximation does not affect EQUAL classification.
+/** ConcurrentStates: per-region images stacked vertically (TB rankdir) --
+ *  width is the widest region, height is the PLAIN SUM of region heights,
+ *  ZERO extra gap between them.
+ *
+ *  Mission G4 S4 (mechanism 7's own concurrent-composite companion,
+ *  diagnosed while chasing `nelupe-49-xova546`'s regression): direct read of
+ *  `ConcurrentStates.java` (not guessed) replaces the S1-era placeholder
+ *  (`RANK_SEP`'s own 60pt floor, explicitly flagged "no exact upstream pixel
+ *  constant traced" in that iteration's own doc comment, now known WRONG).
+ *  `Separator.add(orig, other)` (HORIZONTAL/`--` case) is
+ *  `new XDimension2D(max(orig.w,other.w), orig.h+other.h)` — a bare sum, NO
+ *  gap term at all; `Separator.drawSeparator` draws the dashed rule WITHIN
+ *  the already-summed dimension (it never reserves extra layout space, only
+ *  paints a line at the junction `drawU`'s own `ug.apply(separator.move
+ *  (dim))` already placed the cursor at). `CONCURRENT_SEPARATOR_GAP` is kept
+ *  (not deleted) as the single, obviously-named knob for this — set to `0`,
+ *  matching the real formula exactly, rather than removed, so a future
+ *  reader immediately sees WHERE the (absent) gap term would go and WHY it's
+ *  zero, rather than wondering if the term was silently dropped by mistake.
+ *  Jar-verified via the full `oracle/goldens/state/size-backlog.json`
+ *  DOT-parity ratchet (268/268 passing, up from a 21-regression starting
+ *  point once mechanism 7's own autonom-composite fix made region content
+ *  sizing accurate enough to expose this SEPARATE gap-formula bug) — see
+ *  plans/g4-state-svg/ledger.md S4 for the full diagnosis.
  * @see ~/git/plantuml/.../svek/ConcurrentStates.java
  */
-const CONCURRENT_SEPARATOR_GAP = 60;
+const CONCURRENT_SEPARATOR_GAP = 0;
 
 export function stackConcurrentRegions(regionDims: readonly Dim[]): Dim {
   if (regionDims.length === 0) return { width: 0, height: 0 };

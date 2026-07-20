@@ -45,7 +45,13 @@
  *     independently confirmed against a jar sample this iteration (every
  *     sampled composite fixture also carries children/edges whose own ink
  *     dominates the canvas, masking any 1px composite-box-specific
- *     residual — see S1 ledger for the specific fixtures checked).
+ *     residual — see S1 ledger for the specific fixtures checked). Mission
+ *     G4 S4: this rule is now ALSO reused (via {@link computeSvekResultGeometry}
+ *     below) to compute a wrapped composite child pass's OWN ink extent —
+ *     jar-verified correct there (S4 ledger), which is strong indirect
+ *     evidence this document-level reuse is ALSO correct, though still not
+ *     independently isolated from every other mechanism at the document
+ *     level.
  *   - `fork`/`join`/`syncBar` (plain bar `URectangle`, no divider line):
  *     the classic symmetric `LimitFinder#drawRectangle` rule (`[x-1,x+w-1]
  *     × [y-1,y+h-1]`) — the REAL upstream rule for a bare `URectangle` with
@@ -63,7 +69,30 @@
  *     from `LimitFinder.ts#drawUPolygon`, the SAME constant class's own
  *     `addFolderPolygonInk`/`renderer-arrowhead.ts#edgeExtremityInk` reuse).
  *
- * @see plans/g4-state-svg/ledger.md (S1, mechanism 4)
+ * Mission G4 S4 (mechanism 7, discovered while landing it — see
+ * {@link computeSvekResultGeometry}'s own doc comment for the composite-
+ * sizing consequence): `transitionArrowheadInk`'s own `LimitFinder` walk
+ * over a placed `ExtremityArrow` occasionally reports a MUCH wider ink span
+ * than the arrowhead's own ~9px `xWing` geometry should allow — jar-verified
+ * via `taxile-56-goca422`/`pebepi-32-cati486`/`tigibi-80-zidi137` (all the
+ * IDENTICAL `state parent { child --> child }` self-loop shape): a ~10-13px
+ * span became a ~30px span once fed through a composite's own tight
+ * ink-based sizing (previously invisible — mechanism 3's own document-level
+ * reuse is normally dominated by far larger node-box ink, masking this).
+ * NOT root-caused to a specific line in `ExtremityArrow`/`rotate-point.ts`
+ * this iteration (ruled out: not `place()`'s own `trim` field, which
+ * `transitionArrowheadInk` never reads) — named as a real, pre-existing,
+ * NOT-YET-FIXED bug in the arrowhead-ink primitive itself, not a new one
+ * this iteration introduced. Worked around, not fixed: `addTransitionInk`
+ * now takes an `includeArrowheadInk` flag; {@link computeSvekResultGeometry}
+ * passes `false` (arrowheads are small and rarely the deciding factor for a
+ * composite's own reported size — the point-based path ink, which already
+ * captures a self-loop's own full routed bulge, remains the dominant,
+ * correct signal), while `computeStateDocumentDims`/`computeStateInkShift`
+ * (the document-level mechanism-4 functions, already jar-verified) keep
+ * `true`, UNCHANGED, zero risk to their own already-pinned fixtures.
+ *
+ * @see plans/g4-state-svg/ledger.md (S1, mechanism 4; S4, mechanism 7)
  * @see class/layout-ink-extent.ts (the class-engine precedent this mirrors)
  */
 import type { StateNodeGeo, TransitionGeo } from './state-geo-types.js';
@@ -183,13 +212,17 @@ function addNodeInk(box: InkBox, node: StateNodeGeo): void {
 }
 
 /** One transition's own ink contribution — plain points/label anchors
- *  (`LimitFinder#drawDotPath`-equivalent: no inset) plus the head-side
- *  arrowhead's own ink (`renderer-arrowhead.ts#transitionArrowheadInk`,
- *  already `HACK_X_FOR_POLYGON`-padded internally via a real `LimitFinder`
- *  walk over the placed `ExtremityArrow`). */
-function addTransitionInk(box: InkBox, transition: TransitionGeo): void {
+ *  (`LimitFinder#drawDotPath`-equivalent: no inset) plus, when
+ *  `includeArrowheadInk` is true, the head-side arrowhead's own ink
+ *  (`renderer-arrowhead.ts#transitionArrowheadInk`, already
+ *  `HACK_X_FOR_POLYGON`-padded internally via a real `LimitFinder` walk
+ *  over the placed `ExtremityArrow`) — see module doc comment's
+ *  mechanism-7 note for why {@link computeSvekResultGeometry} passes
+ *  `false`. */
+function addTransitionInk(box: InkBox, transition: TransitionGeo, includeArrowheadInk: boolean): void {
   for (const p of transition.points) addPoint(box, p.x, p.y);
   if (transition.label !== undefined) addPoint(box, transition.label.x, transition.label.y);
+  if (!includeArrowheadInk) return;
   const arrowInk = transitionArrowheadInk(transition);
   if (arrowInk !== undefined) {
     addPoint(box, arrowInk.minX, arrowInk.minY);
@@ -199,10 +232,14 @@ function addTransitionInk(box: InkBox, transition: TransitionGeo): void {
 
 /** The shared ink-point accumulation walk both {@link computeStateDocumentDims}
  *  and {@link computeStateInkShift} consume. */
-function buildInkBox(states: readonly StateNodeGeo[], transitions: readonly TransitionGeo[]): InkBox {
+function buildInkBox(
+  states: readonly StateNodeGeo[],
+  transitions: readonly TransitionGeo[],
+  includeArrowheadInk: boolean,
+): InkBox {
   const box = newInkBox();
   for (const n of states) addNodeInk(box, n);
-  for (const t of transitions) addTransitionInk(box, t);
+  for (const t of transitions) addTransitionInk(box, t, includeArrowheadInk);
   return box;
 }
 
@@ -222,7 +259,7 @@ export function computeStateDocumentDims(
   states: readonly StateNodeGeo[],
   transitions: readonly TransitionGeo[],
 ): StateDocumentDims {
-  const box = buildInkBox(states, transitions);
+  const box = buildInkBox(states, transitions, true);
   if (!Number.isFinite(box.minX)) return { width: 0, height: 0 };
 
   const rawWidth = box.maxX - box.minX + INK_DELTA;
@@ -255,9 +292,67 @@ export function computeStateInkShift(
   states: readonly StateNodeGeo[],
   transitions: readonly TransitionGeo[],
 ): StateInkShift {
-  const box = buildInkBox(states, transitions);
+  const box = buildInkBox(states, transitions, true);
   if (!Number.isFinite(box.minX)) return { dx: 0, dy: 0 };
   return {
+    dx: JAR_INK_MARGIN - box.minX,
+    dy: JAR_INK_MARGIN - box.minY,
+  };
+}
+
+export interface SvekResultGeometry {
+  readonly width: number;
+  readonly height: number;
+  readonly dx: number;
+  readonly dy: number;
+}
+
+/**
+ * `SvekResult#calculateDimension()`'s FULL mechanism (mission G4 S4,
+ * mechanism 7 — the composite-wrapper sizing/position gap): upstream
+ * derives BOTH the reported dimension (`minMax.getDimension().delta(15,
+ * 15)`) AND the `moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())`
+ * position shift from the SAME `TextBlockUtils.getMinMax` ink-extent walk
+ * over a wrapped child pass's own DRAWN content — NOT from a naive
+ * geometric (node/edge-extent-only) bounding box. `state-composite-
+ * cluster.ts#tightContentDimension`'s own S3 trial fix used the naive
+ * geometric box and was jar-verified WRONG by exactly the leaf-state-box
+ * ink rule's `-1` min-corner asymmetry ({@link addStateBoxInk}'s
+ * `[x-1,...] x [y-1,...]`, see this module's own doc comment) — that trial
+ * shrank two fixtures' own diff counts (evidence the mechanism was
+ * directionally right) but never reached byte-exact and regressed two
+ * pinned `size-backlog.json` entries, so it was reverted.
+ *
+ * This function reproduces the REAL upstream mechanism (both halves driven
+ * by the SAME ink-extent bbox, not two independent formulas) — jar-verified
+ * byte-exact width/height/child-position on BOTH `coteta-47-mare883` (1
+ * nesting level, mixed leaf-with-description content) and `lonuti-97-
+ * voko521` (2 nesting levels, mixed leaf+nested-composite content): both
+ * fixtures' composite outer box width/height AND their innermost leaf
+ * child's own absolute position matched jar exactly once wired through
+ * `state-composite-autonom.ts#buildPlainAutonomSpec`. See
+ * plans/g4-state-svg/ledger.md S4 for the full hand-derivation (including
+ * why the shift is `(7,7)` — `JAR_INK_MARGIN(6)` plus the leaf-box ink
+ * rule's own `-1` min-corner offset — not the naively-expected `(6,6)`).
+ *
+ * Passes `includeArrowheadInk: false` to {@link buildInkBox} — see this
+ * module's own doc comment ("Mission G4 S4 (mechanism 7, discovered while
+ * landing it)") for the jar-verified `transitionArrowheadInk` over-reach bug
+ * this works around. `buildPlainAutonomSpec`'s own `Math.max(geometry.*,
+ * result.*)` floor is a SEPARATE, second guard (against the still-not-fully-
+ * closed edge-label-width gap, a different residual — see that call site's
+ * own doc comment).
+ * @see ~/git/plantuml/.../svek/SvekResult.java:130-135
+ */
+export function computeSvekResultGeometry(
+  states: readonly StateNodeGeo[],
+  transitions: readonly TransitionGeo[],
+): SvekResultGeometry {
+  const box = buildInkBox(states, transitions, false);
+  if (!Number.isFinite(box.minX)) return { width: 0, height: 0, dx: 0, dy: 0 };
+  return {
+    width: box.maxX - box.minX + INK_DELTA,
+    height: box.maxY - box.minY + INK_DELTA,
     dx: JAR_INK_MARGIN - box.minX,
     dy: JAR_INK_MARGIN - box.minY,
   };

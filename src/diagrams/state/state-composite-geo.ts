@@ -22,7 +22,11 @@ import type { StateDiagramAST } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 
-type PosMap = Map<string, DotLayoutResult['nodes'][number]>;
+/** Exported (mission G4 S4): `state-composite-autonom.ts#buildPlainAutonomSpec`
+ *  reuses this SAME node-position lookup shape to build a LOCAL (pre-outer-
+ *  shift) posMap for its own child pass's ink-extent computation — see that
+ *  module's own doc comment. */
+export type PosMap = Map<string, DotLayoutResult['nodes'][number]>;
 
 const BOX_PAD = 12;
 
@@ -97,7 +101,14 @@ function materializeCluster(
   return { id: spec.id, kind: 'normal', display: spec.display, x: box.x, y: box.y, width: box.width, height: box.height, children };
 }
 
-function materializeSpecs(specs: readonly GeoSpec[], posMap: PosMap, outTransitions: TransitionGeo[]): StateNodeGeo[] {
+/** Exported (mission G4 S4): `state-composite-autonom.ts#buildPlainAutonomSpec`
+ *  reuses this SAME dispatch to materialize its own child pass's content
+ *  into `StateNodeGeo`/`TransitionGeo` — needed so the mechanism-7 ink-
+ *  extent computation (`layout-ink-extent.ts#computeSvekResultGeometry`)
+ *  sees the EXACT same shapes (including nested autonom/cluster composites)
+ *  the top-level assembly below would eventually produce, rather than a
+ *  parallel, possibly-drifting re-derivation. */
+export function materializeSpecs(specs: readonly GeoSpec[], posMap: PosMap, outTransitions: TransitionGeo[]): StateNodeGeo[] {
   const out: StateNodeGeo[] = [];
   for (const spec of specs) {
     if (spec.kind === 'state') {

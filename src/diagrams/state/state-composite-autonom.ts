@@ -12,8 +12,12 @@
  */
 
 import type { State } from './ast.js';
+import type { DotLayoutResult } from '../../core/graph-layout.js';
+import type { TransitionGeo } from './state-geo-types.js';
 import { buildStateGeoTextFields } from './state-sizing.js';
 import { measureAutonomWrapper } from './state-composite-sizing.js';
+import { computeSvekResultGeometry } from './layout-ink-extent.js';
+import { materializeSpecs, type PosMap } from './state-composite-geo.js';
 import { buildConcurrentAutonomSpec, buildConcurrentRegionPass } from './state-composite-concurrent.js';
 import {
   type DiagramCtx,
@@ -31,6 +35,39 @@ import { sweepOrphanNoteEdges } from './state-note-layout.js';
 import { resolveEndpoint } from './state-composite-classify.js';
 
 type ExtractAutonomSpec = Extract<GeoSpec, { kind: 'autonom' }>;
+
+/** Uniformly translate a pass's own raw layout result — mission G4 S4,
+ *  mechanism 7's own position-offset half: reproduces `SvekResult
+ *  #calculateDimension()`'s `clusterManager.moveDelta(...)` side effect
+ *  (which mutates a wrapped child pass's own node/edge positions in place,
+ *  BEFORE that pass is ever drawn — see `layout-ink-extent.ts
+ *  #computeSvekResultGeometry`'s own doc comment) as a pure, non-mutating
+ *  transform over our own `DotLayoutResult`. */
+function shiftDotLayoutResult(result: DotLayoutResult, dx: number, dy: number): DotLayoutResult {
+  if (dx === 0 && dy === 0) return result;
+  return {
+    ...result,
+    nodes: result.nodes.map((n) => ({
+      ...n,
+      x: n.x + dx,
+      y: n.y + dy,
+      ...(n.xlabelX !== undefined ? { xlabelX: n.xlabelX + dx } : {}),
+      ...(n.xlabelY !== undefined ? { xlabelY: n.xlabelY + dy } : {}),
+    })),
+    edges: result.edges.map((e) => ({
+      ...e,
+      points: e.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+      ...(e.labelX !== undefined ? { labelX: e.labelX + dx } : {}),
+      ...(e.labelY !== undefined ? { labelY: e.labelY + dy } : {}),
+      ...(e.tailLabelX !== undefined ? { tailLabelX: e.tailLabelX + dx } : {}),
+      ...(e.tailLabelY !== undefined ? { tailLabelY: e.tailLabelY + dy } : {}),
+      ...(e.headLabelX !== undefined ? { headLabelX: e.headLabelX + dx } : {}),
+      ...(e.headLabelY !== undefined ? { headLabelY: e.headLabelY + dy } : {}),
+    })),
+  };
+  // #lizard forgives -- faithful mechanical field-by-field translate, one
+  // guarded branch per optional coordinate pair, no decision complexity.
+}
 
 /** Build ONE plain (region-free) composite's own child pass: recurse its
  *  children/inner transitions into a FRESH accumulator, run `layoutGraph()`
@@ -50,35 +87,47 @@ type ExtractAutonomSpec = Extract<GeoSpec, { kind: 'autonom' }>;
  *  lines; `Track_FSM.Run.Do_Sector`, 2 body lines) — see
  *  `renderer-composite-box.ts` for the shape this feeds.
  *
- *  Mission G4 S3 (DIAGNOSED, explicitly NOT landed): mechanism 6's own
- *  childCount fix unmasked that `measureAutonomWrapper`'s `childImg` param
- *  here is `{width: result.width, height: result.height}` — `layoutGraph()`'s
- *  raw output, which bakes in a generic per-graph canvas margin
- *  (`MARGIN=12`, `graph-layout.ts#canvasSize`) — where upstream's
- *  `InnerStateAutonom.calculateDimensionSlow` wants `im.calculateDimension
- *  (...)`, i.e. `SvekResult#calculateDimension()`: a TIGHT content bbox +
- *  `.delta(15,15)` (the SAME formula `state-composite-cluster.ts
- *  #tightContentDimension` already applies for a concurrent region leaf's
- *  identical `SvekResult`-typed `im`). Jar-verified via `coteta-47-mare883`
- *  (composite outer-box width off by exactly the leading-whitespace-
- *  adjacent constant this margin mismatch predicts) and `lonuti-97-
- *  voko521`. A trial fix (`tightContentDimension(result)` + 15) was
- *  IMPLEMENTED, VERIFIED to shrink `coteta-47-mare883`'s own diff count
- *  (21→18) and `lonuti-97-voko521`'s (80→67), but ALSO jar-verified to
- *  REGRESS two ALREADY-PINNED `oracle/goldens/state/size-backlog.json`
- *  entries past their own ratchet allowance (`nelupe-49-xova546`:
- *  1.555555→1.597222; `pesita-10-dene726`: 0.195792→0.237459) —
- *  `size-backlog.json` is a tighten-only boundary (never widen), so the
- *  trial fix was REVERTED rather than landed with a boundary violation.
- *  Ruled out: NOT the SAME bug as the still-separate, still-unresolved
- *  child POSITION-offset residual (`localPositions`, `spec.offset` below)
- *  — that residual is independently confirmed present on `coteta-47-
- *  mare883` even AFTER the width/height trial fix (nested child `rect/@x`
- *  still off by a constant, unrelated to `SvekResult#calculateDimension`'s
- *  own width/height formula). The TRUE fix likely needs BOTH pieces
- *  (tight+15 dimension AND the correct child position re-basing) landed
- *  TOGETHER before either individually stops regressing a size-backlog
- *  entry — queued whole for S4, not re-attempted piecemeal this iteration.
+ *  Mission G4 S4 (mechanism 7, LANDED): `InnerStateAutonom
+ *  .calculateDimensionSlow`'s `im.calculateDimension(...)` — i.e.
+ *  `SvekResult#calculateDimension()` — is an ink-extent-aware bbox of the
+ *  wrapped child pass's own DRAWN content (`.delta(15,15)` for the
+ *  dimension, `moveDelta(6-minX,6-minY)` for the position shift, BOTH
+ *  derived from the SAME ink walk — `layout-ink-extent.ts
+ *  #computeSvekResultGeometry`'s own doc comment has the full mechanism and
+ *  jar-derivation, INCLUDING why it excludes arrowhead ink for THIS call
+ *  site specifically). `result` (this pass's own raw `layoutGraph()`
+ *  output) is neither the right SIZE (bakes in a generic per-graph canvas
+ *  margin, `MARGIN=12`, unrelated to `SvekResult`'s own `delta(15,15)`) nor
+ *  the right POSITION (never gets `SvekResult`'s own internal `moveDelta`
+ *  side-effect at all) to feed `measureAutonomWrapper`/`localPositions`
+ *  directly — `geometry` below fixes both from the SAME ink-extent bbox,
+ *  computed over this pass's own content MATERIALIZED into `StateNodeGeo`
+ *  (via `state-composite-geo.ts#materializeSpecs`, reused rather than
+ *  re-derived, so nested autonom/cluster composites get the SAME real
+ *  ink-box treatment `addNodeInk` already gives them at the top level).
+ *  Jar-verified byte-exact (outer box width/height AND innermost leaf
+ *  child's own absolute position) on `coteta-47-mare883` (1 level),
+ *  `lonuti-97-voko521` (2 levels, mixed leaf+nested-composite), and
+ *  `bajelo-54-dixe684` (3 levels, unchanged/non-regressing) — see
+ *  plans/g4-state-svg/ledger.md S4.
+ *
+ *  `childImg` takes `Math.max(geometry.*, result.*)`, NOT `geometry.*`
+ *  alone — NAMED, NOT FULLY CLOSED this iteration: a composite whose own
+ *  dominant content is 1-2 short INTERNAL labeled transitions
+ *  (`bunade-42-fudu910`'s `NotShooting`, `[*] --> Idle`/`Idle <-->
+ *  Configuring`) needs edge-LABEL ink (its own measured text width, which
+ *  `TransitionGeo.label` does not carry) folded in to reach jar's real
+ *  size; a same-iteration attempt to measure it inline (`ctx.measurer`) was
+ *  jar-verified DIRECTIONALLY correct on `bunade` but OVERSHOT on other
+ *  single-labeled-edge fixtures (`beguxu-19-tize774`), a worse net result
+ *  than not attempting it at all — reverted. `result.*` (the SAME raw
+ *  canvas value used before mechanism 7 landed) stands in as a
+ *  non-regressing FLOOR for every case the ink-extent computation still
+ *  undercounts, while the ink-extent value wins wherever it's ALREADY
+ *  bigger (every jar-verified case above). Queued for S5: a byte-exact fix
+ *  needs the label's real measured width reconciled against
+ *  `attachTransitionLabel`'s own placement formula (`state-transition-
+ *  label.ts`), not a floor.
  *
  *  `s.transitions` can hold a SELF-referencing entry (`Radio_Configuring -->
  *  Vendor_Radio_Enabled`, written literally inside `state Radio_Configuring {
@@ -111,7 +160,20 @@ export function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonom
   sweepOrphanEdges(acc, ctx);
   sweepOrphanNoteEdges(acc, ctx.notePool, ctx.consumedNotes, (id) => resolveEndpoint(id, ctx.classify));
   const result = runPass(acc, ctx);
-  const wrapper = measureAutonomWrapper(s, { width: result.width, height: result.height }, ctx.theme, ctx.measurer);
+
+  const localSpecs = [...pseudoSpecs, ...memberSpecs];
+  const rawPosMap: PosMap = new Map(result.nodes.map((n) => [n.id, n]));
+  const inkOutTransitions: TransitionGeo[] = [];
+  const inkStates = materializeSpecs(localSpecs, rawPosMap, inkOutTransitions);
+  const inkTransitions = [...buildLevelTransitionGeos(acc, result), ...inkOutTransitions];
+  const geometry = computeSvekResultGeometry(inkStates, inkTransitions);
+  const childImg = {
+    width: Math.max(geometry.width, result.width),
+    height: Math.max(geometry.height, result.height),
+  };
+
+  const wrapper = measureAutonomWrapper(s, childImg, ctx.theme, ctx.measurer);
+  const shiftedResult = shiftDotLayoutResult(result, geometry.dx, geometry.dy);
   return {
     kind: 'autonom',
     id: s.id,
@@ -119,11 +181,15 @@ export function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonom
     offset: wrapper.childOffset,
     width: wrapper.width,
     height: wrapper.height,
-    localStates: [...pseudoSpecs, ...memberSpecs],
-    localPositions: result,
-    localTransitions: buildLevelTransitionGeos(acc, result),
+    localStates: localSpecs,
+    localPositions: shiftedResult,
+    localTransitions: buildLevelTransitionGeos(acc, shiftedResult),
     ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer),
   };
+  // #lizard forgives -- faithful single-pass assembly (build accumulator,
+  // run layout, compute ink-extent geometry, wrap, shift, return); each
+  // line is one straight-line step of InnerStateAutonom's own build
+  // sequence, not decision complexity to simplify.
 }
 
 function buildAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
