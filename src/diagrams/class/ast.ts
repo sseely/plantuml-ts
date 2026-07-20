@@ -1083,6 +1083,31 @@ export interface HideShowEntityDirective {
 }
 
 /**
+ * `hide|show <TYPE_KEYWORD> circle|circles|circled|members|member|fields|
+ * field|attributes|attribute|methods|method` (upstream
+ * `CommandHideShowByGender`, GENDER = a diagram-wide type-keyword filter --
+ * the SAME command as {@link HideShowEntityDirective}, just the OTHER
+ * GENDER alternative that parser's own doc comment named as deferred, G3/O3,
+ * `beruju-17-jigi548`: `hide object fields`). Applies to EVERY classifier of
+ * the matching KIND, diagram-wide (no entity id) -- `classifierKind` is
+ * restricted to the 6 upstream `TYPE_KEYWORDS` entries with a genuine 1:1
+ * {@link ClassifierKind} mapping in this port (`class`/`abstract`/
+ * `interface`/`enum`/`annotation`/`object`); upstream's remaining keywords
+ * (`protocol`/`struct`/`exception`/`metaclass`/`dataclass`/`record`) have no
+ * distinct `ClassifierKind` value here, so `parseHideShowKindDirective`
+ * simply never matches those tokens (falls through, same "unrecognized,
+ * dropped" posture as any other unmatched hide/show line). `target` is the
+ * SAME vocabulary {@link HideShowEntityDirective.target} uses.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+ */
+export interface HideShowKindDirective {
+  kind: 'hideshowkind';
+  action: 'hide' | 'show';
+  classifierKind: 'class' | 'abstract' | 'interface' | 'enum' | 'annotation' | 'object';
+  target: 'circle' | 'members' | 'fields' | 'methods';
+}
+
+/**
  * `hide|show [public,private,protected,package] members|fields|methods`
  * (upstream `CommandHideShowByVisibility`, G2 N12) — a member-level filter
  * keyed on visibility char x field/method-ness, DISTINCT from
@@ -1136,6 +1161,13 @@ export interface ClassDiagramAST {
    * (class-directives.ts#applyHideShowEntityDirectives).
    */
   hideEntityDirectives?: HideShowEntityDirective[];
+  /**
+   * `hide`/`show <TYPE_KEYWORD> circle|members|fields|methods` directives
+   * (G3/O3) -- see {@link HideShowKindDirective}. Additive/optional for the
+   * same reason as `hideEntityDirectives` -- absent is equivalent to `[]`
+   * everywhere this is read (class-directives.ts#applyHideShowKindDirectives).
+   */
+  hideKindDirectives?: HideShowKindDirective[];
   /**
    * `hide`/`show <visibility> members|fields|methods` directives (G2 N12) --
    * see {@link HideShowVisibilityDirective}. Additive/optional for the same

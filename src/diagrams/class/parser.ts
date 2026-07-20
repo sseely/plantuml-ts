@@ -8,7 +8,8 @@
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
 import {
-  applyDirectives, applyHideShowEntityDirectives, applyVisibilityHideShow, applyStereotypeHideShow,
+  applyDirectives, applyHideShowEntityDirectives, applyHideShowKindDirectives,
+  applyVisibilityHideShow, applyStereotypeHideShow,
 } from './class-directives.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote, type TipGroupSeenSet } from './class-notes.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
@@ -284,6 +285,7 @@ export function startNewPage(state: ParseState): void {
   normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
   applyHideShowEntityDirectives(state.ast);
+  applyHideShowKindDirectives(state.ast);
   applyVisibilityHideShow(state.ast);
   applyStereotypeHideShow(state.ast);
   state.pages.push(state.ast);
@@ -586,6 +588,7 @@ function finalizeParse(state: ParseState): ClassDiagramAST {
   normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
   applyHideShowEntityDirectives(state.ast);
+  applyHideShowKindDirectives(state.ast);
   applyVisibilityHideShow(state.ast);
   applyStereotypeHideShow(state.ast);
 

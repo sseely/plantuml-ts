@@ -8,9 +8,11 @@
 
 import type {
   ClassDiagramAST,
+  ClassifierKind,
   ClassNote,
   HideShowDirective,
   HideShowEntityDirective,
+  HideShowKindDirective,
   HideShowPatternDirective,
   HideShowVisibilityDirective,
   HideTarget,
@@ -122,12 +124,26 @@ const ENTITY_PORTION_MAP: Record<string, HideShowEntityDirective['target']> = {
 const VISIBILITY_GENDER_WORDS = new Set(['public', 'private', 'protected', 'package']);
 
 /** `CommandHideShowByGender.TYPE_KEYWORDS` -- excluded from the entity-id
- *  alternative so the (unported) type-keyword GENDER form is left
- *  unmatched rather than mis-read as a literal entity name. */
+ *  alternative so the type-keyword GENDER form ({@link parseHideShowKindDirective},
+ *  G3/O3) is left unmatched here rather than mis-read as a literal entity
+ *  name. Six of these (the {@link KIND_GENDER_MAP} keys) ARE ported by that
+ *  parser; the rest have no distinct `ClassifierKind` in this port and are
+ *  simply never matched by either parser (silently dropped, same posture as
+ *  any unrecognized directive). */
 const TYPE_KEYWORD_GENDERS = new Set([
   'class', 'object', 'interface', 'enum', 'abstract', 'annotation', 'protocol',
   'struct', 'exception', 'metaclass', 'dataclass', 'record',
 ]);
+
+/** `CommandHideShowByGender.TYPE_KEYWORDS` entries with a genuine 1:1
+ *  {@link ClassifierKind} mapping in this port -- the other six upstream
+ *  keywords (`protocol`/`struct`/`exception`/`metaclass`/`dataclass`/
+ *  `record`) have no distinct `ClassifierKind` value here (see that type's
+ *  own union), so `parseHideShowKindDirective` never matches those tokens. */
+const KIND_GENDER_MAP: Record<string, HideShowKindDirective['classifierKind']> = {
+  class: 'class', abstract: 'abstract', interface: 'interface',
+  enum: 'enum', annotation: 'annotation', object: 'object',
+};
 
 const HIDE_SHOW_ENTITY_RE = /^(hide|show)\s+("[^"]+"|[\p{L}\p{N}_.]+)\s+(\S+)\s*$/iu;
 
@@ -181,6 +197,63 @@ export function applyHideShowEntityDirectives(ast: ClassDiagramAST): void {
     if (target === 'members') { classifier.suppressFields = true; classifier.suppressMethods = true; continue; }
     if (target === 'fields') { classifier.suppressFields = true; continue; }
     classifier.suppressMethods = true;
+  }
+}
+
+/**
+ * `hide|show <TYPE_KEYWORD> circle|circles|circled|members|member|fields|
+ * field|attributes|attribute|methods|method` (upstream
+ * `CommandHideShowByGender`, the TYPE_KEYWORD GENDER alternative --
+ * {@link HideShowKindDirective}'s own doc comment, G3/O3, `beruju-17-jigi548`).
+ * SAME two-token grammar as {@link parseHideShowEntityDirective}, but the
+ * first token must be a {@link KIND_GENDER_MAP} key rather than an
+ * arbitrary entity id -- the two parsers are mutually exclusive by
+ * construction (that parser explicitly REJECTS every `TYPE_KEYWORD_GENDERS`
+ * token as an entity id), so callers may try either first with no collision.
+ */
+const HIDE_SHOW_KIND_RE = /^(hide|show)\s+(\S+)\s+(\S+)\s*$/i;
+
+export function parseHideShowKindDirective(line: string): HideShowKindDirective | null {
+  const m = HIDE_SHOW_KIND_RE.exec(line);
+  if (m === null) return null;
+
+  const action: 'hide' | 'show' = /^hide/i.test(m[1]!) ? 'hide' : 'show';
+  const classifierKind = KIND_GENDER_MAP[m[2]!.toLowerCase()];
+  if (classifierKind === undefined) return null;
+  const target = ENTITY_PORTION_MAP[m[3]!.toLowerCase()];
+  if (target === undefined) return null;
+
+  return { kind: 'hideshowkind', action, classifierKind, target };
+}
+
+/**
+ * Apply `hide`/`show <TYPE_KEYWORD> circle|members|fields|methods`
+ * directives (G3/O3) -- last-writer-wins per `(classifierKind, target)`
+ * pair, mirrors {@link applyHideShowEntityDirectives} exactly except the
+ * match set is every classifier of the matching KIND (diagram-wide)
+ * instead of a single entity id.
+ */
+export function applyHideShowKindDirectives(ast: ClassDiagramAST): void {
+  const directives = ast.hideKindDirectives;
+  if (directives === undefined || directives.length === 0) return;
+
+  const effective = new Map<string, 'hide' | 'show'>();
+  for (const d of directives) {
+    effective.set(`${d.classifierKind}\u0000${d.target}`, d.action);
+  }
+
+  for (const [key, action] of effective) {
+    if (action !== 'hide') continue;
+    const sep = key.indexOf('\u0000');
+    const classifierKind = key.slice(0, sep) as ClassifierKind;
+    const target = key.slice(sep + 1) as HideShowEntityDirective['target'];
+    for (const classifier of ast.classifiers) {
+      if (classifier.kind !== classifierKind) continue;
+      if (target === 'circle') { classifier.hideCircle = true; continue; }
+      if (target === 'members') { classifier.suppressFields = true; classifier.suppressMethods = true; continue; }
+      if (target === 'fields') { classifier.suppressFields = true; continue; }
+      classifier.suppressMethods = true;
+    }
   }
 }
 

@@ -125,6 +125,35 @@ Corpus effect: **10/80 -> 13/80** zero-diff (+3: `janoma-30-dovo501`,
 (`component 262/262`, `usecase 90/90`, `class 708/708`, `object 78/80`,
 `state 267/267`).
 
+## Current state (G3/O3, 2026-07-19)
+
+**16 fixtures pinned.** O3 fixed the map/json row-divider draw mechanics
+(`TextBlockMap#drawU`/`TextBlockCucaJSon` bypass the classifier's own
+border-stroke UGraphic context entirely -- `stroke-width:1` always, no 1px
+inset, and the vertical column divider interleaves right after each row's
+key+value text, not batched after every row) -- see
+`renderer-classifier-box.ts#MAP_JSON_DIVIDER_STROKE_WIDTH`/
+`mapColumnDividerEntries`'s own doc comments (`juciri-29-tamu404`,
+`sinepa-64-beze711`; `bepafe-03-teda035` improved 20 diffs -> 3, residual is
+a separate, already-out-of-scope DOT node-separation numeric divergence,
+gvts-attributed). Also ported the TYPE_KEYWORD GENDER form of
+`CommandHideShowByGender` (`hide object fields` / `hide class circled` /
+...) -- the OTHER alternative of the same upstream command G2 N26 already
+partially ported (entity-id GENDER only) -- restricted to the 6 upstream
+`TYPE_KEYWORDS` with a genuine 1:1 `ClassifierKind` mapping in this port
+(`class-directives.ts#parseHideShowKindDirective`/
+`applyHideShowKindDirectives`, `beruju-17-jigi548`). This is a SHARED
+class-engine mechanism, not object-specific -- it also fixed one class
+fixture (`nujiga-81-peno983`, `hide class circled`), a legitimate bonus to
+the class 292-set census (293/718 now, zero regressions, class ratchet
+still green). Corpus effect: **13/80 -> 16/80** zero-diff (+3:
+`beruju-17-jigi548`, `juciri-29-tamu404`, `sinepa-64-beze711`). Class
+292-set (now 293, additive-only) and description 48-set both re-verified
+intact; DOT gate unchanged (`component 262/262`, `usecase 90/90`, `class
+708/708`, `object 78/80`, `state 267/267`). See
+`plans/g3-object-svg/ledger.md` O3 for the full mechanism writeups, the
+per-fixture attribution table, and the mission-closing assessment.
+
 ## Add rule
 
 A fixture may be added to `ratchet.json` only when **both** hold:

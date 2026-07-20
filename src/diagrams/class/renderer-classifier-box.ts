@@ -7,7 +7,9 @@
  * arrowhead.ts`/`renderer-group.ts`/`renderer-note.ts`/`renderer-url.ts`
  * split precedent for a renderer sub-concern; pure move for the
  * pre-existing pieces (`classifierFill`/`renderRow`/`renderBadge`/
- * `renderMapColumnDividers`), no behavior change.
+ * `mapColumnDividerEntries`), no behavior change (this note describes
+ * the original G2 split -- see `MAP_JSON_DIVIDER_STROKE_WIDTH`'s own doc
+ * comment for the G3/O3 map/json divider fix, which DID change behavior).
  */
 import type { ClassifierGeo } from './layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './layout.js';
@@ -184,6 +186,23 @@ function classBorderStrokeWidth(geo: ClassifierGeo, theme: Theme): number {
   }
   return theme.colors.graph.classBorderThickness ?? CLASS_BORDER_STROKE_WIDTH_DEFAULT;
 }
+
+/**
+ * G3/O3: `map`/`json` row dividers (`TextBlockMap#drawU`/
+ * `TextBlockCucaJSon`'s `ULine.hline`/`vline`) draw on a UGraphic derived
+ * from `UGraphicStencil.create(ug, this, stroke)` -- built from the OUTER
+ * `ug`, taken BEFORE `EntityImageMap/Json#drawU` applies `ug.apply(stroke)`
+ * for the box's own outline -- so these lines never inherit the
+ * classifier's own border stroke width (`classBorderStrokeWidth` above,
+ * which class/interface/enum's OWN body dividers correctly DO use --
+ * `EntityImageClass`'s different draw path, proven exact since G2's
+ * 292/718 census). Jar-verified: `stroke-width:1` on every sampled map/json
+ * divider regardless of `skinparam classBorderThickness`. Also unlike
+ * class/interface/enum's own dividers, map/json dividers span the FULL box
+ * width (no 1px inset) -- see `buildBodyPrimitives`'s own doc comment.
+ * @see ~/git/plantuml/.../svek/image/EntityImageMap.java#drawU (ug2 derivation)
+ */
+const MAP_JSON_DIVIDER_STROKE_WIDTH = 1;
 
 /**
  * Every classifier row (header AND member) shares ONE plain-baseline
@@ -543,12 +562,27 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
 
 /**
  * Map-only: the column-B vertical divider per non-linked data row
- * (TextBlockMap#drawU's per-row `ULine.vline`). Row/column geometry is
- * reconstructed from rows[]/dividerYs alone (no ClassifierGeo schema change
- * — see class-object-map-sizing.ts#buildMapRowGeo for why): every data row
- * contributes exactly two rows[] entries (key, value) after the header
- * entries (those with y below dividerYs[0]); a linked row's value entry has
- * empty text and is skipped (upstream never draws that cell either).
+ * (`TextBlockMap#drawU`'s per-row `ULine.vline`, drawn immediately after
+ * that row's key+value text). Returns Y-tagged entries (NOT a joined
+ * string, G3/O3) so `buildBodyPrimitives` can merge them into its own
+ * stable Y-sort at the CORRECT interleaved position -- jar draws
+ * `[hline, key, value, vline]` per row, never batching every vline after
+ * every row (this port's pre-O3 bug: the old string-returning form was
+ * appended as one extra primitive at the very end of `renderClassifierBox`,
+ * after every row's own text). Each entry's sort `y` is deliberately the
+ * row's OWN text baseline -- identical to the value text primitive's own
+ * `y` -- so the stable sort preserves jar's `[key, value, vline]` relative
+ * order for that row without needing a secondary sort key (both were
+ * pushed into `buildBodyPrimitives`' array via the SAME `memberRows` loop
+ * iteration order, key then value, before this function's own entries are
+ * appended).
+ *
+ * Row/column geometry is reconstructed from rows[]/dividerYs alone (no
+ * ClassifierGeo schema change — see class-map-sizing.ts#buildMapRowGeo for
+ * why): every data row contributes exactly two rows[] entries (key, value)
+ * after the header entries (those with y below dividerYs[0]); a linked
+ * row's value entry has empty text and is skipped (upstream never draws
+ * that cell either).
  *
  * NOT used for `json` — a json entries area can nest arbitrarily deep, so it
  * does not fit the "exactly two rows[] entries per data row" invariant this
@@ -556,19 +590,27 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
  * rendering simplification (row/column TEXT is exact at every depth, only
  * the vertical divider lines are omitted).
  */
-function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
-  if (geo.kind !== 'map' || geo.dividerYs.length === 0) return '';
+function mapColumnDividerEntries(geo: ClassifierGeo, theme: Theme): Array<{ y: number; item: UrlTaggedPrimitive }> {
+  if (geo.kind !== 'map' || geo.dividerYs.length === 0) return [];
   const dataRows = geo.rows.filter((r) => r.y >= geo.dividerYs[0]!);
-  const parts: string[] = [];
+  const entries: Array<{ y: number; item: UrlTaggedPrimitive }> = [];
   for (let i = 0; i < geo.dividerYs.length; i++) {
     const value = dataRows[2 * i + 1];
     if (value === undefined || value.text === '') continue; // linked/point row
     const top = geo.dividerYs[i]!;
     const bottom = geo.dividerYs[i + 1] ?? geo.height;
     const dividerX = geo.x + value.indent - MAP_CELL_MARGIN_X;
-    parts.push(line(dividerX, geo.y + top, dividerX, geo.y + bottom, { stroke: classBorder(geo, theme) }));
+    entries.push({
+      y: value.y,
+      item: {
+        url: geo.url,
+        body: line(dividerX, geo.y + top, dividerX, geo.y + bottom, {
+          stroke: classBorder(geo, theme), strokeWidth: MAP_JSON_DIVIDER_STROKE_WIDTH,
+        }),
+      },
+    });
   }
-  return parts.join('');
+  return entries;
 }
 
 /**
@@ -686,17 +728,29 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     }];
   }
   const memberRows = geo.rows.slice(geo.headerRowCount ?? 1);
+  // G3/O3: `map`/`json` horizontal row dividers use a DIFFERENT drawing
+  // convention from class/interface/enum's own body dividers -- full box
+  // width (no 1px inset) and a fixed stroke-width of 1 (never
+  // `classBorderStrokeWidth`) -- see `MAP_JSON_DIVIDER_STROKE_WIDTH`'s own
+  // doc comment for the upstream mechanism (`TextBlockMap`/
+  // `TextBlockCucaJSon` bypass the classifier's own border-stroke UGraphic
+  // context entirely).
+  const isMapOrJsonDivider = geo.kind === 'map' || geo.kind === 'json';
   const interleaved: Array<{ y: number; item: UrlTaggedPrimitive }> = geo.dividerYs.map((divY) => ({
     y: divY,
     item: {
       url: geo.url,
-      body: line(geo.x + 1, geo.y + divY, geo.x + geo.width - 1, geo.y + divY, {
-        stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
-      }),
+      body: isMapOrJsonDivider
+        ? line(geo.x, geo.y + divY, geo.x + geo.width, geo.y + divY, {
+            stroke: classBorder(geo, theme), strokeWidth: MAP_JSON_DIVIDER_STROKE_WIDTH,
+          })
+        : line(geo.x + 1, geo.y + divY, geo.x + geo.width - 1, geo.y + divY, {
+            stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
+          }),
     },
   }));
   // A map's linked-row value entry carries empty text (see
-  // renderMapColumnDividers doc) — upstream never draws that cell.
+  // mapColumnDividerEntries doc) — upstream never draws that cell.
   for (const row of memberRows) {
     if (row.text === '') continue;
     const effectiveUrl = row.url ?? geo.url;
@@ -746,6 +800,10 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     });
     interleaved.push({ y: row.y, item: { url: effectiveUrl, body: renderRowText(geo, row, theme) } });
   }
+  // G3/O3: map's own vertical column dividers, merged into the SAME
+  // stable Y-sort (see mapColumnDividerEntries' own doc comment for why
+  // this reproduces jar's real per-row interleaved draw order).
+  interleaved.push(...mapColumnDividerEntries(geo, theme));
   interleaved.sort((a, b) => a.y - b.y);
   return interleaved.map((entry) => entry.item);
 }
@@ -777,11 +835,12 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
  * mechanism.
  */
 export function renderClassifierBox(geo: ClassifierGeo, theme: Theme): string {
-  const mapDividers = renderMapColumnDividers(geo, theme);
+  // G3/O3: map's own vertical column dividers now interleave INSIDE
+  // buildBodyPrimitives' own Y-sort (mapColumnDividerEntries), not appended
+  // here as one extra batched-at-the-end primitive (pre-O3 bug).
   const primitives: UrlTaggedPrimitive[] = [
     buildHeaderPrimitive(geo, theme),
     ...buildBodyPrimitives(geo, theme),
-    ...(mapDividers !== '' ? [{ url: geo.url, body: mapDividers }] : []),
   ];
   return wrapClassifierBody(geo, primitives);
 }

@@ -29,6 +29,7 @@ import { collapseEmptyNamespace } from './class-namespace.js';
 import {
   parseHideShowDirective,
   parseHideShowEntityDirective,
+  parseHideShowKindDirective,
   parseHideShowPatternDirective,
   parseHideShowVisibilityDirective,
   parseHideStereotypeDirective,
@@ -193,6 +194,16 @@ export const COMMANDS: readonly Command[] = [
       const entity = parseHideShowEntityDirective(match.input);
       if (entity !== null) {
         (state.ast.hideEntityDirectives ??= []).push(entity);
+        return;
+      }
+      // G3/O3: type-keyword GENDER form (`hide object fields`) -- the OTHER
+      // alternative of the same upstream command, see
+      // `parseHideShowKindDirective`'s own doc comment. Mutually exclusive
+      // with the entity-id form above by construction (that parser rejects
+      // every recognized type keyword as an entity id).
+      const kindDirective = parseHideShowKindDirective(match.input);
+      if (kindDirective !== null) {
+        (state.ast.hideKindDirectives ??= []).push(kindDirective);
         return;
       }
       const pattern = parseHideShowPatternDirective(match.input);

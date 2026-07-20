@@ -31,10 +31,7 @@
       "slug": "beruju-17-jigi548",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 36,
-      "firstDiff": "svg/g[1]/g[1][childCount]",
-      "maxDeltaPath": "svg/@height"
+      "verdict": "conformant"
     },
     {
       "slug": "diveje-52-xefe514",
@@ -199,10 +196,7 @@
       "slug": "juciri-29-tamu404",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 82.93750000000001,
-      "firstDiff": "svg/g[1]/g[1]/line[1]/@stroke-width",
-      "maxDeltaPath": "svg/g[1]/g[1]/line[2]/@x2"
+      "verdict": "conformant"
     },
     {
       "slug": "kagope-09-kubu001",
@@ -513,10 +507,7 @@
       "slug": "sinepa-64-beze711",
       "type": "object",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 147.9875,
-      "firstDiff": "svg/g[1]/g[1]/line[1]/@stroke-width",
-      "maxDeltaPath": "svg/g[1]/g[1]/line[2]/@x2"
+      "verdict": "conformant"
     },
     {
       "slug": "sivapa-41-sebu112",
