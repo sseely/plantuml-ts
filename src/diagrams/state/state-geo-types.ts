@@ -110,6 +110,19 @@ export interface StateNodeGeo {
    *  coordinate frame, same convention as `children`/`transitions`).
    *  `undefined` for every non-concurrent node. */
   separators?: readonly StateSeparatorGeo[];
+  /**
+   * mission G4 S7 (mechanism 10, id-numbering creation-index gap): the
+   * parse-time tick (`State.creationIndex`, or the lazily-assigned
+   * pseudostate tick for an `'initial'`/`'final'` node -- ast.ts's
+   * `StateDiagramAST.pseudoCreationIndex` doc) this node's own uid slot was
+   * assigned. `renderer-uid.ts#buildStateUidPlan` uses this RAW value
+   * directly (`ent%04d(creationIndex)`, no dense re-packing) when present --
+   * see `State.creationIndex`'s own doc comment for why raw values already
+   * reproduce jar's real id gaps. `undefined` for a hand-built test
+   * geometry (falls back to the pre-mission-S7 dense-numbering scheme).
+   * @see plans/g4-state-svg/ledger.md (S7)
+   */
+  creationIndex?: number;
 }
 
 /** One stacked concurrent region's own materialized content -- see
@@ -133,6 +146,9 @@ export interface TransitionGeo {
   to: string;
   points: Array<{ x: number; y: number }>;
   label?: { text: string; x: number; y: number };
+  /** mission G4 S7 -- see `StateNodeGeo.creationIndex`'s own doc comment;
+   *  same raw-value contract, sourced from `Transition.creationIndex`. */
+  creationIndex?: number;
 }
 
 export interface StateGeometry {

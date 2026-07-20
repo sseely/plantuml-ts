@@ -27,6 +27,7 @@ import {
   addScopeNotes,
   addLevelEdges,
   buildLevelTransitionGeos,
+  sortSpecsByCreationIndex,
 } from './state-composite-pass.js';
 
 /** Title dims for a composite's cluster label (svek's title TABLE — matches
@@ -218,7 +219,7 @@ export function resolveClusterComposite(
     cluster.nodeIds.push(node.id);
     return spec;
   });
-  const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
+  const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc, ctx.pseudoCreationIndex);
   for (const p of pseudoSpecs) cluster.nodeIds.push(p.id);
   addScopeNotes(s.id, ctx, acc, cluster);
   if (ctx.classify.needsAnchor.has(s.id)) {
@@ -239,7 +240,10 @@ export function resolveClusterComposite(
   }
   addLevelEdges(s.id, s.transitions, acc, ctx);
 
-  return { kind: 'cluster', id: s.id, display: s.display, children: [...pseudoSpecs, ...childSpecs, ...regionSpecs] };
+  return {
+    kind: 'cluster', id: s.id, display: s.display, children: sortSpecsByCreationIndex([...pseudoSpecs, ...childSpecs, ...regionSpecs]),
+    ...(s.creationIndex !== undefined ? { creationIndex: s.creationIndex } : {}),
+  };
   // #lizard forgives -- faithful port of ClusterDotString's envelope
   // assembly; each block below is one independently-conditional layer
   // (§2 of mechanisms.md), not decision complexity to simplify.

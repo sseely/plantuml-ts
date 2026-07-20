@@ -75,6 +75,7 @@ import {
   addScopeNotes,
   runPass,
   buildLevelTransitionGeos,
+  sortSpecsByCreationIndex,
 } from './state-composite-pass.js';
 import { concurrentRegionScopeId } from './state-parse-state.js';
 import { shiftDotLayoutResult } from './state-composite-autonom.js';
@@ -205,10 +206,10 @@ function buildConcurrentBranchAcc(
 ): { acc: PassAccumulator; specs: GeoSpec[] } {
   const acc = newAccumulator();
   const memberSpecs = states.map((c) => resolveMember(c, acc, ctx, undefined));
-  const pseudoSpecs = addLocalPseudoNodes(scopeId, transitions, acc);
+  const pseudoSpecs = addLocalPseudoNodes(scopeId, transitions, acc, ctx.pseudoCreationIndex);
   addScopeNotes(noteScopeId, ctx, acc);
   addLevelEdges(scopeId, transitions, acc, ctx);
-  return { acc, specs: [...pseudoSpecs, ...memberSpecs] };
+  return { acc, specs: sortSpecsByCreationIndex([...pseudoSpecs, ...memberSpecs]) };
 }
 
 function runOneConcurrentBranch(
@@ -325,6 +326,7 @@ function combineConcurrentPasses(
     localPositions: { nodes: allNodes, edges: [], width: wrapper.width, height: wrapper.height },
     localTransitions,
     ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer),
+    ...(s.creationIndex !== undefined ? { creationIndex: s.creationIndex } : {}),
   };
   // #lizard forgives -- faithful port of ConcurrentStates' vertical stack;
   // most of this function is a single accumulation loop.

@@ -1,0 +1,13 @@
+@startuml
+'The following code fails due to $tagA assigned to a state type component:
+
+state "A" as a $tagA {
+}
+
+state "B" as b $tagB {
+}
+
+remove $tagA
+
+
+@enduml

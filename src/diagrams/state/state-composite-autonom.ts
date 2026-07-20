@@ -29,6 +29,7 @@ import {
   sweepOrphanEdges,
   runPass,
   buildLevelTransitionGeos,
+  sortSpecsByCreationIndex,
 } from './state-composite-pass.js';
 import { sweepOrphanNoteEdges } from './state-note-layout.js';
 import { resolveEndpoint } from './state-composite-classify.js';
@@ -152,7 +153,7 @@ export function shiftDotLayoutResult(result: DotLayoutResult, dx: number, dy: nu
 export function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
   const acc = newAccumulator();
   const memberSpecs = s.children.map((c) => resolveMember(c, acc, ctx, undefined));
-  const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
+  const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc, ctx.pseudoCreationIndex);
   addScopeNotes(s.id, ctx, acc);
   const localTransitions = s.transitions.filter((t) => t.from !== s.id && t.to !== s.id);
   addLevelEdges(s.id, localTransitions, acc, ctx);
@@ -160,7 +161,7 @@ export function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonom
   sweepOrphanNoteEdges(acc, ctx.notePool, ctx.consumedNotes, (id) => resolveEndpoint(id, ctx.classify));
   const result = runPass(acc, ctx);
 
-  const localSpecs = [...pseudoSpecs, ...memberSpecs];
+  const localSpecs = sortSpecsByCreationIndex([...pseudoSpecs, ...memberSpecs]);
   const rawPosMap: PosMap = new Map(result.nodes.map((n) => [n.id, n]));
   // mission G4 S5: `materializeSpecs` no longer takes an `outTransitions`
   // accumulator -- every nested pass's own edges attach directly to its
@@ -189,6 +190,7 @@ export function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonom
     localPositions: shiftedResult,
     localTransitions: buildLevelTransitionGeos(acc, shiftedResult),
     ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer),
+    ...(s.creationIndex !== undefined ? { creationIndex: s.creationIndex } : {}),
   };
   // #lizard forgives -- faithful single-pass assembly (build accumulator,
   // run layout, compute ink-extent geometry, wrap, shift, return); each

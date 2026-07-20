@@ -172,6 +172,7 @@ function materializeAutonom(
     ...(spec.headerLines !== undefined ? { headerLines: spec.headerLines } : {}),
     ...(spec.bodyLines !== undefined ? { bodyLines: spec.bodyLines } : {}),
     ...(spec.color !== undefined ? { color: spec.color } : {}),
+    ...(spec.creationIndex !== undefined ? { creationIndex: spec.creationIndex } : {}),
   };
 }
 
@@ -188,7 +189,10 @@ function materializeCluster(
   const children = materializeSpecs(spec.children, posMap);
   if (children.length === 0) return undefined;
   const box = boundingBox(children);
-  return { id: spec.id, kind: 'normal', display: spec.display, x: box.x, y: box.y, width: box.width, height: box.height, children, transitions: [] };
+  return {
+    id: spec.id, kind: 'normal', display: spec.display, x: box.x, y: box.y, width: box.width, height: box.height, children, transitions: [],
+    ...(spec.creationIndex !== undefined ? { creationIndex: spec.creationIndex } : {}),
+  };
 }
 
 /** Exported (mission G4 S4): `state-composite-autonom.ts#buildPlainAutonomSpec`
@@ -216,6 +220,7 @@ export function materializeSpecs(specs: readonly GeoSpec[], posMap: PosMap): Sta
         ...(spec.headerLines !== undefined ? { headerLines: spec.headerLines } : {}),
         ...(spec.bodyLines !== undefined ? { bodyLines: spec.bodyLines } : {}),
         ...(spec.color !== undefined ? { color: spec.color } : {}),
+        ...(spec.creationIndex !== undefined ? { creationIndex: spec.creationIndex } : {}),
       });
     } else if (spec.kind === 'autonom') {
       const g = materializeAutonom(spec, posMap);

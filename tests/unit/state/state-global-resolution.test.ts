@@ -85,7 +85,11 @@ describe('global state-name resolution -- quarkInContext/firstWithName port', ()
     // is what makes 'Idle --> Configuring' a boundary-crossing link.
     const notShooting = findState(ast, 'NotShooting');
     expect(notShooting?.children.map((c) => c.id)).toEqual(['Idle']);
-    expect(notShooting?.transitions).toEqual([{ from: 'Idle', to: 'Configuring', length: 2 }]);
+    // mission G4 S7: creationIndex is now stamped on every Transition --
+    // this test is about scope/resolution mechanics, not id-numbering, so
+    // assert the pre-existing fields only (objectContaining), not the exact
+    // parse-time tick.
+    expect(notShooting?.transitions).toEqual([expect.objectContaining({ from: 'Idle', to: 'Configuring', length: 2 })]);
   });
 
   it('a transition inside one composite binds to a same-named entity declared LATER, nested inside a DIFFERENT top-level composite (bemena-23-zebu249 shape, forward reference -- requires the two-pass parser)', () => {
@@ -116,7 +120,7 @@ describe('global state-name resolution -- quarkInContext/firstWithName port', ()
     expect(ast.states.filter((s) => s.id === 'Run')).toHaveLength(1);
     const run = findState(ast, 'Run');
     expect(run?.children.map((c) => c.id)).toEqual(['A', 'B']);
-    expect(ast.transitions).toEqual([{ from: 'Run', to: 'Stop', length: 2 }]);
+    expect(ast.transitions).toEqual([expect.objectContaining({ from: 'Run', to: 'Stop', length: 2 })]);
   });
 
   it('a forward-referenced state later declared NESTED inside a sibling composite resolves to one entity, placed where it was actually declared (bajelo-54-dixe684 shape, verbatim: Stop --> Chg_Sector precedes state Run { state Chg_Sector })', () => {
@@ -183,7 +187,7 @@ describe('global state-name resolution -- quarkInContext/firstWithName port', ()
     expect(ast.states.filter((s) => s.id === 'Foo')).toHaveLength(1);
     const foo = findState(ast, 'Foo');
     expect(foo?.children.map((c) => c.id)).toEqual(['Bar']);
-    expect(foo?.transitions).toEqual([{ from: 'Foo', to: 'Bar', length: 2 }]);
+    expect(foo?.transitions).toEqual([expect.objectContaining({ from: 'Foo', to: 'Bar', length: 2 })]);
   });
 
   it('a DOTTED composite-block-open id genuinely splits hierarchically -- "S" (phantom ancestor) containing "I" (the real composite), and the self-loop converges onto "I" itself rather than creating a nested duplicate (upstream compares the quark\'s LOCAL segment name, not the full dotted code -- tuvugi-94-gapi519 shape, mission A4 Phase L iter 10)', () => {
@@ -212,7 +216,7 @@ describe('global state-name resolution -- quarkInContext/firstWithName port', ()
     const inner = outer?.children[0];
     expect(inner?.autoPhantom).toBeUndefined();
     expect(inner?.children).toEqual([]);
-    expect(inner?.transitions).toEqual([{ from: 'I', to: 'I', length: 2 }]);
+    expect(inner?.transitions).toEqual([expect.objectContaining({ from: 'I', to: 'I', length: 2 })]);
   });
 
   it('[*] stays scope-local in every composite and never becomes a global State node', () => {

@@ -232,11 +232,42 @@ function buildPathD(points: ReadonlyArray<{ x: number; y: number }>): string {
  *  compared, unlike `data-qualified-name`) regardless of this port's own
  *  internal `__initial__`/`__final__` ids (`state-dot-graph.ts`).
  *  Jar-verified `moleco-69-sida106` (`id="*start*-to-Main_Libre"`),
- *  `bajelo-54-dixe684` (`id="Track_FSM-to-*end*"`). */
+ *  `bajelo-54-dixe684` (`id="Track_FSM-to-*end*"`).
+ *
+ *  mission G4 S7 (discovered while jar-verifying mechanism 10's own fix):
+ *  the COMPOSITE pipeline's own scope-local pseudo anchors
+ *  (`state-composite-pass.ts#scopedPseudoIds`, `__init_<scopeId>`/
+ *  `__final_<scopeId>`) also need this `*start*<name>`/`*end*<name>` form
+ *  -- jar's real `StateDiagram#getStart`/`#getEnd` build the SAME
+ *  `"*start*" + g.getName()` string upstream regardless of nesting depth,
+ *  where `g.getName()` is the OWNING GROUP's own LOCAL (never fully-
+ *  qualified) name. For a CONCURRENT_STATE region, that local name is the
+ *  bare synthetic `CONC<n>` segment (`StateDiagram#concurrentState`'s own
+ *  `getUniqueSequence2(CONCURRENT_PREFIX)`), NOT this port's own
+ *  internally-qualified `concurrentRegionScopeId` (`<ownerId>::CONC<n>`,
+ *  deliberately over-qualified for THIS port's own cross-region dedup) --
+ *  so a `::`-qualified scope id is stripped to its trailing `CONC<n>`
+ *  segment. jar-verified `nelupe-49-xova546`: `*start*s7_2-to-chat1`
+ *  (owner-level, unqualified already), `*start*toutou9-to-leo` (nested
+ *  composite, unqualified already), `*start*CONC1-to-toutou9` (region,
+ *  qualified `s7_2::CONC1` stripped to `CONC1`). */
 function svgEndpointId(nodeId: string): string {
   if (nodeId === INITIAL_ID) return '*start*';
   if (nodeId === FINAL_ID) return '*end*';
+  const scopedInit = /^__init_(.*)$/.exec(nodeId);
+  if (scopedInit !== null) return `*start*${localScopeName(scopedInit[1]!)}`;
+  const scopedFinal = /^__final_(.*)$/.exec(nodeId);
+  if (scopedFinal !== null) return `*end*${localScopeName(scopedFinal[1]!)}`;
   return nodeId;
+}
+
+/** Strips this port's own `<ownerId>::CONC<n>` internal qualification down
+ *  to the bare trailing segment jar's own unqualified `getName()` produces
+ *  -- see {@link svgEndpointId}'s own doc comment for the full mechanism.
+ *  A non-region scope id (no `::`) is already local, unchanged. */
+function localScopeName(scopeId: string): string {
+  const i = scopeId.lastIndexOf('::');
+  return i === -1 ? scopeId : scopeId.slice(i + 2);
 }
 
 /** Path + inline arrowhead + optional label — the wrapped `<g class=

@@ -27,6 +27,8 @@ import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
 import type { DotLayoutResult } from '../../core/graph-layout.js';
 import { buildDotGraph, endpointId, INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
+import { pseudoTickKey } from './state-parse-state.js';
+import { sortSpecsByCreationIndex } from './state-composite-pass.js';
 import { layoutComposite } from './state-composite-geo.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import type { StateNodeGeo, TransitionGeo, StateGeometry, StateRegionGeo } from './state-geo-types.js';
@@ -63,16 +65,25 @@ function hasAnyComposite(states: readonly State[]): boolean {
 // FLAT pipeline (svek-faithful — T3)
 // ===========================================================================
 
-/** initial/final StateNodeGeo entries, if the shared anchors were used. */
-function buildPseudoNodeGeos(posMap: Map<string, DotLayoutResult['nodes'][number]>): StateNodeGeo[] {
+/** initial/final StateNodeGeo entries, if the shared anchors were used.
+ *  mission G4 S7: `pseudoCreationIndex` is `ast.pseudoCreationIndex`,
+ *  looked up via `pseudoTickKey('', which)` -- the flat pipeline's single
+ *  (top-level, `scopeId=''`) scope, matching `state-composite-pass.ts
+ *  #buildTopLevelPass`'s own `addLocalPseudoNodes('', ...)` call. */
+function buildPseudoNodeGeos(
+  posMap: Map<string, DotLayoutResult['nodes'][number]>,
+  pseudoCreationIndex: ReadonlyMap<string, number>,
+): StateNodeGeo[] {
   const geos: StateNodeGeo[] = [];
   const initial = posMap.get(INITIAL_ID);
   if (initial !== undefined) {
-    geos.push({ id: INITIAL_ID, kind: 'initial', display: '', x: initial.x, y: initial.y, width: initial.width, height: initial.height, children: [], transitions: [] });
+    const ci = pseudoCreationIndex.get(pseudoTickKey('', 'start'));
+    geos.push({ id: INITIAL_ID, kind: 'initial', display: '', x: initial.x, y: initial.y, width: initial.width, height: initial.height, children: [], transitions: [], ...(ci !== undefined ? { creationIndex: ci } : {}) });
   }
   const final = posMap.get(FINAL_ID);
   if (final !== undefined) {
-    geos.push({ id: FINAL_ID, kind: 'final', display: '', x: final.x, y: final.y, width: final.width, height: final.height, children: [], transitions: [] });
+    const ci = pseudoCreationIndex.get(pseudoTickKey('', 'end'));
+    geos.push({ id: FINAL_ID, kind: 'final', display: '', x: final.x, y: final.y, width: final.width, height: final.height, children: [], transitions: [], ...(ci !== undefined ? { creationIndex: ci } : {}) });
   }
   return geos;
 }
@@ -91,10 +102,15 @@ function buildFlatStateGeos(
     geos.push({
       id: s.id, kind: s.kind, display: s.display, x: pos.x, y: pos.y, width: pos.width, height: pos.height,
       children: [], transitions: [], ...buildStateGeoTextFields(s, theme, measurer, hideEmptyDescription),
+      ...(s.creationIndex !== undefined ? { creationIndex: s.creationIndex } : {}),
     });
   }
-  geos.push(...buildPseudoNodeGeos(posMap));
-  return geos;
+  geos.push(...buildPseudoNodeGeos(posMap, ast.pseudoCreationIndex ?? new Map()));
+  // mission G4 S7: sort into true creation order -- see
+  // `state-composite-pass.ts#sortSpecsByCreationIndex`'s own doc comment
+  // for why "declared states first, pseudo last" is only a special case of
+  // this, not a separate rule.
+  return sortSpecsByCreationIndex(geos);
 }
 
 function buildFlatTransitionGeos(ast: StateDiagramAST, result: DotLayoutResult): TransitionGeo[] {
@@ -111,7 +127,10 @@ function buildFlatTransitionGeos(ast: StateDiagramAST, result: DotLayoutResult):
     // this replaces (the raw AST token leaking into the SVG `<path id>`).
     const from = endpointId(t.from, true);
     const to = endpointId(t.to, false);
-    geos.push({ from, to, points: edgeResult.points, ...(label !== undefined ? { label } : {}) });
+    geos.push({
+      from, to, points: edgeResult.points, ...(label !== undefined ? { label } : {}),
+      ...(t.creationIndex !== undefined ? { creationIndex: t.creationIndex } : {}),
+    });
   }
   return geos;
 }

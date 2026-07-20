@@ -23,6 +23,7 @@ import {
   emitTransition,
   addDescriptionLine,
   popScope,
+  nextCreationIndex,
 } from './state-parse-state.js';
 import { ensureState, resolveDescriptionTarget } from './state-parse-resolve.js';
 import { parseLabel } from './state-parse-helpers.js';
@@ -155,7 +156,20 @@ export const COMMANDS: readonly Command[] = [
     execute(ps, match, pass) {
       const scope = currentScope(ps);
       scope.hasConcurrency = true;
-      if (pass === 'one') scope.regions.push([]);
+      if (pass === 'one') {
+        scope.regions.push([]);
+        // mission G4 S7 (mechanism 10, sub-pattern a): jar's own
+        // `concurrentState()` constructs a real (ticked) `Entity` here
+        // (`GroupType.CONCURRENT_STATE`, `CucaDiagram#createGroup` -> `new
+        // Entity(...)`) that is NEVER individually rendered as its own box
+        // -- burn the tick (discard the value) so this region's own members
+        // correctly skip a slot, matching jar's real gap. Pass ONE only
+        // (mirrors `registerStateInto`'s own real-creation-only discipline
+        // -- pass TWO just re-navigates the already-built region tree, no
+        // new jar tick fires on the replay). See `ParseState
+        // .creationCounter`'s own doc comment (state-parse-state.ts).
+        nextCreationIndex(ps);
+      }
       scope.regionCursor++;
     },
   },
@@ -251,8 +265,8 @@ export const COMMANDS: readonly Command[] = [
       // isAutarkic/DOT-endpoint resolution matches by exact id string), not
       // the as-written text. `ensureState` returns `undefined` only for the
       // `'[*]'` sentinel, which stays literal (mission A4 Phase L iter 10).
-      const fromState = ensureState(ps, rest.from);
-      const toState = ensureState(ps, rest.to);
+      const fromState = ensureState(ps, rest.from, undefined, true);
+      const toState = ensureState(ps, rest.to, undefined, false);
 
       const labelParts = parseLabel(rawLabel);
       const t: Transition = {

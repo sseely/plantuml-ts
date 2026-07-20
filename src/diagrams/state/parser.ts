@@ -238,6 +238,8 @@ export function parseState(block: UmlSource): StateDiagramAST {
     globalByName: new Map(),
     scopeByOwner: new Map(),
     separator: DEFAULT_SEPARATOR,
+    creationCounter: 0,
+    pseudoCreationIndex: new Map(),
   };
 
   // PASS ONE: declaration-family commands only — builds the complete tree.
@@ -257,5 +259,9 @@ export function parseState(block: UmlSource): StateDiagramAST {
 
   ast.states = topScope.states;
   ast.transitions = topScope.transitions;
+  // mission G4 S7: hand off the parse-time pseudostate creation-index map
+  // (see `StateDiagramAST.pseudoCreationIndex`'s own doc comment, ast.ts) --
+  // mirrors the `ast.states`/`ast.transitions` handoff immediately above.
+  ast.pseudoCreationIndex = ps.pseudoCreationIndex;
   return ast;
 }

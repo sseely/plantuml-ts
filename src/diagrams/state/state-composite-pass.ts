@@ -39,7 +39,7 @@ import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph } from '../../core/graph-layout.js';
 import type { DotInputNode, DotInputEdge, DotInputCluster, DotInputGraph, DotLayoutResult } from '../../core/graph-layout.js';
-import { CIRCLE_START_SIZE, CIRCLE_END_SIZE, buildStateGeoTextFields } from './state-sizing.js';
+import { buildStateGeoTextFields } from './state-sizing.js';
 import type { AutonomOffset } from './state-composite-sizing.js';
 import { classifyDiagram, resolveEndpoint, type ClassifyResult } from './state-composite-classify.js';
 import { hasLocalContent } from './state-composite-detect.js';
@@ -51,6 +51,13 @@ import { resolveAllAutonomPasses } from './state-composite-autonom.js';
 import type { ConcurrentRegionPassResult } from './state-composite-concurrent.js';
 import { resolveClusterComposite } from './state-composite-cluster.js';
 import { buildNoteGraphPartsByScope, sweepOrphanNoteEdges, type NoteEdgeCandidate, type ScopeNoteParts } from './state-note-layout.js';
+// mission G4 S7: pseudo-anchor id resolution + creation-order sibling
+// sorting moved to ./state-composite-pseudo.ts (500-line file-cap
+// compliance) -- imported for THIS file's own internal use
+// (`addLevelEdges`/`buildTopLevelPass` below) AND re-exported so every
+// pre-existing EXTERNAL importer of THIS module keeps working unchanged.
+import { scopedPseudoIds, sortSpecsByCreationIndex, addLocalPseudoNodes, levelEndpointId } from './state-composite-pseudo.js';
+export { scopedPseudoIds, sortSpecsByCreationIndex, addLocalPseudoNodes, levelEndpointId };
 
 export interface DiagramCtx {
   theme: Theme;
@@ -96,6 +103,11 @@ export interface DiagramCtx {
    *  reads this field, since composites are never eligible for the
    *  EmptyDescription shape upstream (leaf-only branch). */
   hideEmptyDescription: boolean;
+  /** mission G4 S7: `ast.pseudoCreationIndex`, threaded onto `ctx` so
+   *  `addLocalPseudoNodes` can attach the lazily-assigned pseudostate
+   *  creation tick to its `GeoSpec`s -- see `StateDiagramAST
+   *  .pseudoCreationIndex`'s own doc comment (ast.ts). */
+  pseudoCreationIndex: ReadonlyMap<string, number>;
 }
 
 /** Geometry-tree spec — mirrors visual nesting (unlike the flat
@@ -112,6 +124,8 @@ export type GeoSpec =
       headerLines?: readonly StateTextLine[];
       bodyLines?: readonly StateTextLine[];
       color?: string;
+      /** mission G4 S7 -- see `StateNodeGeo.creationIndex`'s own doc comment. */
+      creationIndex?: number;
     }
   | {
       kind: 'autonom';
@@ -156,8 +170,10 @@ export type GeoSpec =
        *  separator-line coordinates between stacked regions -- see
        *  `StateNodeGeo.separators`'s own doc comment (state-geo-types.ts). */
       separators?: readonly { x1: number; y1: number; x2: number; y2: number }[];
+      /** mission G4 S7 -- see `StateNodeGeo.creationIndex`'s own doc comment. */
+      creationIndex?: number;
     }
-  | { kind: 'cluster'; id: string; display: string; children: readonly GeoSpec[] };
+  | { kind: 'cluster'; id: string; display: string; children: readonly GeoSpec[]; creationIndex?: number };
 
 type ExtractAutonomSpec = Extract<GeoSpec, { kind: 'autonom' }>;
 
@@ -166,21 +182,6 @@ type ExtractAutonomSpec = Extract<GeoSpec, { kind: 'autonom' }>;
  *  Exported: `state-composite-cluster.ts`'s zaent-anchor-node push reuses
  *  this same constant, not a re-derived copy. */
 export const ANCHOR_SIZE = 0.72;
-/** One `[*]`-referencing scope's local start/end anchor ids — scoped per
- *  composite (own id) or '' for the top level (pre-existing per-scope
- *  convention, StateDiagram#getStart/getEnd). */
-function scopedPseudoIds(scopeId: string): { initialId: string; finalId: string } {
-  return scopeId === ''
-    ? { initialId: '__initial__', finalId: '__final__' }
-    : { initialId: `__init_${scopeId}`, finalId: `__final_${scopeId}` };
-}
-
-function usesPseudo(transitions: readonly Transition[]): { start: boolean; end: boolean } {
-  return {
-    start: transitions.some((t) => t.from === '[*]'),
-    end: transitions.some((t) => t.to === '[*]'),
-  };
-}
 
 export interface PassAccumulator {
   nodes: DotInputNode[];
@@ -223,22 +224,6 @@ export function resetEdgeCounter(): void {
   clusterCounter = 0;
 }
 
-export function addLocalPseudoNodes(scopeId: string, transitions: readonly Transition[], acc: PassAccumulator): GeoSpec[] {
-  const { start, end } = usesPseudo(transitions);
-  if (!start && !end) return [];
-  const { initialId, finalId } = scopedPseudoIds(scopeId);
-  const specs: GeoSpec[] = [];
-  if (start) {
-    acc.nodes.push({ id: initialId, width: CIRCLE_START_SIZE, height: CIRCLE_START_SIZE, shape: 'circle' });
-    specs.push({ kind: 'state', id: initialId, stateKind: 'initial', display: '' });
-  }
-  if (end) {
-    acc.nodes.push({ id: finalId, width: CIRCLE_END_SIZE, height: CIRCLE_END_SIZE, shape: 'circle' });
-    specs.push({ kind: 'state', id: finalId, stateKind: 'final', display: '' });
-  }
-  return specs;
-}
-
 /** Push scope `scopeId`'s note DOT nodes into `acc` -- and, for a cluster's
  *  own scope, into `cluster.nodeIds` too (mirrors `addLocalPseudoNodes`'s
  *  pattern for the same reason: a note declared inside a non-autonom
@@ -249,14 +234,6 @@ export function addScopeNotes(scopeId: string, ctx: DiagramCtx, acc: PassAccumul
   if (parts === undefined) return;
   acc.nodes.push(...parts.nodes);
   if (cluster !== undefined) for (const n of parts.nodes) cluster.nodeIds.push(n.id);
-}
-
-function levelEndpointId(raw: string, isFrom: boolean, scopeId: string, ctx: DiagramCtx): string {
-  if (raw === '[*]') {
-    const { initialId, finalId } = scopedPseudoIds(scopeId);
-    return isFrom ? initialId : finalId;
-  }
-  return resolveEndpoint(raw, ctx.classify);
 }
 
 export function addLevelEdges(scopeId: string, transitions: readonly Transition[], acc: PassAccumulator, ctx: DiagramCtx): void {
@@ -369,7 +346,11 @@ export function resolveMember(s: State, acc: PassAccumulator, ctx: DiagramCtx, p
   const isComposite = hasLocalContent(s);
   if (!isComposite) {
     acc.nodes.push(buildLeafNode(s, ctx));
-    return { kind: 'state', id: s.id, stateKind: s.kind, display: s.display, ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer, ctx.hideEmptyDescription) };
+    return {
+      kind: 'state', id: s.id, stateKind: s.kind, display: s.display,
+      ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer, ctx.hideEmptyDescription),
+      ...(s.creationIndex !== undefined ? { creationIndex: s.creationIndex } : {}),
+    };
   }
   if (ctx.classify.kindOf.get(s.id) === 'autonom') {
     const spec = ctx.resolvedAutonom.get(s.id);
@@ -407,12 +388,28 @@ export function runPass(acc: PassAccumulator, ctx: DiagramCtx): DotLayoutResult 
  *  for a second copy at the geometry layer). */
 export function buildLevelTransitionGeos(acc: PassAccumulator, result: DotLayoutResult): TransitionGeo[] {
   const edgePosMap = new Map(result.edges.map((e) => [e.id, e]));
+  // mission G4 S7 (discovered while jar-verifying mechanism 10's own fix,
+  // `nelupe-49-xova546`): a `'[*]'` transition's RESOLVED scope-local
+  // pseudo-anchor id (`__init_<scopeId>`/`__final_<scopeId>`,
+  // `levelEndpointId` above) already lives on `acc.edges` (`addLevelEdges`/
+  // `sweepOrphanEdges` both resolve before pushing) -- reading `t.from`/
+  // `t.to` directly off the ORIGINAL `Transition` instead re-introduces the
+  // raw `'[*]'` AST token into `svgEndpointId`'s `<path id>` build
+  // (renderer.ts), which only recognizes the FLAT pipeline's own
+  // `INITIAL_ID`/`FINAL_ID` constants -- jar-verified
+  // `id="*start*s7_2-to-chat1"` (expected) vs `id="[*]-to-chat1"` (this
+  // port, pre-fix).
+  const edgeEndpoints = new Map(acc.edges.map((e) => [e.id, { from: e.from, to: e.to }]));
   const geos: TransitionGeo[] = [];
   for (const { t, edgeId } of acc.edgeSources) {
     const edgeResult = edgePosMap.get(edgeId);
     if (edgeResult === undefined) continue;
     const label = attachTransitionLabel(t, edgeResult.points);
-    geos.push({ from: t.from, to: t.to, points: edgeResult.points, ...(label !== undefined ? { label } : {}) });
+    const resolved = edgeEndpoints.get(edgeId);
+    geos.push({
+      from: resolved?.from ?? t.from, to: resolved?.to ?? t.to, points: edgeResult.points, ...(label !== undefined ? { label } : {}),
+      ...(t.creationIndex !== undefined ? { creationIndex: t.creationIndex } : {}),
+    });
   }
   return geos;
 }
@@ -434,11 +431,12 @@ export function buildTopLevelPass(
     theme, measurer, rankdir, classify, pool, consumed: new Set(),
     noteParts, notePool, consumedNotes: new Set(), resolvedAutonom: new Map(),
     resolvedRegions: new Map(), hideEmptyDescription: ast.hideEmptyDescription ?? false,
+    pseudoCreationIndex: ast.pseudoCreationIndex ?? new Map(),
   };
   resolveAllAutonomPasses(ctx);
   const acc = newAccumulator();
   const specs = ast.states.map((s) => resolveMember(s, acc, ctx, undefined));
-  const pseudoSpecs = addLocalPseudoNodes('', ast.transitions, acc);
+  const pseudoSpecs = addLocalPseudoNodes('', ast.transitions, acc, ctx.pseudoCreationIndex);
   addScopeNotes('', ctx, acc);
   addLevelEdges('', ast.transitions, acc, ctx);
   sweepOrphanEdges(acc, ctx);
@@ -465,5 +463,5 @@ export function buildTopLevelPass(
   // `[...pseudoSpecs, ...specs]` order was backward -- previously masked
   // by the flat-transitions childCount short-circuit (S1), only visible
   // once that mismatch was fixed (S5's own transition-nesting mechanism).
-  return { acc, result, ctx, specs: [...specs, ...pseudoSpecs] };
+  return { acc, result, ctx, specs: sortSpecsByCreationIndex([...specs, ...pseudoSpecs]) };
 }

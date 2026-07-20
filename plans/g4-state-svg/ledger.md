@@ -2681,3 +2681,392 @@ scope).
     non-id diff: `ours=#181818 jar=#0000FF` on the composite's own
     rect/line stroke) — a stereotype-conditional skinparam override not
     threading through to composite box borders. Named, not chased.
+
+## S7 — mechanism 10 (id-numbering creation-index gap) LANDED in full: true
+parse-time creation-index threading (states/transitions/pseudostates/CONC
+phantoms/removed-entity gaps), true creation-order sibling ordering, and a
+newly-discovered composite-pipeline `[*]`-endpoint `<path id>` bug fixed
+alongside it -- 14→16 pins, every sampled concurrent-region/`[*]`-multi-scope
+fixture now blocked SOLELY by already-named, unrelated mechanisms
+
+### Summary
+
+Per this iteration's own instruction, derived the jar creation-index
+algorithm from BOTH Java source (`net.atmp.CucaDiagram#cpt1`/
+`getUniqueSequenceValue`/`getUniqueSequence`, `abel/Entity.java:171`,
+`abel/Link.java:135`, `statediagram/StateDiagram.java#concurrentState`/
+`getStart`/`getEnd`, `statediagram/command/CommandConcurrentState.java`,
+`statediagram/command/CommandCreateState.java`) AND direct jar-SVG-id
+evidence across the mission's own required 5 fixture categories BEFORE
+writing any code (full derivation below). Implemented true parse-time
+`creationIndex` threading through the ENTIRE state pipeline (parser →
+AST → layout → composite-pass GeoSpec tree → renderer-uid), TDD-first
+(unit tests for the new stamping behavior; jar-verified byte-exact id
+sequences as the primary acceptance oracle, per this mission's own
+established discipline). Landing the id-VALUE fix immediately surfaced
+(via direct byte comparison, not guessed) two further, previously-masked
+bugs in the SAME area — sibling DOCUMENT ORDER (still using the S5-era
+"real before pseudo" heuristic, wrong for jar's true creation-order-based
+sibling order) and a composite-pipeline `<path id>` bug (leaking the raw
+`'[*]'` AST token instead of the scope-resolved pseudo-anchor name) — both
+fixed alongside the id-value mechanism, not deferred, since both were
+discovered WHILE jar-verifying mechanism 10's own fix and are the SAME
+underlying "true creation order" concept, not separate mechanisms.
+
+```
+S6 (before): 14/271 -- 1-3:27, 4-10:134, 11-30:41, 31+:55, errors:0
+S7 (after):  16/271 -- 1-3:26, 4-10:133, 11-30:47, 31+:49, errors:0
+```
+
++2 new pins (`nivanu-50-zajo916`, `xoravu-40-gebe122`), 0 pins lost (all 14
+S6 pins verified unchanged via a fresh census + `parity-state.json` regen).
+Bucket redistribution follows the SAME mixed-direction "unmasking" shape
+every prior mechanism-landing iteration has shown (11-30 grew 41→47, 31+
+shrank 55→49, net zero-diff up) — landing a structurally-necessary,
+jar-verified-correct fix trades a shallow, id-confounded diff signature for
+smaller counts of deeper, REAL, individually-addressable residuals.
+Critically, EVERY ONE of the mission's own 5 required sample categories now
+shows either TRUE ZERO or a residual blocked SOLELY by an already-named,
+UNRELATED mechanism (not id-numbering) — direct, hand-verified evidence,
+not inferred from the aggregate census:
+
+| Category | Fixture | Before (id-related) | After |
+|---|---|---|---|
+| Plain | `coteta-47-mare883` | already 0 | 0 (unchanged) |
+| Nested composite + concurrent | `nivanu-50-zajo916` | `childCount` gap at the CONC-tick position | **0 (NEW PIN)** |
+| Concurrent regions (2, no `[*]`) | `semala-31-joji042` | id/class swap at CONC boundary | 0 id diffs; 2 residual diffs are the ALREADY-NAMED mechanism 11 (`<<meblue>>` stereotype border-color cascade) |
+| Concurrent regions (3, transitions only, no explicit declares) | `pevene-26-kebo361` | 2-slot gap before region-0's first entity | 0 id diffs; residual is PURE `path/@d`/`polygon` geometry (mechanism 19) |
+| Removed entities | `xoravu-40-gebe122` | `remove`d state's slot not skipped | **0 (NEW PIN)** |
+| `[*]` in multiple scopes + nesting + concurrency | `nelupe-49-xova546` | id/class swaps + duplicate pseudo ids across regions | 0 id/ordering/`<path id>` diffs (40→30 diffs); 100% of the remaining 30 are PURE `path/@d`/`polygon` geometry (mechanism 19) |
+
+### The creation-index derivation (per this iteration's own instruction:
+BEFORE writing code)
+
+**Java source** (read before any fixture evidence was gathered):
+- `net.atmp.CucaDiagram.java:127` — `private final AtomicInteger cpt1 = new
+  AtomicInteger(0);` — ONE shared counter for the WHOLE diagram.
+- `CucaDiagram.java:725-731` — `getUniqueSequenceValue()` =
+  `cpt1.addAndGet(1)`; `getUniqueSequence(prefix)` = `prefix +
+  cpt1.addAndGet(1)` — the SAME counter, two callers.
+- `abel/Entity.java:171` — the PRIVATE `Entity` ctor stamps `this.uid =
+  StringUtils.getUid("ent", diagram.getUniqueSequenceValue())`
+  UNCONDITIONALLY, for EVERY `Entity` constructed (leaf OR group,
+  `CucaDiagram#createLeaf`/`#createGroup` both funnel through it) —
+  regardless of whether that Entity is ever individually drawn as its own
+  box.
+- `abel/Link.java:135` — the `Link` ctor stamps `this.uid =
+  cucaDiagram.getUniqueSequence("lnk")` — the SAME shared counter, fired at
+  Link CONSTRUCTION time (inside `CommandLinkStateCommon`'s dispatch, AFTER
+  both endpoints are already resolved/auto-created).
+- `statediagram/StateDiagram.java#concurrentState` (`--`/`||` handler) —
+  `gotoGroup(location, ident1, Display.create(""),
+  GroupType.CONCURRENT_STATE)` → `CucaDiagram#createGroup` → `new
+  Entity(...)` — a REAL, ticked `Entity`, for a group type that
+  `GroupMakerState`/`ConcurrentStates` NEVER draws its own box for
+  (mechanism 13, S6) — this is the mechanism behind sub-pattern (a).
+- `StateDiagram.java#getStart`/`#getEnd`/`#getHistorical`/`#getDeepHistory`
+  — each does `if (quark.getData() == null) reallyCreateLeaf(...)` — LAZY,
+  idempotent-per-quark creation, fired the FIRST time a scope's `[*]`/`[H]`/
+  `[H*]` is referenced by a transition (i.e. from INSIDE
+  `CommandLinkStateCommon#getEntity`'s endpoint resolution, the SAME
+  chokepoint real endpoint auto-create uses) — not at composite-open time.
+- `CommandConcurrentState.isEligibleFor` returns `ONE|TWO|THREE` (all
+  passes) — but `this` port's OWN pre-existing `state-commands.ts` rule 4
+  ALREADY only allocates a new region (`scope.regions.push([])`) on pass
+  `'one'` (a pre-S7 design decision, unrelated to this iteration) — so a
+  SINGLE tick-burn hook at that SAME `pass === 'one'` guard reproduces
+  jar's real behavior with no further pass-reconciliation needed (verified
+  empirically below, not merely assumed from the Java alone — see the
+  "ruled out" note).
+
+**Fixture evidence** (5 required categories, gathered AFTER the Java
+reading, used to VERIFY the derived algorithm byte-exact, not to guess it):
+- `nivanu-50-zajo916` (nested composite, 1 separator, no `[*]`): raw ids
+  `one=1, one.two=2, one.two.three=3, one.two.three.four=4, [SKIP 5],
+  one.CONC1.five=6` — confirms sub-pattern (a) (CONC group burns exactly
+  ONE tick, not per-pass-repeated) and that nested-composite declaration
+  order alone (no `[*]`) already needed no ordering fix.
+- `semala-31-joji042` (2 regions, `state b` EXPLICITLY declared before the
+  separator): `a=1, b=2, [SKIP 3=CONC1], c=4` — confirms the phantom tick
+  fires exactly at the separator's OWN textual position (interleaved with
+  real declarations in true source order), not batched.
+- `pevene-26-kebo361` (3 regions, ZERO explicit declarations — every state
+  auto-created by a transition): `single1=1, [SKIP 2,3 = CONC1,CONC2],
+  a=4, b=5, lnk(a→b)=6, c=7, d=8, lnk(c→d)=9, e=10, f=11, lnk(e→f)=12` —
+  confirms BOTH remaining sub-patterns at once: (a) BOTH CONC ticks fire
+  during PASS ONE, before ANY pass-two auto-create (since pass ONE walks
+  the WHOLE composite block, including every `--` line, before pass TWO
+  ever starts); (b) transitions interleave with their OWN newly-auto-
+  created endpoints in PURE TRANSITION-SOURCE order (`a,b,lnk` THEN
+  `c,d,lnk` THEN `e,f,lnk`), never "all entities globally, then all
+  transitions".
+- `xoravu-40-gebe122` (`remove $tagA`, 2 composites, 1 removed): raw ids
+  `a=1 (removed, filtered post-parse), b=2` — confirms sub-pattern (c): the
+  removed entity's tick IS consumed during parsing (before
+  `state-directives.ts#filterRemovedEntities` excludes it from the layout
+  input), so the SURVIVING entity's raw index already reflects the gap
+  with ZERO extra bookkeeping needed at the numbering step.
+- `nelupe-49-xova546` (3 concurrent regions, ONE with a 2-level-nested
+  composite, `[*]` referenced in FIVE distinct scopes: top level, region 0,
+  CONC1 [region 1], the nested `toutou9` composite, CONC2 [region 2]): a
+  FULL 18-tick hand-derivation (documented in this iteration's own probe
+  scripts, `scripts/_tmp-s7-probe4.ts`, deleted before finishing) predicted
+  EVERY SINGLE raw id in the fixture's cached `in.svg` exactly —
+  `s7_2=1,[CONC1=2],toutou9=3,[CONC2=4]` (pass one) then
+  `.start.=5,s0_start=6,lnk=7,` `.start.s7_2=8,chat1=9,lnk=10,`
+  `.start.CONC1=11,lnk=12,` `.start.toutou9=13,leo=14,lnk=15,`
+  `.start.CONC2=16,chat2=17,lnk=18` (pass two, pure textual re-walk order,
+  pseudo-tick lazily fired PER SCOPE the first time `[*]` is seen there) —
+  a byte-exact, fully independent verification run via
+  `npx tsx scripts/_tmp-s7-probe4.ts` BEFORE any geometry-layer plumbing
+  was written (parser-only, `parseState()` output inspected directly).
+
+**Ruled out**: a THIRD hypothesis — that `CommandConcurrentState` genuinely
+fires (and burns a tick) once per pass (3× per separator, since
+`isEligibleFor` returns true for ONE/TWO/THREE) — was explicitly tested
+against `pevene-26-kebo361`'s own numbers (`a=4`, not `6` or higher) and
+DISPROVED: this port's PRE-EXISTING `pass === 'one'`-guarded region
+allocation (a design decision unrelated to this iteration, already correct)
+already reproduces jar's real single-tick-per-separator behavior when the
+SAME guard is reused for the tick-burn hook — no additional pass-
+reconciliation logic was needed, confirmed empirically before landing.
+
+### The algorithm (implemented)
+
+**Raw values, not dense re-packing** — deliberate, verified via the
+`xoravu` sample above: since `ParseState.creationCounter` increments for
+EVERY jar tick (visible or not — CONC phantoms, removed entities), the
+SURVIVING items' raw `creationIndex` values already carry the correct gap
+at every invisible slot. This is DIFFERENT from `class/renderer-uid.ts
+#buildClassUidPlan`'s own dense-merge-with-phantom-entries scheme (G2
+N2/N15) — that module's `creationIndex` stamping is NOT a full 1:1 replay
+of every jar tick, so it needs an explicit phantom-rank mechanism to
+reproduce gaps its OWN creation model doesn't otherwise account for. State's
+threading IS a full 1:1 replay (verified byte-exact on all 5 samples), so
+raw values suffice — simpler, and a smaller diff than porting G2's
+dense-merge machinery would have been.
+
+**Chokepoints** (mirrors `class/renderer-uid.ts`'s own "stamp at the
+ACTUAL creation moment, not after the fact" discipline):
+1. `state-parse-resolve.ts#registerStateInto` — the SINGLE true "brand new
+   `State` enters a scope" chokepoint (every creation path — declare,
+   dotted-path, history/deepHistory shorthand, compound-history graft,
+   transition-endpoint auto-create — already funneled through here
+   pre-S7).
+2. `state-commands.ts` rule 4 (`--`/`||` handler), `pass === 'one'` branch
+   — burns (discards) a tick for the CONC phantom group.
+3. `state-parse-state.ts#emitTransition` — stamps `Transition.creationIndex`
+   AFTER both endpoints are already resolved (`state-commands.ts` rule 16
+   calls `ensureState(from)` then `ensureState(to)` before
+   `emitTransition`), mirroring `Link`'s own ctor-time tick.
+4. `state-parse-resolve.ts#ensureState` (new `isFrom?: boolean` param) —
+   `'[*]'` still returns `undefined` (no `State` node, unchanged) but NOW
+   ALSO lazily stamps a per-scope pseudostate tick into a NEW
+   `ParseState.pseudoCreationIndex: Map<string, number>` (keyed by
+   `pseudoTickKey(noteScopeId(ps), 'start'|'end')`, reusing the ALREADY-
+   established `noteScopeId`/`concurrentRegionScopeId` scope-key
+   convention mechanism 14 (S6) introduced for note-scoping) — mirrors
+   `getStart`/`getEnd`'s own lazy, per-quark-idempotent creation.
+
+**Threading** (additive `creationIndex?: number` field, `GeoSpec`'s
+`'state'`/`'autonom'`/`'cluster'` variants → `StateNodeGeo`/`TransitionGeo`):
+`layout.ts` (flat pipeline: `buildFlatStateGeos`/`buildPseudoNodeGeos`/
+`buildFlatTransitionGeos`), `state-composite-pass.ts` (`resolveMember`'s
+leaf branch, `addLocalPseudoNodes`, `buildLevelTransitionGeos`,
+`DiagramCtx.pseudoCreationIndex` sourced from `ast.pseudoCreationIndex` in
+`buildTopLevelPass`), `state-composite-geo.ts` (`materializeSpecs`'s
+`'state'` branch, `materializeAutonom`, `materializeCluster`),
+`state-composite-autonom.ts#buildPlainAutonomSpec`,
+`state-composite-concurrent.ts#combineConcurrentPasses`,
+`state-composite-cluster.ts#resolveClusterComposite`. `renderer-uid.ts`
+rewritten: real-indexed nodes/edges use `entUid(n.creationIndex)`/
+`lnkUid(t.creationIndex)` directly; items WITHOUT one (hand-built test
+geometries, and the ONE still-unthreaded edge case named below) fall back
+to the PRE-S7 dense-numbering scheme, continuing from the highest real tick
+used (mirrors G2's own exact/fallback split precedent).
+
+**Sibling ordering** (discovered while jar-verifying the id-value fix on
+`nelupe-49-xova546`: `toutou9`, declared EARLY at tick 3, sorts BEFORE its
+OWN owning region's `[*]`-pseudo anchor, tick 11, in jar's real document —
+disproving the S5-era "real states first, pseudo last" heuristic as
+anything more than a special case). NEW `state-composite-pass.ts
+#sortSpecsByCreationIndex` (stable sort, `undefined` sorts last) applied at
+EVERY `GeoSpec`-sibling-list assembly site (`buildTopLevelPass`,
+`buildPlainAutonomSpec`, `buildConcurrentBranchAcc`,
+`resolveClusterComposite`) AND the flat pipeline's own `buildFlatStateGeos`
+— applied to EACH REGION's own spec list BEFORE concatenation into a
+composite's flat `children` (never to the already-concatenated array),
+preserving `state-composite-geo.ts#materializeAutonom`'s own "flat array is
+a concatenation of per-region ones" identity-sharing contract (mission G4
+S6).
+
+**Composite-pipeline `<path id>` bug** (discovered the SAME way, same
+fixture): `state-composite-pass.ts#buildLevelTransitionGeos` read
+`t.from`/`t.to` directly off the ORIGINAL (raw AST) `Transition` object —
+re-introducing the literal `'[*]'` token into `TransitionGeo.from`/`.to`
+even though the RESOLVED scope-local pseudo-anchor id
+(`__init_<scopeId>`/`__final_<scopeId>`) already lived on `acc.edges`
+(`addLevelEdges`'s own `levelEndpointId` resolution). Fixed by reading the
+resolved endpoints off `acc.edges` (keyed by `edgeId`) instead. This alone
+would still have produced the WRONG `<path id>` string, since
+`renderer.ts#svgEndpointId` only recognized the FLAT pipeline's own
+`INITIAL_ID`/`FINAL_ID` constants — extended to also recognize the
+COMPOSITE pipeline's `__init_<scopeId>`/`__final_<scopeId>` pattern,
+producing `*start*<localName>`/`*end*<localName>` (jar's own
+`"*start*" + g.getName()`, where `g.getName()` for a `CONCURRENT_STATE`
+group is the BARE `CONC<n>` segment, not this port's own internally-
+qualified `<ownerId>::CONC<n>` scope-dedup string — a `localScopeName`
+helper strips the `::`-qualification back to the trailing segment jar's
+own unqualified name would be). Jar-verified: `nelupe-49-xova546`'s
+`*start*s7_2-to-chat1`/`*start*toutou9-to-leo`/`*start*CONC1-to-toutou9`
+all now match exactly.
+
+### Coverage gap NOT threaded (named, not chased)
+
+`state-composite-cluster.ts#buildConcurrentRegionLeaf`'s synthetic
+region-as-node id (`regionId`, used ONLY when a CONCURRENT-region-owning
+composite is itself classified `'cluster'`, i.e. non-autonom — a rarer
+combination than the AUTONOM concurrent case this mission's 5 required
+samples all exercised) does NOT get a `creationIndex` — its `GeoSpec` falls
+back to the pre-S7 dense-numbering path (via `sortSpecsByCreationIndex`'s
+own `undefined`-sorts-last rule). Not chased: this scenario (cluster +
+concurrent regions together) was outside the mission's own 5 required
+sample categories, and threading it would require determining whether
+jar's REAL tick for this case is the SAME `GroupType.CONCURRENT_STATE`
+phantom mechanism (sub-pattern a) or a genuinely different one — unverified
+this iteration, named precisely for a future iteration.
+
+### Ratchet / pins
+
++2 new pins (`nivanu-50-zajo916`, `xoravu-40-gebe122` — was 14, now **16**)
+— `oracle/goldens/svg-state/ratchet.json` updated, 2 new golden dirs added
+(`in.puml`+`golden.svg`, copied verbatim from
+`test-results/dot-cache/state/{nivanu-50-zajo916,xoravu-40-gebe122}/`).
+`state.golden.ratchet.test.ts`: **18 tests** (was 16; 16×AC1 + AC2 + AC3),
+all passing. `parity-state.json` regenerated (271/271 surveyed).
+
+### size-backlog.json: unchanged (0 entries touched)
+
+This iteration's mechanisms are ALL render-structure/id/ordering-only (no
+sizing-formula changes) — `state-dot-parity.test.ts` (size-backlog ratchet)
+stayed at **268/268** passing throughout, checked before and after every
+change. No tighten-only edits made (nothing to tighten).
+
+### Files changed (S7)
+
+- `src/diagrams/state/ast.ts` — `State.creationIndex`/
+  `Transition.creationIndex`/`StateDiagramAST.pseudoCreationIndex` (all NEW,
+  additive/optional).
+- `src/diagrams/state/state-parse-state.ts` — `ParseState.creationCounter`/
+  `.pseudoCreationIndex` (NEW); `nextCreationIndex`/`pseudoTickKey` (NEW,
+  exported); `emitTransition` stamps `Transition.creationIndex`.
+- `src/diagrams/state/state-parse-resolve.ts` — `registerStateInto` stamps
+  `State.creationIndex`; `ensureState` gains `isFrom?: boolean` param +
+  lazy per-scope pseudostate tick stamping.
+- `src/diagrams/state/state-commands.ts` — separator handler burns a
+  phantom tick on pass `'one'`; transition dispatch passes `isFrom`
+  true/false to both `ensureState` calls.
+- `src/diagrams/state/parser.ts` — initializes the 2 new `ParseState`
+  fields; hands off `ps.pseudoCreationIndex` onto `ast.pseudoCreationIndex`
+  at end-of-parse.
+- `src/diagrams/state/state-geo-types.ts` — `StateNodeGeo.creationIndex`/
+  `TransitionGeo.creationIndex` (NEW, additive).
+- `src/diagrams/state/layout.ts` — `buildPseudoNodeGeos`/
+  `buildFlatStateGeos`/`buildFlatTransitionGeos` thread `creationIndex`;
+  `buildFlatStateGeos` sorts via `sortSpecsByCreationIndex`.
+- `src/diagrams/state/state-composite-pass.ts` — `GeoSpec`'s 3 variants
+  gain `creationIndex?`; `DiagramCtx.pseudoCreationIndex` (NEW);
+  `addLocalPseudoNodes` threads it; `resolveMember`'s leaf branch threads
+  `s.creationIndex`; `buildLevelTransitionGeos` fixed (reads resolved
+  endpoints off `acc.edges`, threads `t.creationIndex`); `buildTopLevelPass`
+  populates `ctx.pseudoCreationIndex`; NEW `sortSpecsByCreationIndex`
+  (exported), applied at its own `specs` assembly.
+- `src/diagrams/state/state-composite-geo.ts` — `materializeSpecs`'s
+  `'state'` branch, `materializeAutonom`, `materializeCluster` all thread
+  `creationIndex`.
+- `src/diagrams/state/state-composite-autonom.ts` —
+  `buildPlainAutonomSpec` threads `s.creationIndex`, sorts `localSpecs`.
+- `src/diagrams/state/state-composite-concurrent.ts` —
+  `combineConcurrentPasses` threads `s.creationIndex`;
+  `buildConcurrentBranchAcc` sorts its own `specs`.
+- `src/diagrams/state/state-composite-cluster.ts` —
+  `resolveClusterComposite` threads `s.creationIndex`, sorts `children`.
+- `src/diagrams/state/renderer-uid.ts` — rewritten: raw-value numbering for
+  real-indexed nodes/edges, dense-fallback-continuation for the rest.
+- `src/diagrams/state/renderer.ts` — `svgEndpointId` recognizes the
+  composite pipeline's own scoped pseudo-anchor ids; NEW
+  `localScopeName` helper.
+- `src/diagrams/state/state-pseudokind.ts` (NEW) — `PSEUDOSTATE`/
+  `stereotypeToKind`/`pseudoKindForId`/`compoundHistoryKind` split out of
+  `state-parse-state.ts` (500-line file-cap compliance once this
+  iteration's additive edits pushed it over; pure move, re-exported for
+  backward compat).
+- `src/diagrams/state/state-composite-pseudo.ts` (NEW) —
+  `scopedPseudoIds`/`sortSpecsByCreationIndex`/`addLocalPseudoNodes`/
+  `levelEndpointId` split out of `state-composite-pass.ts` (same file-cap
+  reason; pure move, re-exported for backward compat).
+- `tests/unit/state/state-global-resolution.test.ts`,
+  `tests/unit/state/state-dotted-id.test.ts` — 6 pre-existing `toEqual`
+  assertions on `Transition` objects switched to `expect.objectContaining`
+  (the tests are about scope/resolution mechanics, not id-numbering — per
+  testing.md/diagnosis.md, asserting the exact NEW `creationIndex` tick
+  value would over-specify a test that isn't about that field).
+- `oracle/goldens/svg-state/ratchet.json` — 2 fixtures added.
+- `oracle/goldens/svg-state/{nivanu-50-zajo916,xoravu-40-gebe122}/
+  {in.puml,golden.svg}` — NEW.
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated.
+- `plans/g4-state-svg/README.md`, `plans/g4-state-svg/ledger.md`,
+  `plans/g4-state-svg/decision-journal.md` — this entry.
+
+### Gates (S7, final)
+
+- `state` census: **16/271** zero-diff (`1-3:26, 4-10:133, 11-30:47,
+  31+:49, errors:0`) — was S6's `14/271` (`1-3:27, 4-10:134, 11-30:41,
+  31+:55`). +2 new pins, 0 regressed.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census: **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified before and after.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing,
+  unchanged throughout.
+- `npm test -- --run`: 9973/9973 passing (366 files, +2 vs S6's 9971 —
+  the 2 new AC1 pin tests; the 6 test-file assertion updates net zero).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: **18 tests** (16 pins), up from 16 (14
+  pins).
+
+### S8+ queue
+
+1. **Mechanism 19** (transition `path/@d`/`polygon` routing) — now
+   confirmed (not just suspected) as the SOLE remaining blocker on
+   `pevene-26-kebo361` and `nelupe-49-xova546` (both 100% geometry-only
+   residuals after this iteration's fixes) — the strongest evidence yet
+   that this is a real, bounded-per-fixture, high-value target, though
+   still unstarted as its own scoped item (a preliminary look at
+   `nelupe`'s own `[*]-to-chat1` diff shows OUR path has ~8 short
+   piecewise-cubic segments vs jar's ONE clean 4-point cubic for what
+   should be a straight vertical edge — looks like a graphviz-ts/dot-layout
+   spline-simplification gap, not a state-diagram-specific bug; needs
+   investigation in `core/graph-layout*`/`core/dot/` before any fix, not a
+   quick formula tweak).
+2. **Mechanism 16** (entity-vs-cluster wrap dimension) — unchanged, needs
+   `layoutGraph()`/graphviz-ts cluster-bbox exposure.
+3. **`<<meblue>>`-style stereotype-scoped `StateBorderColor` cascade gap**
+   (S6's own item 11) — now the SOLE remaining blocker on
+   `semala-31-joji042` (2 diffs, both this mechanism).
+4. **`state-composite-cluster.ts#buildConcurrentRegionLeaf`'s own
+   `creationIndex` gap** (NEW, named this iteration) — cluster + concurrent
+   region combination, unthreaded; needs its own jar-verified derivation
+   (does it share sub-pattern (a)'s phantom-tick mechanism, or something
+   else?) before landing.
+5. `skin debug`/named-skin-file directive support — unchanged, unscoped.
+6. `addStateBoxInk`'s max-corner asymmetry (`bilare`'s 1px rounding) —
+   unchanged, exact fix named, unverified blast radius.
+7. Creole/markdown bold (`**text**`) markup — unchanged, unimplemented
+   feature.
+8. `transitionArrowheadInk`'s own root cause (S4 queue item 2) — unchanged.
+9. `<<sdlreceive>>` unwrapped-entity gap — unchanged from S1-S4.
+10. Notes never render — unchanged from S1-S4.
+11. `lonuti-97-voko521`'s own `<style>`-tag `FontColor` cascade gap —
+    unchanged from S4.
