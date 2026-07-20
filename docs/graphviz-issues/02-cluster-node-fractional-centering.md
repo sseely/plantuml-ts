@@ -37,3 +37,12 @@ x. Real dot: 32.32. graphviz-ts: 32.00.
 ## Evidence trail
 
 `plans/g2-class-svg/ledger.md` §N61.
+
+---
+
+**RESOLVED — graphviz-ts 0.1.26072013 (verified 2026-07-20).** Repro DOT
+re-run through `renderSvg`/`getLayout` vs real `dot -Tsvg` (graphviz 15.1):
+full SVG geometry stream byte-identical to real dot on the repro (sh0010
+polygon at 32.32-fractional coords). Consumer-side adoption of HTML-table
+cluster labels (production `addClusters` still passes plain-text labels) is
+tracked as mission work, not a library defect.

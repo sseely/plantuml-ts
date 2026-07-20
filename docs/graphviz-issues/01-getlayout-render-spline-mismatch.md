@@ -68,3 +68,17 @@ are what byte-conformance needs.
 harness pattern: rebuild the DOT via the builder API,
 `render(g,'svg')`, compare against `dot -Tsvg` (graphviz 15.1,
 `/opt/homebrew/bin/dot`) on the same text in identical SVG space.
+
+---
+
+**RESOLVED — graphviz-ts 0.1.26072013 (verified 2026-07-20).** Repro DOT
+re-run through `renderSvg`/`getLayout` vs real `dot -Tsvg` (graphviz 15.1):
+`getLayout()` (after the now-required layout pass — `render()` triggers it,
+matching production's call order) returns the SAME spline points `render()`
+emits (87.1821/88.5927/96.6763/101.7697 vs render's 87.18/88.59/96.68/
+101.77), and `render()` remains byte-identical to real dot. NOTE: the
+residual per-fixture drift previously attributed to this issue turned out
+to be a plantuml-ts consumer bug (layout hardcoded `shape:'box'`, discarding
+`circle`/`point` — see `src/core/graph-layout-build.ts#layoutShape`), fixed
+the same day; bunuce-10-vere519 and bosiki-11-xaza958 are now byte-conformant
+and pinned.
