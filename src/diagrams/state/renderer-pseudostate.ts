@@ -39,25 +39,38 @@ function pseudoCenter(node: StateNodeGeo): { cx: number; cy: number } {
   return { cx: node.x + node.width / 2, cy: node.y + node.height / 2 };
 }
 
-/** `CircleStart.java` (SIZE=20): one filled `<ellipse>`, fill and stroke
- *  both the SAME `#222222` default (or the node's own `#color` override). */
+/** `CircleStart.java` (SIZE=20): one filled `<ellipse>`. Fill defaults to
+ *  `#222222` (or the node's own `#color` override); stroke is ALWAYS the
+ *  literal `#222222` default -- mission G4 S11, jar-verified
+ *  `ceruzi-77-give569`: `state start1 <<start>> #Red` renders
+ *  `fill="#FF0000"` but `stroke:#222222` UNCHANGED (`Colors#getColor
+ *  (BackGroundColor)` only ever feeds `CircleStart`'s FILL parameter --
+ *  the stroke color is never threaded from the override at all). Was
+ *  `stroke: fill` before this fix, which colored the stroke too whenever an
+ *  override was present -- correct only in the (much more common,
+ *  already-pinned) no-override case, where fill and stroke coincidentally
+ *  share the SAME `#222222` default value. */
 export function renderInitial(node: StateNodeGeo): string {
   const { cx, cy } = pseudoCenter(node);
   const r = node.width / 2;
   const fill = resolveStateFill(node, PSEUDO_ANCHOR_COLOR);
-  return ellipse(cx, cy, r, r, { fill, stroke: fill, 'stroke-width': 1 });
+  return ellipse(cx, cy, r, r, { fill, stroke: PSEUDO_ANCHOR_COLOR, 'stroke-width': 1 });
 }
 
 /** `CircleEnd.java` (SIZE=22, inner `delta=5` inset): an unfilled outer ring
- *  plus a filled inner dot, SAME center, SAME `#222222` default. */
+ *  plus a filled inner dot, SAME center. Stroke on BOTH ellipses is ALWAYS
+ *  the literal `#222222` default, same `#color`-override scoping as
+ *  {@link renderInitial}'s own doc comment (jar-verified `ceruzi`'s `state
+ *  end2 <<end>> #Green`: inner dot `fill="#008000"`, both `stroke:#222222`
+ *  unchanged). */
 export function renderFinal(node: StateNodeGeo): string {
   const { cx, cy } = pseudoCenter(node);
   const outerR = node.width / 2;
   const innerR = outerR - 5;
   const fill = resolveStateFill(node, PSEUDO_ANCHOR_COLOR);
   return (
-    ellipse(cx, cy, outerR, outerR, { fill: 'none', stroke: fill, 'stroke-width': 1 }) +
-    ellipse(cx, cy, innerR, innerR, { fill, stroke: fill, 'stroke-width': 1 })
+    ellipse(cx, cy, outerR, outerR, { fill: 'none', stroke: PSEUDO_ANCHOR_COLOR, 'stroke-width': 1 }) +
+    ellipse(cx, cy, innerR, innerR, { fill, stroke: PSEUDO_ANCHOR_COLOR, 'stroke-width': 1 })
   );
 }
 

@@ -3850,3 +3850,265 @@ affects NOTE nodes, which size-backlog.json's own 268 entries don't cover).
     of the 6 STATE_DEFAULT_BACKGROUND-fallback sites stayed on the plain
     `resolveStateFill` this iteration since no sampled fixture needed them
     bucketed; low-risk, same pattern as the 4 already-wired sites.
+
+
+## S11 — mechanism 23 (pseudostate `#color` override stroke over-application)
+LANDED in full; `note ... on link` (priority-1 task item) DIAGNOSED to a
+DEEPER, newly-found blocking mechanism (edge-label real-size injection gap)
+and explicitly NOT landed after a same-iteration attempt was reverted --
+44/271 -> 46/271
+
+### Summary
+
+Sampled the 6 `note ... on link` fixtures (`fotigo-12-gufu949`,
+`jaxuxe-73-sije305`, `kupexa-94-dude266`, `vateco-92-pece508`,
+`xupefu-98-roni234`, `tumaba-64-tosu281`) plus `CommandFactoryNoteOnLink.java`/
+`SvekEdge.java:308-326`/`EntityImageNoteLink.java` (Java source) BEFORE
+attempting a fix, per this iteration's own instruction. Derived the render
+shape correctly (jar's `EntityImageNoteLink#drawU` calls `comp.drawU`
+directly -- the SAME plain folded-corner box as a freestanding note, but
+SYMMETRIC 0.5 stroke-width on both outline+corner paths, unlike the
+freestanding shape's asymmetric split) and a candidate position formula
+(note box sits a FIXED 5px to the right of the edge's own routing line,
+vertically CENTERED on the edge's geometric midpoint -- cross-verified
+against BOTH `vateco` and `jaxuxe`'s first link, both showing the identical
+5px gap between the edge line's x and the note box's left edge). Implemented
+the full wiring: `TransitionGeo.linkNoteBox` (new field), `state-transition-
+label.ts#attachTransitionLinkNote` (geometry, scoped to the "no guard/action
+label" case only -- combining a REAL label with a note needs jar's
+`mergeLR`/`mergeTB` stacking + a 13pt arrow-label font-size correction,
+confirmed via `jaxuxe`'s own `<text font-size="13">` for `hello`, deferred
+whole as a separate, larger item), `renderer-note.ts#renderTransitionLinkNote`
+(the render shape, reusing `plainNoteBoxPaths` factored out of the existing
+freestanding-note renderer), `layout-ink-extent.ts#addTransitionInk`
+(ink-extent contribution, reusing the existing `addNoteInk` primitive),
+`layout.ts#shiftStateTransition` (document-margin shift propagation), and
+`renderer.ts#buildTransitionInnerMarkup` (DOM-order wiring, note AFTER the
+arrowhead -- jar-verified DOM order).
+
+### Deeper mechanism found while verifying: edge-label real-size injection
+### gap (NEW, blocks note-on-link AND, unverified but likely, any real
+### guard/action label whose real rendered size diverges from graphviz-ts's
+### own internal guess)
+
+Jar-verifying the wired implementation against `vateco-92-pece508` (the
+simplest target: single unlabeled transition, single-line note, default
+position) surfaced a childCount-correct but POSITION-wrong result: the note
+box landed 7px too far right and 5.8px too far up, AND `State1`'s own
+`<rect>` position (unrelated to the note itself) shifted 16.5px off from
+golden too. Instrumented (per diagnosis.md, BEFORE proposing any further
+fix) `state-dot-graph.ts#buildDotGraph` -> `core/graph-layout.ts#layoutGraph`
+directly: the raw graphviz-ts-computed node/edge positions differ from a
+label-less control graph by only ~16.5px of extra rank separation, matching
+the observed position error almost exactly. Traced to
+`graph-layout-build.ts#addEdges` (line ~186): `attrs.label = a.label` feeds
+graphviz-ts the RAW TEXT STRING only, plus `fontname: 'Times'` -- our own
+`labelWidth`/`labelHeight` (`state-dot-graph.ts#edgeLabelAttrs`,
+`measureLinkNote`) are read back by `core/graph-layout.ts` (`entry.labelWidth
+= inp?.attributes?.labelWidth`) but this is a PURE ECHO for downstream
+consumers (e.g. `state-composite-cluster.ts`'s own width calc) -- grep-
+confirmed `graph-layout-build.ts` NEVER emits `labelWidth`/`labelHeight`/an
+HTML-table label into the actual DOT text/builder calls graphviz-ts lays out
+from. graphviz-ts instead computes its OWN label bounding box via
+`node_modules/graphviz-ts/src/common/make-label.ts#makePlainLabel`, which
+calls a GLOBAL `TextMeasurer` (`core/graph-layout.ts#setTextMeasurer(new
+LutTextMeasurer())`, set ONCE at module load, no per-call override point) --
+this measurer's own per-line height (Times-font LUT) has no relationship to
+jar's real note-box height formula (13pt font + marginY(5)*2, mission G4
+S10's own `measureNote`). For `vateco`'s single-line "this is a note",
+graphviz-ts reserved only ~16.5px of extra rank gap where jar's real note
+needs 23px -- a ~6.5px under-reservation that cascades into every downstream
+position (the note box AND, since ink-extent/shift are diagram-global, the
+neighboring state box too).
+
+Ruled out before landing this finding: (1) the `measureLinkNote` formula
+fix alone (already correct per this iteration's own re-derivation, matching
+`state-note-layout.ts#measureNote` exactly) does NOT fix this -- confirmed
+by grep that the override is architecturally unreachable from graphviz-ts's
+real layout call, not merely miscalibrated; (2) a `fontsize`-attribute-
+tuning workaround (inflating `attrs.fontsize` so graphviz-ts's own Times-LUT
+height calculation happens to land near 23px) was considered and REJECTED
+as unverified/fragile -- it would only work for the SPECIFIC 1-line case
+tuned against, would not generalize to jar's real `n*13+10` multi-line
+formula (graphviz-ts's own per-line accumulation has no additive `+10`
+margin term to match), and constitutes exactly the kind of "guess to make
+progress" diagnosis.md prohibits; (3) a real HTML-table label injection
+(graphviz-ts DOES support an HTML label form via an internal control-
+character-prefixed marker, `node_modules/graphviz-ts/src/common/
+html-string.ts`) is architecturally the CORRECT fix but is a substantial,
+unverified-blast-radius new mechanism (touches the shared `graph-layout-
+build.ts`/`core/graph-layout.ts` used by EVERY diagram type, not just
+state) -- comparable in scope to mechanism 21 itself, explicitly NOT
+attempted this iteration given the remaining time budget.
+
+Given the wired implementation could not reach byte-exact on ANY of the 4
+fully-flat target fixtures (`vateco`/`jaxuxe`/`kupexa`/`fotigo`, the latter
+two ALSO blocked by the separately-named `#color` grammar gap and the
+label+note merge-stacking gap respectively) and made `vateco`'s own diff
+count strictly WORSE (9 -> 39 diffs, zero new pins) rather than the mission's
+own established "mixed-direction unmasking with an offsetting zero-diff
+gain" pattern, the wiring was REVERTED IN FULL before any commit (`git show
+HEAD:<path>` restore per each of the 6 touched files, `git diff --stat`
+verified empty, `npm run typecheck`/`npm test` re-verified clean at
+baseline) rather than landed as unverified/wrong code. Named precisely
+(exact file/line, exact library internals, exact 3 workarounds considered
+and rejected with reasons) for a future iteration authorized to touch the
+shared `core/graph-layout.ts`/`graph-layout-build.ts` files with a properly
+scoped HTML-table-label mechanism.
+
+### Mechanism 23 (LANDED): pseudostate `#color` override applies to FILL
+### only, never STROKE
+
+Re-scoped to the cheapest fully-diagnosable item on the S10 queue after the
+note-on-link revert: `ceruzi-77-give569`'s pseudostate stroke-color
+over-application (S9-named, root cause already pinpointed to the exact call
+sites). jar-verified via `ceruzi`'s own raw SVG: `state start1 <<start>>
+#Red` renders `fill="#FF0000"` but `style="stroke:#222222;..."`
+(UNCHANGED); `state end2 <<end>> #Green` renders the inner dot
+`fill="#008000"` with BOTH ellipses' `stroke:#222222` unchanged too --
+confirmed against the no-override case (`gefefe-91-xoge233`) that stroke is
+ALWAYS the literal `#222222` default, never derived from the override.
+`renderInitial`/`renderFinal` (`renderer-pseudostate.ts`) both previously
+passed `stroke: fill` (the SAME resolved value as the fill, correct only in
+the coincidental no-override case where both default to `#222222`) --
+changed to `stroke: PSEUDO_ANCHOR_COLOR` (the literal constant) on both
+functions' every `ellipse()` call. TDD-first: `tests/unit/state/renderer-
+pseudostate.test.ts` (NEW, 4 tests) asserted the fill/stroke divergence
+under an override BEFORE the fix (2 of 4 tests red), confirmed green after
+the 2-line change. Jar-verified 0 diffs on `ceruzi-77-give569`; a fresh full
+census re-run also surfaced `gepoti-01-sasi356` (`state end1 <<end>> #Red` +
+`state end2 <<end>> #Green`, no note/link involved) newly reaching zero from
+the SAME mechanism. Re-sampled 5 already-pinned pseudostate-bearing fixtures
+(`gefefe-91-xoge233`, `nelupe-49-xova546`, `nivanu-50-zajo916`,
+`xoravu-40-gebe122`, plus `cekolo-21-gini183` which stays non-zero for its
+own already-named, unrelated `<<sdlreceive>>` gap) -- all unchanged, zero
+regressions.
+
+### Attribution table (6 note-on-link fixtures + 5 re-sampled pinned
+### pseudostate fixtures)
+
+| Fixture | Symptom | Root cause | Status |
+|---|---|---|---|
+| `ceruzi-77-give569` | `<<start>>`/`<<end>>` `ellipse/@stroke` colored when jar keeps `#222222` | `renderInitial`/`renderFinal` passed `stroke: fill` instead of the literal `PSEUDO_ANCHOR_COLOR` constant | **LANDED** (mechanism 23), 0 diffs, PINNED |
+| `gepoti-01-sasi356` | Same shape, 2x `<<end>>` with 2 different `#color` overrides | Same mechanism 23 | **LANDED** (found via fresh census after mechanism 23), 0 diffs, PINNED |
+| `vateco-92-pece508` (note-only, no label, position=bottom/default) | `childCount` short by 3 (note never drawn) | `layout.ts#buildFlatStateGeos`/`buildFlatTransitionGeos` never materializes `note on link` as ANY geometry -- a THIRD, unbuilt note shape | Render shape + position formula DERIVED and jar-verified independently (X-axis, DOM order, stroke symmetry all confirmed correct) but BLOCKED end-to-end by the edge-label real-size injection gap (Y-axis wrong by ~5.8px, cascades into `State1`'s own position too) -- wiring implemented then REVERTED, NOT landed |
+| `jaxuxe-73-sije305` (4 transitions, ALL combine a real guard label with a note, all 4 position keywords) | Same + needs `mergeLR`/`mergeTB` label+note stacking, arrow-label font-size correction (13pt not `theme.fontSize`) | Combined-label case explicitly scoped OUT of `attachTransitionLinkNote` even before the deeper blocker was found (comparable in scope to note-on-link's own MVP) | NOT landed, deferred whole |
+| `kupexa-94-dude266` (both transitions combine a guard label + multi-line note) | Same as jaxuxe | Same combined-label gap | NOT landed, deferred whole |
+| `fotigo-12-gufu949` (2 unlabeled transitions, BOTH `#red`/`#blue` note colors) | Note-only (no label) shape would apply, BUT needs `#color`/gradient note overrides too (S10's own named, separate parser gap: `NOTE_COLOR` regex group non-capturing) | TWO independent blockers stacked (edge-label injection gap + color parser gap) | NOT landed, blocked on 2 separate deferred items |
+| `xupefu-98-roni234`, `tumaba-64-tosu281` (composite-scoped) | Composite pipeline never calls note-materialization at all (S10's own named item 4) | Composite pipeline gap, unrelated to this iteration's own findings | NOT landed, unchanged from S10 |
+
+### Files changed (S11)
+
+- `src/diagrams/state/renderer-pseudostate.ts` -- `renderInitial`/
+  `renderFinal` both changed `stroke: fill` to `stroke: PSEUDO_ANCHOR_COLOR`
+  (2-line fix), doc comments updated with the jar-verified derivation.
+- `tests/unit/state/renderer-pseudostate.test.ts` (NEW) -- 4 tests (fill/
+  stroke divergence under a `#color` override, both `renderInitial`/
+  `renderFinal`, with and without an override).
+- `oracle/goldens/svg-state/{ceruzi-77-give569,gepoti-01-sasi356}/
+  {in.puml,golden.svg}` -- NEW, copied verbatim from
+  `test-results/dot-cache/state/`.
+- `oracle/goldens/svg-state/ratchet.json` -- 2 fixtures added (44 -> 46
+  pins).
+- `tests/oracle/svg-conformance/parity-state.json` -- regenerated (271/271
+  surveyed cleanly in one run, 46 conformant, 0 errors/timeouts).
+- `plans/g4-state-svg/README.md`, `ledger.md`, `decision-journal.md` -- this
+  entry.
+- No files left changed from the note-on-link investigation -- fully
+  reverted (`layout-ink-extent.ts`, `layout.ts`, `renderer-note.ts`,
+  `renderer.ts`, `state-geo-types.ts`, `state-transition-label.ts` all
+  restored to their pre-iteration committed content, `git diff --stat`
+  verified empty before starting mechanism 23's own work).
+
+### Ratchet / pins
+
++2 new pins (44 -> **46**) -- `ceruzi-77-give569`, `gepoti-01-sasi356`, both
+verified `dotEqual: true, verdict: conformant` in a freshly regenerated
+`parity-state.json` (271/271 surveyed in one clean run, no timeouts/errors)
+before pinning. `state.golden.ratchet.test.ts`: **48 tests** (46 pins), was
+46 (44 pins).
+
+### size-backlog.json: unchanged (0 entries touched)
+
+This iteration's landed mechanism is render-color-only (no sizing-formula
+changes) -- `state-dot-parity.test.ts` (size-backlog ratchet) stayed at
+**268/268** passing throughout, checked before and after. The reverted
+note-on-link work never reached a committed state, so it made no lasting
+change to any sizing formula either.
+
+### Gates (S11, final)
+
+- `state` census: **46/271** zero-diff (`1-3:27, 4-10:127, 11-30:26, 31+:45,
+  errors:0`) -- was S10's `44/271` (`1-3:28, 4-10:128, 11-30:26, 31+:45`).
+  +2 new pins, all 44 S10-pinned fixtures verified unchanged.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
+  78/80 - state 267/267` -- EXACTLY unchanged, verified before and after
+  (this iteration's landed mechanism made no DOT-graph/node/edge changes at
+  all -- pure render-time color resolution).
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing,
+  unchanged throughout.
+- `npm test -- --run`: **10042/10042** passing (370 files), up from
+  10036/10036 (+4 new unit tests, +2 new ratchet-pin tests).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: **48 tests** (46 pins), up from 46 (44
+  pins).
+
+### S12+ queue
+
+1. **Edge-label real-size injection gap** (NEW, S11, the mission's own
+   deepest finding this iteration) -- `graph-layout-build.ts#addEdges`
+   passes edge labels to graphviz-ts as raw text only; the caller's real
+   `labelWidth`/`labelHeight` (`state-dot-graph.ts#edgeLabelAttrs`) is never
+   fed into the actual layout call, only echoed back for OTHER downstream
+   consumers. Blocks `note ... on link` (and, unverified but plausible, any
+   guard/action label whose real size diverges materially from graphviz-ts's
+   own Times-LUT guess -- no currently-pinned fixture exercises a REAL guard/
+   action label to confirm either way, a gap worth closing FIRST in S12).
+   The architecturally-correct fix is an HTML-table label (graphviz-ts DOES
+   support this via `node_modules/graphviz-ts/src/common/html-string.ts`'s
+   own control-character-prefixed marker) -- a shared-infrastructure change
+   (`core/graph-layout.ts`/`graph-layout-build.ts`, used by EVERY diagram
+   type), needing its OWN careful, cross-diagram-verified iteration, not a
+   state-only patch.
+2. **`note ... on link`** (S10/S11, blocked on item 1 above for the
+   note-only sub-case; ALSO needs `mergeLR`/`mergeTB` label+note stacking +
+   13pt arrow-label font-size correction for the label+note combined
+   sub-case, `jaxuxe`/`kupexa`) -- render shape + DOM order + X-position
+   formula ALREADY derived and jar-verified independently this iteration
+   (5px fixed gap from the edge line, in `plans/g4-state-svg/ledger.md`
+   S11's own derivation above); once item 1 lands, re-verify the Y-position
+   formula (vertically centered on the edge midpoint) against a CORRECTED
+   rank-gap reservation before re-landing the wiring.
+3. **Whether a REAL guard/action label (`transitionLabelText`) is also
+   affected by item 1** -- UNVERIFIED this iteration (no currently-pinned
+   fixture exercises the non-undefined branch of `attachTransitionLabel` at
+   all -- every pinned fixture's `-->`/`:` pattern turned out to be a `[*]`
+   false-positive on inspection). Needs a dedicated sample before S12 claims
+   this is/isn't a real gap.
+4. **Composite-scoped notes** (S10, unchanged) -- `buildFlatNoteGeos` is
+   FLAT-pipeline only.
+5. **Creole/table note content** (S10, unchanged) -- `fatupo-62-bemu777`.
+6. **`#color`/gradient override on notes** (S10, unchanged) -- `kujuzo-76-
+   bavi505`, parser gap (`NOTE_COLOR` regex non-capturing).
+7. **CONC-region bare-name global numbering** (S8/S9, unchanged).
+8. Mechanism 16 (entity-vs-cluster wrap dimension) -- unchanged, LARGEST
+   family in the near-zero bucket.
+9. `stateBackgroundColor<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>`
+   (S9, unchanged) -- `laferu-31-tice836`.
+10. `<style>` cascade generalization (S4, unchanged, 3 sub-families).
+11. `<<sdlreceive>>` folded-frame shape (S9, unchanged, `cekolo-21-gini183`).
+12. `maruju-55-soko478`'s json+composite childCount gap (S9, unchanged).
+13. `pevene-26-kebo361`'s minlen=0 same-rank clip-inset delta (S8,
+    unchanged).
+14. `buildConcurrentRegionLeaf`'s own `creationIndex` gap (S7/S8, unchanged).
+15. `addStateBoxInk`'s max-corner asymmetry (S6, unchanged, 3 known
+    fixtures).
+16. State hyperlink (`[[url]]`) (S8/S9, unchanged, re-scoped, substantially
+    more complex than first framed).
+17. Creole/markdown bold (`**text**`) markup -- unchanged, unimplemented.
+18. `skin debug`/named-skin-file directive support -- unchanged, unscoped.
+19. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
+    choice/history/deepHistory call sites (S10, small follow-up).
