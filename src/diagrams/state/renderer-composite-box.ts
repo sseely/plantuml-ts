@@ -68,11 +68,14 @@
  * for the leaf box. A non-autonom `cluster` composite (DOT-native cluster
  * label sizing, a genuinely different upstream code path — `bajelo-54-
  * dixe684`'s own `Track_FSM.Run`, header height 19 vs this shape's own
- * MARGIN-formula 24) is NOT threaded with `headerLines` this iteration
- * (`state-composite-cluster.ts` unchanged), so it also takes this SAME
- * fallback — a deliberate, named, non-regressing deferral, not a silent gap
- * (`plans/g4-state-svg/ledger.md` S3, mechanism 6's own "entity-vs-cluster"
- * remainder).
+ * MARGIN-formula 24) was NOT threaded with `headerLines` through mission G4
+ * — G5 C3 closed that gap (mechanism 16's shape half, `renderClusterMeasured`
+ * below) for the eligibility-gated majority case (`state-composite-
+ * cluster.ts#resolveClusterComposite`'s own doc comment); a 'cluster'
+ * composite this iteration's gate excluded (multi-line title, non-default
+ * font-size, or a border-point `portRanksLabelOnEe` composite) still takes
+ * this SAME dashed-rect fallback — a deliberate, named, non-regressing
+ * deferral, not a silent gap (`plans/g5-measurer-calibration/ledger.md` §C3).
  *
  * @see ~/git/plantuml/.../svek/InnerStateAutonom.java
  */
@@ -102,6 +105,29 @@ function compositeHeaderPath(x0: number, y0: number, width: number, headerHeight
   const d =
     `M${x0 + r},${y0} L${x1 - r},${y0} A${r},${r} 0 0 1 ${x1},${y0 + r} ` +
     `L${x1},${y1} L${x0},${y1} L${x0},${y0 + r} A${r},${r} 0 0 1 ${x0 + r},${y0}`;
+  return path(d, { fill });
+}
+
+/** G5 C3, mechanism 16 shape half: the BOTTOM-half mirror of
+ *  `compositeHeaderPath` above -- jar's real `'cluster'`-classified
+ *  composite fills its ENTIRE body (not just the header, unlike the
+ *  autonom shape below), a SEPARATE filled `<path>` from `headerBottom` to
+ *  the box's own bottom edge, rounded at the BOTTOM two corners only.
+ *  jar-verified byte-exact against `decede-10-buvu414`'s cluster `E`:
+ *  `M223.82,42.5 L305.82,42.5 L305.82,121.5 A1,1 0 0 1 304.82,122.5
+ *  L224.82,122.5 A1,1 0 0 1 223.82,121.5 L223.82,42.5` (x0=223.82,
+ *  y0=23.5, width=82, height=99, headerHeight=19, r=1 -- this fixture's
+ *  own `<style>` overrides `RoundCorner 2`, `STATE_BOX_RX` unaffected --
+ *  see that constant's own doc comment for the pre-existing, unrelated
+ *  gap this shares with every other state-diagram box shape). */
+function compositeBodyPath(x0: number, y0: number, width: number, height: number, headerHeight: number, fill: string): string {
+  const r = STATE_BOX_RX;
+  const x1 = x0 + width;
+  const yTop = y0 + headerHeight;
+  const y1 = y0 + height;
+  const d =
+    `M${x0},${yTop} L${x1},${yTop} L${x1},${y1 - r} A${r},${r} 0 0 1 ${x1 - r},${y1} ` +
+    `L${x0 + r},${y1} A${r},${r} 0 0 1 ${x0},${y1 - r} L${x0},${yTop}`;
   return path(d, { fill });
 }
 
@@ -211,7 +237,92 @@ function renderCompositeMeasured(node: StateNodeGeo, theme: Theme): string {
   return core.header + action.bg + core.outline + core.divider1 + action.divider2 + core.title + action.text;
 }
 
+/**
+ * G5 C3, mechanism 16 shape half — the REAL `'cluster'`-classified
+ * composite shape (`ClusterDotString`/`ClusterHeader.java`), distinct from
+ * `renderCompositeMeasured`'s own `InnerStateAutonom` shape above. Anatomy
+ * (jar-verified byte-for-byte against `decede-10-buvu414`'s cluster `E`,
+ * `bajelo-54-dixe684`'s `Track_FSM.Run` — DRAW ORDER matches jar's own
+ * document order, header path first):
+ *   1. HEADER background — same half-rounded-top `<path>` as the autonom
+ *      shape (`compositeHeaderPath`), spanning the box's own top edge down
+ *      to `node.clusterHeaderHeight` (a JAR-CALIBRATED constant, NOT the
+ *      autonom shape's own `MARGIN + lines*fontSize + MARGIN_LINE` formula
+ *      — see `CLUSTER_HEADER_HEIGHT`'s own doc comment, state-composite-
+ *      cluster.ts).
+ *   2. BODY background — `compositeBodyPath` (this module's own doc
+ *      comment) — the jar-verified DIFFERENCE from the autonom shape: the
+ *      ENTIRE body (not just the header) is filled with the resolved
+ *      background color; nested children (drawn afterward, as siblings in
+ *      the SVG document, matching jar's own DOM structure — NOT nested
+ *      inside this composite's own `<g>`) visually cover their own area,
+ *      but the MARGIN gaps around them show the composite's own fill
+ *      rather than the autonom shape's transparent-body canvas.
+ *   3. OUTLINE — same solid, full-box `<rect>` as the autonom shape.
+ *   4. DIVIDER — ONE divider at `clusterHeaderHeight` (never a second —
+ *      the 'cluster' GeoSpec carries no action-zone/body-lines concept
+ *      this iteration, `GeoSpec`'s own `'cluster'` variant doc comment,
+ *      state-composite-pass.ts).
+ *   5. TITLE text — centered, jar-verified baseline offset
+ *      `node.clusterTitleBaselineMargin + textAscent(fontSize)` — a
+ *      DIFFERENT margin than the autonom shape's own `MARGIN` (see that
+ *      field's own doc comment, state-geo-types.ts, for the jar-verified
+ *      14.8889 vs 15.8889 split this iteration traced to
+ *      `portRanksLabelOnEe`).
+ *
+ * Only reachable when `node.clusterHeaderHeight` is set (`renderComposite`'s
+ * own dispatch below) — every OTHER 'cluster' composite (this iteration's
+ * eligibility gate excluded it) still takes `renderCompositeFallback`,
+ * unchanged.
+ * @see ~/git/plantuml/.../svek/ClusterDotString.java
+ * @see ~/git/plantuml/.../svek/ClusterHeader.java
+ */
+function renderClusterMeasured(node: StateNodeGeo, theme: Theme): string {
+  const headerLines = node.headerLines!;
+  const headerHeight = node.clusterHeaderHeight!;
+  const titleMargin = node.clusterTitleBaselineMargin ?? MARGIN;
+  const fill = resolveStateFillBucketed(node, theme, STATE_DEFAULT_BACKGROUND);
+  const border = resolveStateBorder(node, theme);
+  const ascent = textAscent(theme.fontSize);
+  const dividerY = node.y + headerHeight;
+
+  const header = compositeHeaderPath(node.x, node.y, node.width, headerHeight, fill);
+  // G5 C5 (ledger \u00a7C3's item 2, "conditional body-fill"): jar's real
+  // `RoundedSouth#drawU` (`~/git/plantuml/.../svek/RoundedSouth.java`)
+  // returns WITHOUT drawing anything when its OWN `backColor.isTransparent
+  // ()` -- the body-zone `body` style selector's DEFAULT (un-overridden)
+  // resolution is transparent, unlike the header/description selectors'
+  // own visible default -- so a cluster styled with the plain, untouched
+  // theme default draws ONLY the header path (jar-verified `gojuja-90-
+  // pune699`'s `A`: 1 `<path>`, `childCount` 4, no body fill at all) while
+  // one with ANY resolved background override (a per-node `#color`, a
+  // stereotype-qualified `stateBackgroundColor<<X>>`, or a bare `state`-
+  // element `<style>`/`skinparam stateBackgroundColor` bucket -- every tier
+  // `resolveStateFillBucketed` already implements) draws BOTH (jar-verified
+  // `rufosi-58-kegi649`'s `#red`-overridden `Inner1`, `vekoja-22-made430`'s
+  // `skinparam StateBackgroundColor green`). This port has no per-zone
+  // (header/description/body) style bucket of its own -- `fill !==
+  // STATE_DEFAULT_BACKGROUND` is the closest available signal for "some
+  // override tier actually fired" without building that whole 3-zone
+  // system; a diagram-level `<style> stateDiagram { BackgroundColor .. } }`
+  // cascade (`decede-10-buvu414`'s own, jar-verified 2-path) is NOT covered
+  // by this signal -- that selector tier is a separate, already-named,
+  // pre-existing gap (this port does not apply diagram-level `<style>`
+  // cascades to state diagrams at all yet), not a defect in this rule.
+  const body = fill !== STATE_DEFAULT_BACKGROUND
+    ? compositeBodyPath(node.x, node.y, node.width, node.height, headerHeight, fill)
+    : '';
+  const outline = rect(node.x, node.y, node.width, node.height, {
+    fill: 'none', stroke: border, strokeWidth: STATE_BORDER_STROKE_WIDTH, rx: STATE_BOX_RX, ry: STATE_BOX_RX,
+  });
+  const divider = line(node.x, dividerY, node.x + node.width, dividerY, { stroke: border, strokeWidth: STATE_BORDER_STROKE_WIDTH });
+  const title = renderCompositeTextLines(headerLines, (ln) => node.x + node.width / 2 - ln.width / 2, node.y + titleMargin + ascent, theme);
+
+  return header + body + outline + divider + title;
+}
+
 export function renderComposite(node: StateNodeGeo, theme: Theme): string {
+  if (node.clusterHeaderHeight !== undefined) return renderClusterMeasured(node, theme);
   if (node.headerLines === undefined) return renderCompositeFallback(node, theme);
   return renderCompositeMeasured(node, theme);
 }

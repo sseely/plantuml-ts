@@ -23,6 +23,7 @@ import {
   addEdges,
   edgeKey,
   type EdgeIndex,
+  type ClusterIndex,
 } from './graph-layout-build.js';
 import type {
   DotInputEdge,
@@ -43,6 +44,7 @@ const MARGIN = 12;
 
 type OutNodes = DotLayoutResult['nodes'];
 type OutEdges = DotLayoutResult['edges'];
+type OutClusters = NonNullable<DotLayoutResult['clusters']>;
 
 
 // Instrumentation seam for the oracle DOT-parity workstream. When set, every
@@ -103,6 +105,25 @@ function mapEdges(snap: LayoutSnapshot, idx: EdgeIndex): OutEdges {
     edges.push(toEdgeEntry(ge, id, idx.inputEdgeById.get(id)));
   }
   return edges;
+}
+
+/** G5 C2: re-keys `getLayout()`'s `clusters` snapshot entries from
+ *  graphviz-ts's own `cluster<N>` naming back to the caller's
+ *  `DotInputCluster.id`, via the `ClusterIndex` `addClusters` built while
+ *  constructing the builder graph. `undefined` when the input graph carried
+ *  no clusters (empty `idByName` — mirrors `DotInputGraph.clusters` being
+ *  optional). A snapshot entry with no matching id is defensively skipped
+ *  (cannot occur given `addClusters`'s own naming contract: every name it
+ *  hands graphviz-ts is recorded in `idByName` before use). */
+function mapClusters(snap: LayoutSnapshot, idx: ClusterIndex): OutClusters | undefined {
+  if (idx.idByName.size === 0) return undefined;
+  const out: OutClusters = [];
+  for (const c of snap.clusters) {
+    const id = idx.idByName.get(c.name);
+    if (id === undefined) continue;
+    out.push({ id, x: c.x, y: c.y, width: c.width, height: c.height });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,8 +292,12 @@ function extractPortLabelPositions(
   return result;
 }
 
-/** Shift content so the leftmost/topmost rendered point sits at (0,0). */
-function shiftToOrigin(nodes: OutNodes, edges: OutEdges): void {
+/** Shift content so the leftmost/topmost rendered point sits at (0,0).
+ *  G5 C2: `clusters` (optional) rides the SAME translation derived from
+ *  nodes/edges alone — clusters never participate in DERIVING minX/minY, only
+ *  in receiving the shift, so this is byte-identical for every pre-existing
+ *  caller that doesn't read `DotLayoutResult.clusters`. */
+function shiftToOrigin(nodes: OutNodes, edges: OutEdges, clusters?: OutClusters): void {
   let minX = Math.min(...nodes.map((n) => n.x));
   let minY = Math.min(...nodes.map((n) => n.y));
   for (const e of edges) {
@@ -297,6 +322,12 @@ function shiftToOrigin(nodes: OutNodes, edges: OutEdges): void {
     if (e.tailLabelY !== undefined) e.tailLabelY -= minY;
     if (e.headLabelX !== undefined) e.headLabelX -= minX;
     if (e.headLabelY !== undefined) e.headLabelY -= minY;
+  }
+  if (clusters !== undefined) {
+    for (const c of clusters) {
+      c.x -= minX;
+      c.y -= minY;
+    }
   }
 }
 
@@ -343,7 +374,7 @@ export function layoutGraph(
   const b = createGraph({ directed: true });
   applyGraphAttrs(b, input);
   addNodes(b, input);
-  addClusters(b, input);
+  const clusterIdx = addClusters(b, input);
   const idx = addEdges(b, input);
 
   // render triggers layout; getLayout alone returns zeroed coords. Its own
@@ -370,10 +401,11 @@ export function layoutGraph(
       if (pl.tailY !== undefined) e.tailLabelY = pl.tailY;
     }
   }
-  shiftToOrigin(nodes, edges);
+  const clusters = mapClusters(snap, clusterIdx);
+  shiftToOrigin(nodes, edges, clusters);
   const { width, height } = canvasSize(nodes, edges);
 
-  return { nodes, edges, width, height };
+  return { nodes, edges, width, height, ...(clusters !== undefined ? { clusters } : {}) };
 }
 
 export type {

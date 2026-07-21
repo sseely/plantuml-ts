@@ -31,8 +31,10 @@ import {
 } from './state-composite-pass.js';
 
 /** Title dims for a composite's cluster label (svek's title TABLE — matches
- *  class-dot-graph.ts's namespace-title measurement precedent). */
-function measureClusterTitle(display: string, ctx: DiagramCtx): { width: number; height: number } {
+ *  class-dot-graph.ts's namespace-title measurement precedent). `lineCount`
+ *  (G5 C3) gates `CLUSTER_TITLE_TABLE_HEIGHT`/`CLUSTER_HEADER_HEIGHT`
+ *  eligibility below — jar-verified ONLY for a single-line title. */
+function measureClusterTitle(display: string, ctx: DiagramCtx): { width: number; height: number; lineCount: number } {
   const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
   const lines = splitCreoleLines(display);
   let width = 0;
@@ -42,8 +44,65 @@ function measureClusterTitle(display: string, ctx: DiagramCtx): { width: number;
     if (m.width > width) width = m.width;
     height += m.height;
   }
-  return { width, height };
+  return { width, height, lineCount: lines.length };
 }
+
+/**
+ * G5 C3, mechanism 16 shape half — jar-calibrated constants for a genuine
+ * `'cluster'`-classified composite's single-line title reservation, verified
+ * against the REAL PlantUML jar (not derived from `ClusterHeader.java`'s own
+ * `getTitleAndAttributeHeight() - 5` Java-internal value, which this port's
+ * own text-height convention — `height = font.size` per line, `measureCluster
+ * Title` above — does not reproduce bit-for-bit; ledger.md §C2's own "C3+
+ * queue" sub-item 3, resolved here by DECOUPLING the graphviz layout-space
+ * RESERVATION from this port's text-height convention entirely, since the
+ * FIXEDSIZE table's only role is telling graphviz how much space to reserve
+ * -- the visible title text is drawn separately, by `renderer-composite-
+ * box.ts`, using its OWN measured line width).
+ *
+ * `CLUSTER_TITLE_TABLE_HEIGHT` (fed to `DotInputCluster.titleTableHeight`,
+ * consumed by `graph-layout-build.ts#addClusters`'s `setHtmlAttr` seam) is
+ * the value G5 C2's own 15-point marker sweep found reproduces jar's real
+ * gap through graphviz-ts's `gap = HEIGHT + 16` relationship: `3 + 16 = 19`.
+ *
+ * `CLUSTER_HEADER_HEIGHT` (the real header-to-divider gap `renderer-
+ * composite-box.ts`'s new cluster shape draws at) was re-confirmed this
+ * iteration on the FULL corpus (not just the 18/19-fixture sample C2 hand-
+ * picked): a disposable probe (`scripts/_tmp-c3-cluster-probe.ts`, deleted
+ * before finishing) walked every cached `test-results/dot-cache/state`
+ * fixture's own `in.svg`'s `<g class="cluster">` element and found 132/134
+ * real single-line-title font-size-14 samples at EXACTLY 19.0000px (the 2
+ * exceptions,
+ * `sosoxe-55-demi451`/`teseci-80-sivi292`, are BOTH multi-line titles
+ * (`state A as "line1\nline2"`, a literal creole line break) — correctly
+ * excluded by the `lineCount === 1` gate below, not a counterexample).
+ *
+ * That same probe found the title's own VERTICAL BASELINE offset from the
+ * cluster top is BIMODAL — 14.8889px for 98 samples, 15.8889px for 36 —
+ * which splits EXACTLY along `ClusterDotString`'s own WithLabel/hasPort
+ * branch (`portRanksLabelOnEe`, `applyBorderPointRanks` below): every
+ * 15.8889-offset sample belongs to a fixture in the mission's own 20-fixture
+ * `<<entrypoint>>`/`<<exitpoint>>` family (`bitaxo-18-tamo974`, `fukexa-85-
+ * cuvi894`, `jucori-40-cevo136`, `kotagu-43-miza629`, `lulozu-10-bopu547`,
+ * ...), whose title moves onto the `${id}ee` subgraph's own `label=`
+ * (`DotInputCluster.portRanksLabelOnEe`'s own doc comment) — a DIFFERENT
+ * jar code path with its own (verified-but-unimplemented-this-iteration)
+ * baseline offset. `CLUSTER_TITLE_BASELINE_MARGIN` below is therefore
+ * jar-verified ONLY for the plain (non-border-point) case; the eligibility
+ * gate in `resolveClusterComposite` excludes `ctx.classify.needsAnchor`
+ * composites entirely (deferred — ledger.md's own "entrypoint/exitpoint
+ * family" C3+ queue item).
+ */
+const CLUSTER_TITLE_TABLE_HEIGHT = 3;
+const CLUSTER_HEADER_HEIGHT = 19;
+/** `node.y + CLUSTER_TITLE_BASELINE_MARGIN + textAscent(fontSize)` — jar-
+ *  verified 14.8889 = 4 + 10.8889 (`textAscent(14)`) on both real fixtures
+ *  this iteration hand-checked (`decede-10-buvu414`'s `E`, `bajelo-54-
+ *  dixe684`'s `Track_FSM.Run`) AND the 98-sample corpus-wide probe above —
+ *  distinct from the autonom shape's own `MARGIN = 5`
+ *  (`renderer-composite-box.ts`), a DIFFERENT upstream code path
+ *  (`ClusterHeader`, not `InnerStateAutonom`). */
+const CLUSTER_TITLE_BASELINE_MARGIN = 4;
 
 /** `SvekResult.calculateDimension`'s `delta(15,15)` -- a CONCURRENT_STATE
  *  region's raw graph image (`GroupMakerState.getImage():116-117` returns
@@ -198,17 +257,70 @@ export function resolveClusterComposite(
 ): GeoSpec {
   const clusterId = nextClusterId();
   const title = measureClusterTitle(s.display, ctx);
+  const directMembers = s.children;
+  // G5 C3, mechanism 16 shape half: `applyBorderPointRanks`'s own real
+  // eligibility test (below) -- NOT the broader `ctx.classify.needsAnchor`
+  // flag, which ALSO fires for a composite with NO direct border-point
+  // children at all whenever an EXTERNAL edge merely needs an anchor POINT
+  // on its boundary (e.g. `state A { [*] --> Configuring }`, `Configuring`
+  // declared OUTSIDE `A` -- `gojuja-90-pune699`'s own `A`, jar-verified:
+  // its real oracle shape is the PLAIN cluster title/baseline-margin-4
+  // case, NOT the WithLabel/`ee`-wrapped one, because `applyBorderPointRanks`
+  // itself no-ops on an EMPTY `directMembers` list). Using `needsAnchor`
+  // directly here excluded `A` from the title-table entirely, wrongly
+  // falling back to the dashed-rect shape for a case this iteration DOES
+  // cover -- caught by direct SVG diff inspection, not assumed.
+  const hasBorderPointChildren = directMembers.some(
+    (c) => isInputPosition(getEntityPosition(c)) || isOutputPosition(getEntityPosition(c)),
+  );
+  // Eligible for the jar-real HTML title table + render shape ONLY for a
+  // single-line title at the default font-size (the ONLY case this
+  // iteration jar-verified, `CLUSTER_HEADER_HEIGHT`'s own doc comment
+  // above) that does NOT ALSO get `portRanksLabelOnEe` (a DIFFERENT jar
+  // code path, its own -- verified but not this iteration's scope --
+  // baseline offset; deferred, ledger.md's own entrypoint/exitpoint C3+
+  // queue item) AND is NOT nested inside a separately-fired autonom/
+  // concurrent-region pass (`ctx.insideAutonomPass`'s own doc comment,
+  // state-composite-pass.ts -- jar-verified size-backlog regression on
+  // `fotuje-06-fifa085`/`rovese-43-tadu368`, traced to the ALREADY-PARKED
+  // `buildPlainAutonomSpec#Math.max` floor). Ineligible composites keep the
+  // pre-C3 plain-text `label` + `boundingBox(children)` +
+  // dashed-rect-fallback shape, byte-identical to before this iteration.
+  const titleTableEligible =
+    title.lineCount === 1 &&
+    ctx.theme.fontSize === 14 &&
+    !hasBorderPointChildren &&
+    ctx.insideAutonomPass !== true;
+  // G5 C7, mechanism 16 margin half (ledger.md §C7, `DotInputCluster
+  // .innerMarginLevels`'s own doc comment has the full jar-source
+  // derivation): `needsZaentPoint` reduces to EXACTLY jar's own
+  // `thereALinkFromOrToGroup` ("touched") boolean for every
+  // `titleTableEligible` composite specifically -- its OTHER disjunct
+  // (`hasDirectBorderPointChild(s) && !hasNonBorderEeContent(...)`)
+  // requires `hasBorderPointChildren`, which `titleTableEligible` already
+  // excludes above -- confirmed corpus-wide (84/84 cached cluster-bearing
+  // svek DOTs: "i"-wrapper presence matches `zaent` special-point presence
+  // with zero counterexamples). `anchorId` is computed here (not only in
+  // the anchor-node block below) so `unwrappedNodeId` can be set in the
+  // same object literal as `innerMarginLevels`; `zaentId` is a pure
+  // function of `s.id`, so calling it twice for the same state is safe.
+  const needsZaentPoint = titleTableEligible && ctx.classify.needsZaentPoint.has(s.id);
+  const anchorId = zaentId(s.id);
   const cluster: DotInputCluster = {
     id: clusterId,
     nodeIds: [],
     label: s.display,
     labelWidth: title.width,
     labelHeight: title.height,
+    ...(titleTableEligible
+      ? { titleTableWidth: title.width, titleTableHeight: CLUSTER_TITLE_TABLE_HEIGHT }
+      : {}),
+    ...(titleTableEligible ? { innerMarginLevels: needsZaentPoint ? 2 : 1 } : {}),
+    ...(needsZaentPoint ? { unwrappedNodeId: anchorId } : {}),
     ...(parentClusterId !== undefined ? { parentId: parentClusterId } : {}),
   };
   acc.clusters.push(cluster);
 
-  const directMembers = s.children;
   const childSpecs = directMembers.map((c) => resolveMember(c, acc, ctx, clusterId));
   for (const c of directMembers) {
     if (ctx.classify.kindOf.get(c.id) !== 'cluster') cluster.nodeIds.push(c.id);
@@ -223,7 +335,6 @@ export function resolveClusterComposite(
   for (const p of pseudoSpecs) cluster.nodeIds.push(p.id);
   addScopeNotes(s.id, ctx, acc, cluster);
   if (ctx.classify.needsAnchor.has(s.id)) {
-    const anchorId = zaentId(s.id);
     // The POINT NODE is strictly narrower than the port-block gate itself
     // (ClassifyResult.needsZaentPoint's doc, state-composite-classify.ts) --
     // a composite with real non-border content in its `ee` wrapper needs no
@@ -242,6 +353,10 @@ export function resolveClusterComposite(
 
   return {
     kind: 'cluster', id: s.id, display: s.display, children: sortSpecsByCreationIndex([...pseudoSpecs, ...childSpecs, ...regionSpecs]),
+    clusterId,
+    ...(titleTableEligible
+      ? { titleWidth: title.width, clusterHeaderHeight: CLUSTER_HEADER_HEIGHT, titleBaselineMargin: CLUSTER_TITLE_BASELINE_MARGIN }
+      : {}),
     ...(s.creationIndex !== undefined ? { creationIndex: s.creationIndex } : {}),
   };
   // #lizard forgives -- faithful port of ClusterDotString's envelope

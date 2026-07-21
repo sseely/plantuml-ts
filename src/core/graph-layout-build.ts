@@ -98,6 +98,16 @@ export function addNodes(b: GvGraphBuilder, input: DotInputGraph): void {
   }
 }
 
+/** Maps graphviz-ts's own `cluster<N>` subgraph name back to OUR
+ *  `DotInputCluster.id` (G5 C2: threaded so `layoutGraph()` can re-key
+ *  `getLayout()`'s new `clusters` snapshot entries — graphviz-ts 0.1.26072115,
+ *  docs/graphviz-issues/06-cluster-bbox-not-in-getlayout.md's RESOLVED note —
+ *  into the caller's own id space; see `DotLayoutResult.clusters`). */
+export interface ClusterIndex {
+  /** graphviz-ts cluster name (`cluster0`, `cluster1`, …) → our cluster id. */
+  idByName: Map<string, string>;
+}
+
 /**
  * Forward `input.clusters` to graphviz-ts as `cluster<N>` subgraphs so dot
  * lays out container members together (contained) and routes splines across
@@ -116,12 +126,17 @@ export function addNodes(b: GvGraphBuilder, input: DotInputGraph): void {
  * though that emitter is a separate code path (it serializes `input.clusters`
  * directly and never calls this function).
  *
- * Additive: callers that pass no `clusters` are unaffected (the field was
- * previously emitter-only).
+ * Returns the `ClusterIndex` (G5 C2) so `layoutGraph()` can re-key the
+ * `getLayout()` snapshot's own `clusters` array (graphviz-ts's `cluster<N>`
+ * naming) back to `input.clusters[].id`. Additive: callers that pass no
+ * `clusters` are unaffected (the field was previously emitter-only) — they
+ * get back an empty `idByName` map, which `layoutGraph()` uses to omit
+ * `DotLayoutResult.clusters` entirely.
  */
-export function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
+export function addClusters(b: GvGraphBuilder, input: DotInputGraph): ClusterIndex {
+  const idByName = new Map<string, string>();
   const clusters = input.clusters;
-  if (clusters === undefined || clusters.length === 0) return;
+  if (clusters === undefined || clusters.length === 0) return { idByName };
   const byId = new Map<string, DotInputCluster>(
     clusters.map((c) => [c.id, c]),
   );
@@ -133,6 +148,7 @@ export function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
     if (cached !== undefined) return cached;
     const name = `cluster${nextIndex++}`;
     nameById.set(c.id, name);
+    idByName.set(name, c.id);
     return name;
   };
   const builderFor = (c: DotInputCluster): GvGraphBuilder => {
@@ -142,15 +158,52 @@ export function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
       c.parentId !== undefined && byId.has(c.parentId)
         ? builderFor(byId.get(c.parentId)!)
         : b;
-    const attrs = c.label !== undefined ? { label: c.label } : {};
+    const hasTitleTable = c.titleTableWidth !== undefined && c.titleTableHeight !== undefined;
+    const attrs = !hasTitleTable && c.label !== undefined ? { label: c.label } : {};
     const sg = parent.addSubgraph(nameFor(c), attrs);
+    // G5 C3, mechanism 16 shape half: a jar-real HTML `<TABLE FIXEDSIZE=
+    // "TRUE" ...>` label, via graphviz-ts 0.1.26072117's public `setHtmlAttr`
+    // (docs/graphviz-issues/07's RESOLVED note) -- ONLY for callers that
+    // supply BOTH dims (`titleTableWidth`/`Height`'s own doc comment,
+    // graph-layout.types.ts, has the full jar-calibration derivation).
+    // Callers that don't (every pre-C3 cluster, and every C3-ineligible
+    // one) keep the prior plain-text `label` attr above, unchanged.
+    if (hasTitleTable) {
+      sg.setHtmlAttr(
+        'label',
+        `<TABLE FIXEDSIZE="TRUE" WIDTH="${Math.round(c.titleTableWidth!)}" ` +
+          `HEIGHT="${Math.round(c.titleTableHeight!)}"><TR><TD></TD></TR></TABLE>`,
+      );
+    }
     builderById.set(c.id, sg);
     return sg;
   };
   for (const c of clusters) {
     const sg = builderFor(c);
-    for (const id of c.nodeIds) sg.addNode(id);
+    const levels = c.innerMarginLevels;
+    if (levels === undefined) {
+      for (const id of c.nodeIds) sg.addNode(id);
+      continue;
+    }
+    // G5 C7, mechanism 16 margin half: mirror jar's ClusterDotString "i"/
+    // "p1" protection-wrapper nesting (see DotInputCluster.innerMarginLevels'
+    // own doc comment for the full jar-source derivation) -- each extra
+    // `subgraph cluster*` level gets graphviz's own default CL_OFFSET(8pt)
+    // margin around ITS children, compounding to jar's real 16/24px side
+    // margin. Names deliberately do NOT match the oracle comparator's
+    // `^cluster\d+$` pattern (tests/oracle/svek-dot.ts#parseClusters skips
+    // exactly this "clusterNp0/clusterN/clusterNp1" shape, by design, per
+    // that file's own doc comment) -- so this nesting is structurally
+    // invisible to the DOT-parity gate, same as jar's own protection wrappers.
+    const outerName = nameFor(c);
+    let inner = sg;
+    if (levels === 2) inner = inner.addSubgraph(`${outerName}i`, {});
+    inner = inner.addSubgraph(`${outerName}p1`, {});
+    for (const id of c.nodeIds) {
+      (id === c.unwrappedNodeId ? sg : inner).addNode(id);
+    }
   }
+  return { idByName };
 }
 
 export function addEdges(b: GvGraphBuilder, input: DotInputGraph): EdgeIndex {
@@ -216,5 +269,8 @@ export function addEdges(b: GvGraphBuilder, input: DotInputGraph): EdgeIndex {
     inputEdgeById.set(e.id, e);
   }
   return { idQueues, inputEdgeById };
+  // #lizard forgives -- pre-existing (unmodified by G5 C7) faithful mirror
+  // of SvekEdge's per-edge attr assembly; each branch below is one
+  // independently-conditional DOT attr (label/tailLabel/headLabel/weight/
+  // minlen/arrowhead override), not decision complexity to simplify.
 }
-

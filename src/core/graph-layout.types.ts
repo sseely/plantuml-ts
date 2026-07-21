@@ -163,6 +163,85 @@ export interface DotInputCluster {
    *  shape instead of the NoLabel/chained one; additive — absent (the
    *  class/component/description PORTIN/PORTOUT precedent) is unaffected. */
   portRanksLabelOnEe?: true;
+  /** G5 C3, mechanism 16 shape half (docs/graphviz-issues/07's RESOLVED
+   *  note, graphviz-ts 0.1.26072117's `setHtmlAttr`): the real HTML
+   *  `<TABLE FIXEDSIZE="TRUE" WIDTH=".." HEIGHT="..">` title-label
+   *  reservation `graph-layout-build.ts#addClusters` feeds graphviz-ts's
+   *  builder for THIS cluster's own subgraph, mirroring jar's real
+   *  `ClusterDotString`/`ClusterHeader` mechanism (`SvekEdge.appendTable`,
+   *  `label=<TABLE FIXEDSIZE="TRUE" WIDTH="cluster.getTitleAndAttribute
+   *  Width()" HEIGHT="cluster.getTitleAndAttributeHeight()-5">`).
+   *  Deliberately DISTINCT from `labelWidth`/`labelHeight` (the Svek-DOT
+   *  TEXT emitter's own convention, `height=font.size` per line — used
+   *  ONLY for the oracle DOT-parity comparator, which is STRUCTURAL-only
+   *  and tolerant of the numeric label value, `tests/oracle/svek-dot.ts`'s
+   *  own doc comment: "`width`/`height` are tolerant metrics... reported,
+   *  not asserted"). `titleTableHeight` in particular is NOT derived from
+   *  this port's own text-height convention at all — the FIXEDSIZE table's
+   *  sole role is a graphviz layout-space RESERVATION signal (the visible
+   *  title text is drawn separately, by this port's own renderer,
+   *  `renderer-composite-box.ts`), so its value is jar-CALIBRATED, not
+   *  jar-Java-internal-derived: G5 C2's marker sweep found graphviz-ts
+   *  reserves `gap = HEIGHT + 16` above the first content rank (15-point
+   *  linear sweep through this exact `setHtmlAttr` seam); G5 C3 confirmed
+   *  jar's real single-line-title header gap is a CONTENT-WIDTH-
+   *  INDEPENDENT constant 19px on 132/134 real corpus cluster samples (the
+   *  2 exceptions both multi-line titles, `sosoxe-55-demi451`/`teseci-80-
+   *  sivi292`, out of this iteration's scope — see `state-composite-
+   *  cluster.ts`'s own doc comment), so `titleTableHeight=3` (19-16) is the
+   *  jar-verified constant for that case — NOT `cluster.getTitleAndAttribute
+   *  Height()-5`'s Java-internal value, which this port does not reproduce
+   *  bit-for-bit (a deliberately decoupled, resolved discrepancy — G5 C2's
+   *  own "C3+ queue" sub-item 3). Additive: absent (every pre-C3 caller,
+   *  and every C3-ineligible cluster — multi-line title, non-default
+   *  font-size, or a `portRanksLabelOnEe` border-point cluster, which
+   *  jar-verified needs a DIFFERENT title vertical offset, `state-
+   *  composite-cluster.ts`'s own doc comment) falls back to the pre-
+   *  existing plain-text `label` attr, unchanged. */
+  titleTableWidth?: number;
+  titleTableHeight?: number;
+  /** G5 C7, mechanism 16 margin half (ledger.md §C7): jar's real cluster
+   *  side/top/bottom margin is NOT graphviz's bare 8pt `CL_OFFSET` default —
+   *  `ClusterDotString.printInternal` (`~/git/plantuml/.../svek/
+   *  ClusterDotString.java`) nests a cluster's own real content inside 1-2
+   *  extra "protection" `subgraph cluster*` wrappers ("p1" always, when
+   *  `protection1()` — true for every non-swimlane, non-NODE-usymbol state
+   *  composite in this port's corpus; "i" ADDITIONALLY when
+   *  `thereALinkFromOrToGroup1` — a link's source or target is the group
+   *  ENTITY ITSELF, not a descendant member, `SvekEdge#isLinkFromOrTo`'s
+   *  exact-identity check), each an ordinary graphviz cluster subgraph that
+   *  gets ITS OWN `CL_OFFSET` margin around its children — compounding to
+   *  16px (1 extra level) or 24px (2) between real content and the drawn
+   *  cluster boundary, jar-verified via a direct `dot -Tsvg` run on cached
+   *  `svek-N.dot` (`gojuja-90-pune699`'s `A`: real oracle left margin
+   *  42.83-18.83=24, matching 3×8pt: the outer cluster's own margin + "i" +
+   *  "p1") and corpus-wide (84/84 cluster-bearing cached DOTs: "i" wrapper
+   *  presence matches `zaent` special-point presence with ZERO
+   *  counterexamples — the SAME `isThereALinkFromOrToGroup` boolean gates
+   *  both, since `useProtectionWhenThereALinkFromOrToGroup` is true for
+   *  every graphviz version this corpus's cache used,
+   *  `GraphvizVersionFinder.java:90-96`). `1` emits ONE extra "p1"-only
+   *  wrapper (16px); `2` ADDITIONALLY nests an "i" wrapper inside the outer
+   *  cluster, outside "p1" (24px) — mirroring jar's exact nesting order.
+   *  Additive: absent (every pre-C7 caller) falls back to the plain,
+   *  unwrapped `sg.addNode(id)` loop (graphviz's bare 8pt default),
+   *  unchanged. Set ONLY for `titleTableEligible` clusters (`state-
+   *  composite-cluster.ts#resolveClusterComposite`) — jar's own
+   *  `Cluster#manageEntryExitPoint`/`FrontierCalculator` path (the
+   *  entrypoint/exitpoint family, excluded from `titleTableEligible`) reads
+   *  member positions directly rather than graphviz's own reported cluster
+   *  bbox, so this margin mechanism does not apply there (unverified,
+   *  deferred). */
+  innerMarginLevels?: 1 | 2;
+  /** The one member of `nodeIds` that stays a DIRECT child of the outer
+   *  cluster subgraph, unwrapped by `innerMarginLevels` — jar's zaent
+   *  special-point anchor (`Cluster.getSpecialPointId`), which
+   *  `ClusterDotString.printInternal` declares BEFORE opening the "i"/"p1"
+   *  wrappers, not inside them (verified directly against `gojuja-90-
+   *  pune699`'s cached `svek-2.dot`: `zaent0001` sits as a direct child of
+   *  `cluster6`, sibling to — not descendant of — `cluster6i`). Ignored
+   *  when `innerMarginLevels` is absent. */
+  unwrappedNodeId?: string;
 }
 
 export interface DotInputGraph {
@@ -249,4 +328,21 @@ export interface DotLayoutResult {
   }>;
   width: number;
   height: number;
+  /** G5 C2: real per-cluster bbox from graphviz's own subgraph-cluster
+   *  layout (graphviz-ts 0.1.26072115's `getLayout().clusters`, see
+   *  docs/graphviz-issues/06-cluster-bbox-not-in-getlayout.md's RESOLVED
+   *  note) — keyed by `DotInputCluster.id` (re-mapped from graphviz-ts's own
+   *  `cluster<N>` naming by `graph-layout-build.ts#addClusters`'s
+   *  `ClusterIndex`, NOT graphviz-ts's internal name). `x`/`y` are the
+   *  top-left corner in the SAME origin-shifted frame as `nodes`/`edges`
+   *  (`shiftToOrigin` applies the identical node/edge-derived translation to
+   *  these boxes too — clusters never participate in DERIVING that
+   *  translation, only in receiving it, so pre-existing node/edge output is
+   *  byte-identical for every caller that ignores this field). Absent when
+   *  the input graph carried no `clusters` (mirrors `DotInputGraph.clusters`
+   *  itself being optional) — additive, no existing consumer reads this yet.
+   *  Replaces the entity-vs-cluster wrap APPROXIMATION named in G4 §S1/S3/S6
+   *  ("mechanism 16") and `state-composite-geo.ts#materializeCluster`'s own
+   *  fixed-`BOX_PAD` bounding box. */
+  clusters?: Array<{ id: string; x: number; y: number; width: number; height: number }>;
 }

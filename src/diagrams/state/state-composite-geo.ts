@@ -28,6 +28,21 @@ import type { StringMeasurer } from '../../core/measurer.js';
  *  module's own doc comment. */
 export type PosMap = Map<string, DotLayoutResult['nodes'][number]>;
 
+/** G5 C3, mechanism 16 shape half: a pass's own `DotLayoutResult.clusters`
+ *  entries, keyed by `DotInputCluster.id` (`GeoSpec`'s `clusterId`, NOT `id`
+ *  -- see that field's own doc comment, state-composite-pass.ts). Empty map
+ *  when the pass's `DotLayoutResult` carried no `clusters` field (mirrors
+ *  `PosMap`'s own optionality story) -- `materializeCluster` below falls
+ *  back to the pre-C3 `boundingBox(children)` approximation whenever a
+ *  lookup misses, so an empty map is a safe, correct default. */
+export type ClusterPosMap = ReadonlyMap<string, NonNullable<DotLayoutResult['clusters']>[number]>;
+
+const EMPTY_CLUSTER_POS_MAP: ClusterPosMap = new Map();
+
+function clusterPosMapOf(result: DotLayoutResult): ClusterPosMap {
+  return result.clusters !== undefined ? new Map(result.clusters.map((c) => [c.id, c])) : EMPTY_CLUSTER_POS_MAP;
+}
+
 const BOX_PAD = 12;
 
 function shiftGeo(g: StateNodeGeo, dx: number, dy: number): StateNodeGeo {
@@ -137,6 +152,13 @@ function materializeAutonom(
   const dx = pos.x + spec.offset.x;
   const dy = pos.y + spec.offset.y;
   const localPosMap: PosMap = new Map(spec.localPositions.nodes.map((n) => [n.id, n]));
+  // G5 C3, mechanism 16 shape half: a NESTED 'cluster' composite reachable
+  // via `spec.localStates`/`spec.regions` lives in THIS autonom pass's OWN
+  // `DotLayoutResult` (`spec.localPositions`, not the containing pass's) --
+  // `bajelo-54-dixe684`'s own jar-verified precedent (per-pass nesting,
+  // `renderer-group.ts`'s doc comment) applies to cluster geometry the SAME
+  // way it already applies to node positions above.
+  const localClusterPosMap = clusterPosMapOf(spec.localPositions);
   // mission G4 S6, mechanism 13: `spec.regions` (concurrent-region-owning
   // composites ONLY) drives `children`/`transitions` too -- built by
   // CONCATENATING the per-region materialized results, never the reverse,
@@ -148,13 +170,13 @@ function materializeAutonom(
   // autonom composite, which keeps the pre-S6 flat-materialization path
   // unchanged.
   const regionsOut: StateRegionGeo[] | undefined = spec.regions?.map((r) => ({
-    children: materializeSpecs(r.specs, localPosMap).map((g) => shiftGeo(g, dx, dy)),
+    children: materializeSpecs(r.specs, localPosMap, localClusterPosMap).map((g) => shiftGeo(g, dx, dy)),
     transitions: r.transitions.map((t) => shiftTransition(t, dx, dy)),
   }));
   const children =
     regionsOut !== undefined
       ? regionsOut.flatMap((r) => r.children)
-      : materializeSpecs(spec.localStates, localPosMap).map((g) => shiftGeo(g, dx, dy));
+      : materializeSpecs(spec.localStates, localPosMap, localClusterPosMap).map((g) => shiftGeo(g, dx, dy));
   const transitions =
     regionsOut !== undefined
       ? regionsOut.flatMap((r) => r.transitions)
@@ -182,13 +204,37 @@ function materializeAutonom(
  *  own module doc comment, `'cluster'` branch), so `transitions` is always
  *  `[]` here (any NESTED autonom within `spec.children` still attaches its
  *  own edges to ITS OWN node via the SAME recursive `materializeSpecs`
- *  call, unaffected by this node owning none). */
+ *  call, unaffected by this node owning none).
+ *
+ *  G5 C3, mechanism 16 shape half: when `spec.clusterId` resolves to a real
+ *  bbox in `clusterPosMap` (this iteration's eligibility gate held --
+ *  `resolveClusterComposite`'s own doc comment, state-composite-cluster.ts)
+ *  the composite's box is graphviz's OWN real cluster geometry (replacing
+ *  the pre-C3 `boundingBox(children)` flat-12px-pad approximation) and
+ *  `headerLines`/`clusterHeaderHeight` are threaded onto the node so
+ *  `renderer-composite-box.ts#renderComposite` draws the real jar-native
+ *  cluster shape instead of the dashed-rect fallback. Falls back to the
+ *  pre-C3 shape, unchanged, whenever the lookup misses (ineligible this
+ *  iteration, or a hand-built test geometry). */
 function materializeCluster(
   spec: Extract<GeoSpec, { kind: 'cluster' }>,
   posMap: PosMap,
+  clusterPosMap: ClusterPosMap,
 ): StateNodeGeo | undefined {
-  const children = materializeSpecs(spec.children, posMap);
+  const children = materializeSpecs(spec.children, posMap, clusterPosMap);
   if (children.length === 0) return undefined;
+  const real = spec.clusterId !== undefined ? clusterPosMap.get(spec.clusterId) : undefined;
+  if (real !== undefined && spec.clusterHeaderHeight !== undefined && spec.titleWidth !== undefined) {
+    return {
+      id: spec.id, kind: 'normal', display: spec.display,
+      x: real.x, y: real.y, width: real.width, height: real.height,
+      children, transitions: [],
+      headerLines: [{ text: spec.display, width: spec.titleWidth }],
+      clusterHeaderHeight: spec.clusterHeaderHeight,
+      ...(spec.titleBaselineMargin !== undefined ? { clusterTitleBaselineMargin: spec.titleBaselineMargin } : {}),
+      ...(spec.creationIndex !== undefined ? { creationIndex: spec.creationIndex } : {}),
+    };
+  }
   const box = boundingBox(children);
   return {
     id: spec.id, kind: 'normal', display: spec.display, x: box.x, y: box.y, width: box.width, height: box.height, children, transitions: [],
@@ -207,8 +253,20 @@ function materializeCluster(
  *  attach directly to that pass's own returned `StateNodeGeo.transitions`
  *  (see `materializeAutonom`'s own doc comment); `computeSvekResultGeometry`'s
  *  ink walk (`layout-ink-extent.ts#addNodeInk`) recurses into this SAME
- *  `.transitions` field, so ink coverage is unchanged. */
-export function materializeSpecs(specs: readonly GeoSpec[], posMap: PosMap): StateNodeGeo[] {
+ *  `.transitions` field, so ink coverage is unchanged.
+ *
+ *  G5 C3: `clusterPosMap` defaults to empty (mission G4 S4/S6's two
+ *  external callers -- `state-composite-autonom.ts`'s own ink-extent
+ *  computation, `state-composite-concurrent.ts`'s region materialization --
+ *  don't pass one, so a nested cluster inside those SPECIFIC contexts keeps
+ *  the pre-C3 `boundingBox` shape; this iteration's real-bbox/real-shape
+ *  adoption is scoped to the render path only, `layoutComposite`/
+ *  `materializeAutonom` below). */
+export function materializeSpecs(
+  specs: readonly GeoSpec[],
+  posMap: PosMap,
+  clusterPosMap: ClusterPosMap = EMPTY_CLUSTER_POS_MAP,
+): StateNodeGeo[] {
   const out: StateNodeGeo[] = [];
   for (const spec of specs) {
     if (spec.kind === 'state') {
@@ -228,7 +286,7 @@ export function materializeSpecs(specs: readonly GeoSpec[], posMap: PosMap): Sta
       const g = materializeAutonom(spec, posMap);
       if (g !== undefined) out.push(g);
     } else {
-      const g = materializeCluster(spec, posMap);
+      const g = materializeCluster(spec, posMap, clusterPosMap);
       if (g !== undefined) out.push(g);
     }
   }
@@ -246,7 +304,7 @@ export function layoutComposite(ast: StateDiagramAST, theme: Theme, measurer: St
     return { totalWidth: 0, totalHeight: 0, states: [], transitions: [] };
   }
   const posMap: PosMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const states = materializeSpecs(specs, posMap);
+  const states = materializeSpecs(specs, posMap, clusterPosMapOf(result));
   const transitions = buildLevelTransitionGeos(acc, result);
   return { totalWidth: result.width, totalHeight: result.height, states, transitions };
 }

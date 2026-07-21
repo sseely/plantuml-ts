@@ -61,6 +61,19 @@ export const EDGE_DECORATION_MAP: Record<RelationshipType, EdgeDecoration> = {
 // triangle arrowhead at the parent end.
 const HIERARCHICAL = new Set<RelationshipType>(['extension', 'implementation']);
 
+/** `FontParam.ARROW(13, normal)` (klimt/font/FontParam.java:54) --
+ *  relationship-label default, distinct from `CLASS(12)`/`theme.fontSize`
+ *  (14, this port's own default). G5/C0 jar-verified gap: `bejusa-95-
+ *  gafo325`'s `"contains"` relationship label renders at jar size 13
+ *  (48.425px), not our prior size-14 measurement (52.15px). Already
+ *  flagged as a KNOWN, deliberately-unfixed gap in `class-layout-
+ *  helpers.ts#CARDINALITY_FONT_SIZE`'s own doc comment ("NOT the same
+ *  font `edgeLabelAttrs` ... measures with for DOT-gate sizing"). No
+ *  `skinparam ArrowFontSize` override path exists yet (`core/
+ *  skinparam.ts#ELEMENT_BUCKET_SNAMES` omits `'arrow'`) -- bare DEFAULT
+ *  only. */
+const ARROW_LABEL_FONT_SIZE = 13;
+
 export interface DotGraphParts {
   dotGraph: DotInputGraph;
   swappedEdges: Set<number>;
@@ -295,7 +308,7 @@ export function buildDotGraph(
   const anchors = packageEndpointAnchors(ast, nonEmptyNamespaceIds(ast));
   const dotNodes: DotInputNode[] = buildDotNodes(ast, measuredMap, anchors);
 
-  const labelFont = { family: theme.fontFamily, size: theme.fontSize };
+  const labelFont = { family: theme.fontFamily, size: ARROW_LABEL_FONT_SIZE };
   // Magma standalone-chaining edges appended after the real relationship edges.
   const dotEdges: DotInputEdge[] = [...buildDotEdges(ast, labelFont, measurer, anchors, theme.linetype), ...buildClassMagmaEdges(ast, anchors)];
 

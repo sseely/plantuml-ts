@@ -30,6 +30,24 @@ import { buildNoteGraphPartsByScope } from './state-note-layout.js';
 export const INITIAL_ID = '__initial__';
 export const FINAL_ID = '__final__';
 
+/**
+ * `plantuml.skin`'s `arrow { FontSize 13 }` block -- upstream's
+ * `klimt/font/FontParam.java:54`, `ARROW(13, normal)` -- the transition/
+ * edge-label default, distinct from `STATE(14, normal)` (body/entity-name
+ * text, `theme.fontSize`'s own default). Mission G5/C0 jar-verified this
+ * exact gap: `WidthTableMeasurer` is jar-exact at BOTH sizes (0.000% mean
+ * error corpus-wide) -- the bug was this call site handing it size 14 for
+ * text jar renders at size 13 (`bemena-23-zebu249`'s `"EvNewValueSaved"`:
+ * 120.05px at 14 vs jar's real 111.475px at 13). Same pattern already
+ * proven safe: `class-layout-helpers.ts#CARDINALITY_FONT_SIZE`,
+ * `description/renderer-edge.ts`'s `ARROW_LABEL_FONT_SIZE` (both = 13).
+ * No `skinparam ArrowFontSize` override path exists in this port yet
+ * (`ELEMENT_BUCKET_SNAMES` in `core/skinparam.ts` does not include
+ * `'arrow'`) -- this is the bare DEFAULT only, matching current behavior
+ * for every fixture (none of which had a working override to lose).
+ */
+const ARROW_LABEL_FONT_SIZE = 13;
+
 /** Resolve a transition endpoint id, redirecting the anonymous `[*]` token
  *  to the shared start (`from` position) or end (`to` position) anchor.
  *  Exported: `./layout.ts#buildFlatTransitionGeos` (mission G4 S2) reuses
@@ -152,6 +170,11 @@ function edgeLabelAttrs(
   if (labelDims === undefined && noteDims === undefined) return {};
   const merged =
     noteDims === undefined ? labelDims! : mergeNoteWithLabel(labelDims, noteDims, t.linkNotePosition ?? 'bottom');
+  // #lizard forgives -- pre-existing (CCN 12): two independent optional
+  // dimension sources (label text, attached link-note) merged via early
+  // returns, mirrors state-composite-edge-label.ts's own identical shape
+  // (D1 duplication, not new branching). Surfaced by this file's full
+  // rescan on ANY edit, not introduced here (mission G5/C1).
   return { label: text ?? t.linkNote ?? '', labelWidth: merged.width, labelHeight: merged.height };
 }
 
@@ -176,7 +199,7 @@ function buildDotEdges(
   theme: Theme,
   measurer: StringMeasurer,
 ): DotInputEdge[] {
-  const font = { family: theme.fontFamily, size: theme.fontSize };
+  const font = { family: theme.fontFamily, size: ARROW_LABEL_FONT_SIZE };
   return ast.transitions.map((t, i) => {
     // minlen = arrow dash-count - 1 (SvekEdge.java) — shared convention with
     // class/object, not state-specific (mechanisms.md §4).
@@ -239,6 +262,10 @@ function addNotes(
       attributes: { minLen: cand.minLen },
     });
   }
+  // #lizard forgives -- pre-existing (6 params): the cohesive note-graph
+  // mutation context (ast/theme/measurer/rankdir + the two flat-pipeline
+  // accumulators it mutates in place) threaded from buildDotGraph's own
+  // single call site, not new here (mission G5/C1).
 }
 
 export function buildDotGraph(

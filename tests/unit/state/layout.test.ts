@@ -327,12 +327,15 @@ describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
     expect(comp?.headerLines).toEqual([{ text: 'Composite', width: measurer.measure('Composite', { family: theme.fontFamily, size: theme.fontSize }).width }]);
   });
 
-  it('a NON-autonom (cluster) composite does NOT carry headerLines -- the boundary a link crossing forces', () => {
+  it('a NON-autonom (cluster) composite with a single-line title DOES carry headerLines (G5 C3, mechanism 16 shape half)', () => {
     // A --> B crosses Composite's own boundary (B is declared elsewhere),
     // forcing the non-autonom/cluster classification (state-composite-
-    // classify.ts) -- this port does not yet thread headerLines through
-    // the cluster path (renderer-composite-box.ts's own doc comment names
-    // this as a deliberate, non-regressing deferral).
+    // classify.ts). G5 C3 threaded headerLines/clusterHeaderHeight through
+    // this path for the eligibility-gated majority case (single-line
+    // title, default font-size, no border points) -- see
+    // state-composite-cluster.ts#resolveClusterComposite's own doc comment
+    // for the full derivation. clusterHeaderHeight=19 is the jar-verified
+    // constant (CLUSTER_HEADER_HEIGHT, same module).
     const a = makeState('A');
     const composite = makeState('Composite', { children: [a] });
     const b = makeState('B');
@@ -342,7 +345,58 @@ describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
     };
     const result = layoutState(ast, theme, measurer);
     const comp = result.states.find((s) => s.id === 'Composite');
-    expect(comp?.headerLines).toBeUndefined();
+    expect(comp?.headerLines).toEqual([{ text: 'Composite', width: measurer.measure('Composite', { family: theme.fontFamily, size: theme.fontSize }).width }]);
+    expect(comp?.clusterHeaderHeight).toBe(19);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G5 C5, ledger \u00a7C3's item 1: top-level document order hoists
+// 'cluster'-classified composites ahead of everything else, regardless of
+// creationIndex (state-composite-pseudo.ts#sortSpecsByDocumentOrder's own
+// doc comment has the full jar-verified derivation --
+// GraphvizImageBuilder.java#printGroups/printEntities,
+// SvekResult.java#drawU's cluster-loop-before-node-loop; corpus-anchored to
+// decede-10-buvu414 (E, creationIndex 5, hoists ahead of A, creationIndex
+// 1) and gojuja-90-pune699 (A, cluster, ahead of Configuring, autonom,
+// ahead of .start., pseudo)).
+// ---------------------------------------------------------------------------
+
+describe('layoutState -- top-level document order hoists cluster composites (G5 C5)', () => {
+  it('a cluster composite with a HIGHER creationIndex than its siblings still renders FIRST', () => {
+    // Mirrors decede-10-buvu414's own shape: A (autonom, creationIndex 1)
+    // declared/created BEFORE E (cluster, creationIndex 5) in jar's real
+    // two-pass parse, yet E renders first in the real oracle document --
+    // this test forces the SAME inversion synthetically (Composite's own
+    // creationIndex is the LARGEST of the three top-level siblings) so a
+    // plain ascending creationIndex sort (pre-C5) would place it LAST, not
+    // first.
+    const early = makeState('Early', { creationIndex: 1 });
+    const b = makeState('B', { creationIndex: 2 });
+    const a = makeState('A', { creationIndex: 11 });
+    // A --> B crosses Composite's own boundary (B is declared elsewhere),
+    // forcing the non-autonom/cluster classification (state-composite-
+    // classify.ts) -- same trick the mechanism-6 test above uses.
+    const composite = makeState('Composite', { children: [a], creationIndex: 10 });
+    const ast: StateDiagramAST = {
+      states: [early, composite, b],
+      transitions: [{ from: 'A', to: 'B' }],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.states.map((s) => s.id)).toEqual(['Composite', 'Early', 'B']);
+  });
+
+  it('with NO cluster present, top-level order stays pure ascending creationIndex (regression guard -- sortSpecsByDocumentOrder is a no-op vs. sortSpecsByCreationIndex when zero specs are cluster-kind)', () => {
+    const child = makeState('Child');
+    const autonom = makeState('Autonom', { children: [child], creationIndex: 5 });
+    const leaf1 = makeState('Leaf1', { creationIndex: 1 });
+    const leaf2 = makeState('Leaf2', { creationIndex: 8 });
+    const ast: StateDiagramAST = {
+      states: [autonom, leaf2, leaf1],
+      transitions: [],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.states.map((s) => s.id)).toEqual(['Leaf1', 'Autonom', 'Leaf2']);
   });
 });
 
@@ -794,5 +848,70 @@ describe('layoutState — parallel transitions between same states', () => {
     const t2 = result.transitions.find((t) => t.label?.text === 'event2');
     expect(t1).toBeDefined();
     expect(t2).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G5 C7, mechanism 16 margin half: `resolveClusterComposite` sets
+// `DotInputCluster.innerMarginLevels`/`unwrappedNodeId` based on jar's own
+// `thereALinkFromOrToGroup`/`isGroupTouched` boolean -- 1 level (16px side
+// margin) when untouched, 2 (24px) plus an unwrapped zaent anchor when some
+// transition's source/target IS the composite's own entity (not a
+// descendant member). See graph-layout.test.ts's "cluster inner margin
+// levels" describe block for the isolated, precise numeric proof of the
+// wrap mechanism itself; this integration test verifies
+// resolveClusterComposite's OWN wiring end to end through layoutState.
+//
+// Both cases below force 'cluster' (non-autonom) classification via a
+// MEMBER-crossing transition (`Child --> External`, disqualifying `A` from
+// `isAutarkic` per state-composite-detect.ts's own subtree-boundary check)
+// -- `isGroupTouched` (the zaent/margin-level decision) is a SEPARATE,
+// simpler check (`allTransitions.some(t => t.from === id || t.to === id)`)
+// that does not require a subtree-crossing transition, only SOME reference
+// to the composite's own name as an endpoint -- `[*] --> A` supplies that
+// in the touched case, absent in the untouched case. Values below are the
+// real, deterministic output of this exact code (not invented), reproducible
+// via layoutState directly.
+// ---------------------------------------------------------------------------
+
+describe('layoutState -- cluster inner margin wiring (G5 C7, mechanism 16 margin half)', () => {
+  it('an UNTOUCHED cluster composite (no transition references A by its own name) gets a single wrap level', () => {
+    const child = makeState('Child');
+    const a = makeState('A', { children: [child] });
+    const ext = makeState('External');
+    const ast: StateDiagramAST = {
+      states: [a, ext],
+      transitions: [{ from: 'Child', to: 'External' }],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'A');
+    expect(comp?.clusterHeaderHeight).toBe(19);
+    expect(comp?.width).toBeCloseTo(84, 1);
+    expect(comp?.height).toBeCloseTo(93, 1);
+  });
+
+  it('a TOUCHED cluster composite ([*] --> A, the group entity itself) gets a deeper 2-level wrap', () => {
+    const child = makeState('Child');
+    const a = makeState('A', { children: [child] });
+    const ext = makeState('External');
+    const ast: StateDiagramAST = {
+      states: [a, ext],
+      transitions: [
+        { from: 'Child', to: 'External' },
+        { from: '[*]', to: 'A' },
+      ],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'A');
+    // headerLines/clusterHeaderHeight eligibility is unaffected by the
+    // needsZaentPoint threading -- the touched composite is STILL
+    // titleTableEligible (single-line title, no border points).
+    expect(comp?.clusterHeaderHeight).toBe(19);
+    // The extra top-level `[*]` node + its own edge into A's zaent anchor
+    // (a real structural difference, not just the margin delta) pushes A's
+    // own box measurably wider/taller/lower than the untouched case above.
+    expect(comp?.width).toBeCloseTo(119, 1);
+    expect(comp?.height).toBeCloseTo(109, 1);
+    expect(comp?.y).toBeCloseTo(51, 1);
   });
 });

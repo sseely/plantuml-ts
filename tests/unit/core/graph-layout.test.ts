@@ -148,3 +148,238 @@ describe('layoutGraph — defensive and option paths', () => {
     expect(r.nodes).toHaveLength(2);
   });
 });
+
+// G5 C2: graphviz-ts 0.1.26072115 landed `clusters` in getLayout()'s
+// snapshot (docs/graphviz-issues/06-cluster-bbox-not-in-getlayout.md,
+// RESOLVED note). layoutGraph() must thread the real cluster bbox back to
+// the caller, keyed by OUR OWN DotInputCluster.id (not graphviz-ts's
+// internal `cluster0`/`cluster1` name) — the seam consumers (state
+// composite pipeline, mechanism 16) never see graphviz-ts's naming scheme.
+describe('layoutGraph — cluster geometry (G5 C2, mechanism 16)', () => {
+  it('omits the clusters field when the input graph has no clusters', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a'), box('b')],
+      edges: [{ id: 'e0', from: 'a', to: 'b' }],
+    };
+    const r = layoutGraph(g);
+    expect(r.clusters).toBeUndefined();
+  });
+
+  it('exposes a real bbox for one cluster, keyed by the input cluster id', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a'), box('b')],
+      edges: [{ id: 'e0', from: 'a', to: 'b' }],
+      clusters: [{ id: 'grp1', nodeIds: ['a'] }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    expect(r.clusters).toHaveLength(1);
+    const c = r.clusters![0]!;
+    expect(c.id).toBe('grp1');
+    expect(c.width).toBeGreaterThan(0);
+    expect(c.height).toBeGreaterThan(0);
+    // Cluster margins wrap node 'a' -- its bbox must strictly contain
+    // (not merely touch) that node's own laid-out box.
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    expect(c.x).toBeLessThan(a.x);
+    expect(c.y).toBeLessThan(a.y);
+    expect(c.x + c.width).toBeGreaterThan(a.x + a.width);
+    expect(c.y + c.height).toBeGreaterThan(a.y + a.height);
+  });
+
+  it('exposes one entry per nested cluster, outer containing inner', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a'), box('b'), box('c')],
+      edges: [
+        { id: 'e0', from: 'a', to: 'b' },
+        { id: 'e1', from: 'b', to: 'c' },
+      ],
+      clusters: [
+        { id: 'outer', nodeIds: [] },
+        { id: 'inner', nodeIds: ['a', 'b'], parentId: 'outer' },
+      ],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    expect(r.clusters).toHaveLength(2);
+    const outer = r.clusters!.find((c) => c.id === 'outer')!;
+    const inner = r.clusters!.find((c) => c.id === 'inner')!;
+    expect(outer).toBeDefined();
+    expect(inner).toBeDefined();
+    expect(outer.x).toBeLessThanOrEqual(inner.x);
+    expect(outer.y).toBeLessThanOrEqual(inner.y);
+    expect(outer.x + outer.width).toBeGreaterThanOrEqual(inner.x + inner.width);
+    expect(outer.y + outer.height).toBeGreaterThanOrEqual(inner.y + inner.height);
+  });
+
+  it('rides the same origin-shift translation as nodes/edges, pinned exact', () => {
+    // graphviz's own cluster margin (8pt each side, its documented default)
+    // means the cluster box legitimately extends BEYOND the topmost/leftmost
+    // member node -- shiftToOrigin() deliberately derives its translation
+    // from nodes/edges alone (so pre-existing node/edge output stays
+    // byte-identical for every caller that ignores `clusters`) and applies
+    // that SAME translation to cluster boxes, which can therefore land at a
+    // small negative x/y. Pinned to the exact deterministic values (not a
+    // >=0 assumption, which does not hold for this real geometry) so a
+    // future regression in either the shift-sharing wiring OR the
+    // snapshot-to-id remapping fails loudly.
+    const g: DotInputGraph = {
+      nodes: [box('a'), box('b')],
+      edges: [{ id: 'e0', from: 'a', to: 'b' }],
+      clusters: [{ id: 'grp1', nodeIds: ['a', 'b'] }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const b = r.nodes.find((n) => n.id === 'b')!;
+    expect(a).toEqual({ id: 'a', x: 0, y: 0, width: 72, height: 36 });
+    expect(b).toEqual({ id: 'b', x: 0, y: 72, width: 72, height: 36 });
+    const c = r.clusters![0]!;
+    expect(c.x).toBeCloseTo(-8, 5);
+    expect(c.y).toBeCloseTo(-8, 5);
+    expect(c.width).toBeCloseTo(88, 5);
+    expect(c.height).toBeCloseTo(124, 5);
+  });
+});
+
+// G5 C3, mechanism 16 shape half: `titleTableWidth`/`titleTableHeight` feed
+// graphviz-ts's `setHtmlAttr` (docs/graphviz-issues/07's RESOLVED note) via
+// `addClusters`, so a cluster's own graphviz-reported bbox reflects jar's
+// real HTML `<TABLE FIXEDSIZE="TRUE" ...>` title reservation instead of the
+// prior plain-text `label` attr. Jar-calibrated numbers per the mission's own
+// derivation (`graph-layout.types.ts`'s `titleTableHeight` doc comment): a
+// FIXEDSIZE table HEIGHT=3 reserves exactly `nodeTop - clusterTop = 19` above
+// the first content rank -- the CONTENT-WIDTH-INDEPENDENT single-line-title
+// header gap G5 C3 confirmed on 132/134 real corpus cluster samples.
+describe('layoutGraph — cluster title-table label (G5 C3, mechanism 16 shape half)', () => {
+  it('reserves exactly HEIGHT+16 above the first content rank', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], titleTableWidth: 10, titleTableHeight: 3 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(a.y - c.y).toBeCloseTo(19, 5);
+  });
+
+  it('does not affect cluster width when content is already wider than the title', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], titleTableWidth: 5, titleTableHeight: 3 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    // Same as the no-label default-margin case (72 + 8*2) -- the narrow
+    // title does not force any extra width.
+    expect(c.width).toBeCloseTo(88, 5);
+  });
+
+  it('forces cluster width wider when the title table is wider than content+margin', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], titleTableWidth: 200, titleTableHeight: 3 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(c.width).toBeGreaterThan(200);
+  });
+
+  it('a cluster with no titleTableWidth/Height falls back to the plain label attr (unchanged)', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], label: 'plain text title' }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    // Plain-text label reservation is whatever graphviz's default label
+    // sizing computes for that string -- distinctly NOT the jar-calibrated
+    // 19px gap (regression guard: a future change must not silently start
+    // treating every cluster as title-table-eligible).
+    expect(a.y - c.y).not.toBeCloseTo(19, 5);
+  });
+});
+
+// G5 C7, mechanism 16 margin half: `innerMarginLevels` mirrors jar's
+// ClusterDotString "i"/"p1" protection-wrapper nesting -- each extra
+// `subgraph cluster*` level gets graphviz's own default CL_OFFSET(8pt)
+// margin around its children, compounding to jar's real 16px (1 level) or
+// 24px (2 levels) side/top/bottom margin between real content and the
+// drawn cluster boundary (DotInputCluster.innerMarginLevels's own doc
+// comment has the full jar-source derivation + corpus evidence).
+describe('layoutGraph — cluster inner margin levels (G5 C7, mechanism 16 margin half)', () => {
+  it('doubles the side margin (8px -> 16px) with innerMarginLevels: 1', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], innerMarginLevels: 1 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(a.x - c.x).toBeCloseTo(16, 5);
+    expect(c.x + c.width - (a.x + a.width)).toBeCloseTo(16, 5);
+    expect(a.y - c.y).toBeCloseTo(16, 5);
+    expect(c.y + c.height - (a.y + a.height)).toBeCloseTo(16, 5);
+  });
+
+  it('triples the side margin (8px -> 24px) with innerMarginLevels: 2', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], innerMarginLevels: 2 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(a.x - c.x).toBeCloseTo(24, 5);
+    expect(c.x + c.width - (a.x + a.width)).toBeCloseTo(24, 5);
+  });
+
+  it('a cluster with no innerMarginLevels keeps the bare 8px default (unchanged)', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'] }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(a.x - c.x).toBeCloseTo(8, 5);
+  });
+
+  it('unwrappedNodeId stays a direct child of the outer cluster (bare 8px margin) while the rest of nodeIds gets the deeper wrap', () => {
+    const g: DotInputGraph = {
+      nodes: [box('anchor'), box('a')],
+      edges: [{ id: 'e0', from: 'anchor', to: 'a' }],
+      clusters: [
+        {
+          id: 'grp1',
+          nodeIds: ['anchor', 'a'],
+          innerMarginLevels: 2,
+          unwrappedNodeId: 'anchor',
+        },
+      ],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const anchor = r.nodes.find((n) => n.id === 'anchor')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    // The anchor is the topmost node (edge anchor->a, TB rankdir) -- its own
+    // top margin from the cluster boundary is the SHALLOW unwrapped value,
+    // not the deep innerMarginLevels:2 value the wrapped 'a' node gets.
+    expect(anchor.y - c.y).toBeCloseTo(8, 5);
+  });
+});

@@ -205,10 +205,17 @@ function buildConcurrentBranchAcc(
   ctx: DiagramCtx,
 ): { acc: PassAccumulator; specs: GeoSpec[] } {
   const acc = newAccumulator();
-  const memberSpecs = states.map((c) => resolveMember(c, acc, ctx, undefined));
+  // G5 C3, mechanism 16 shape half: `insideAutonomPass` -- a concurrent
+  // region/branch is its OWN separately-fired pass (mirrors
+  // `buildPlainAutonomSpec`'s identical scoping, state-composite-
+  // autonom.ts's own doc comment) whose `result.width`/`height` feeds
+  // `measureAutonomWrapper`/`stackConcurrentRegions` -- the SAME class of
+  // ALREADY-PARKED floor-formula risk, deferred for the same reason.
+  const childCtx: DiagramCtx = { ...ctx, insideAutonomPass: true };
+  const memberSpecs = states.map((c) => resolveMember(c, acc, childCtx, undefined));
   const pseudoSpecs = addLocalPseudoNodes(scopeId, transitions, acc, ctx.pseudoCreationIndex);
-  addScopeNotes(noteScopeId, ctx, acc);
-  addLevelEdges(scopeId, transitions, acc, ctx);
+  addScopeNotes(noteScopeId, childCtx, acc);
+  addLevelEdges(scopeId, transitions, acc, childCtx);
   return { acc, specs: sortSpecsByCreationIndex([...pseudoSpecs, ...memberSpecs]) };
 }
 
