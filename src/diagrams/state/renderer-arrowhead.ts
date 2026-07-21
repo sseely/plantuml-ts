@@ -15,8 +15,32 @@
  * `class/renderer-arrowhead.ts#buildEdgeArrowheads`/`#edgeExtremityInk`,
  * not a full port.
  *
- * @see plans/g4-state-svg/ledger.md (S1, mechanism 3)
+ * mission G4 S15: `buildCircleEndMarkup`/`buildCrossStartMarkup` add the
+ * `-->o`/`x-->` decorations (`LinkDecor.ARROW_AND_CIRCLE`/`CIRCLE_CROSS`,
+ * `ExtremityArrowAndCircle.java`/`ExtremityCircleCross.java`) — ported as
+ * STATE-LOCAL pure functions over `core/svg.ts`'s `ellipse`/`line`
+ * primitives rather than extending `core/svek/extremity/link-decor.ts`'s
+ * `LinkDecorName` union (OUTSIDE this mission's write-set; that file's own
+ * doc comment already notes both decors are UNREACHABLE from the
+ * description-diagram grammar it serves, so extending it would be a
+ * cross-mission change). Derived empirically against the corpus's ONLY
+ * fixture exercising this syntax (`xexika-61-fedu273`, both edges) by
+ * reproducing `ExtremityArrowAndCircle`/`ExtremityFactoryArrowAndCircle`'s
+ * combined rotate/translate algebra (the factory pre-rotates `angle` by
+ * `-PI/2` before the constructor's own `+PI/2` re-adds it, net effect:
+ * IDENTICAL polygon shape/placement to the plain `ARROW` decor, translate
+ * origin = the RAW untrimmed endpoint, no extra offset) and
+ * `ExtremityCircleCross`'s `createUDrawable` (which drops the `angle`
+ * parameter entirely — the cross is always axis-aligned at literal
+ * ±45°/±135°, never rotated to the edge's own tangent). Both jar-verified
+ * byte-exact (ellipse/line coordinates, `fill`/`stroke`/`stroke-width`) —
+ * see `plans/g4-state-svg/ledger.md` S15 for the full numeric derivation.
+ *
+ * @see plans/g4-state-svg/ledger.md (S1 mechanism 3; S15 circle/cross)
  * @see class/renderer-arrowhead.ts (the class-engine precedent this mirrors)
+ * @see ~/git/plantuml/.../svek/extremity/ExtremityArrowAndCircle.java
+ * @see ~/git/plantuml/.../svek/extremity/ExtremityFactoryArrowAndCircle.java
+ * @see ~/git/plantuml/.../svek/extremity/ExtremityCircleCross.java
  */
 
 import type { Point2D } from '../../core/klimt/UTranslate.js';
@@ -32,6 +56,7 @@ import { LimitFinder } from '../../core/klimt/drawing/LimitFinder.js';
 import type { TransitionGeo } from './state-geo-types.js';
 import { XDimension2D } from '../../core/klimt/geom/XDimension2D.js';
 import type { StringBounder } from '../../core/klimt/font/StringBounder.js';
+import { ellipse, line } from '../../core/svg.js';
 
 /** Extremities never draw text (the ARROW decor is a pure shape) — exists
  *  only to satisfy `UGraphicSvg.build`'s required 4th parameter, mirroring
@@ -128,4 +153,60 @@ export function transitionArrowheadInk(transition: TransitionGeo): TransitionArr
   const finder = LimitFinder.create(INK_STRING_BOUNDER, false);
   place('ARROW', last, angle, 'none').drawable.drawU(finder);
   return { minX: finder.getMinX(), minY: finder.getMinY(), maxX: finder.getMaxX(), maxY: finder.getMaxY() };
+}
+
+// ---------------------------------------------------------------------------
+// mission G4 S15: `-->o`/`x-->` arrow decorations
+// ---------------------------------------------------------------------------
+
+/** `ExtremityArrowAndCircle`'s own `radius` field. */
+const CIRCLE_END_RADIUS = 5;
+/** Both decors' own `UStroke.withThickness(1.5)` circle stroke. */
+const DECOR_CIRCLE_STROKE_WIDTH = 1.5;
+/** `ExtremityCircleCross`'s own `radius` field. */
+const CROSS_START_RADIUS = 7;
+
+/**
+ * `LinkDecor.ARROW_AND_CIRCLE` (`-->o`) -- a background-filled `<ellipse>`
+ * centered at the transition's RAW (pre-trim) head endpoint, drawn AFTER
+ * the plain arrowhead polygon `buildTransitionArrowhead` already produces
+ * (same polygon shape/position -- see this module's own top doc comment
+ * for the rotate/translate derivation showing the two decors coincide).
+ * `''` when the transition has no points to anchor on, mirroring
+ * `buildTransitionArrowhead`'s own empty-points guard.
+ */
+export function buildCircleEndMarkup(transition: TransitionGeo, color: Paint, background: Paint): string {
+  const points = transition.points;
+  if (points.length === 0) return '';
+  const last = points[points.length - 1]!;
+  return ellipse(last.x, last.y, CIRCLE_END_RADIUS, CIRCLE_END_RADIUS, {
+    fill: background,
+    stroke: color,
+    'stroke-width': DECOR_CIRCLE_STROKE_WIDTH,
+  });
+}
+
+/**
+ * `LinkDecor.CIRCLE_CROSS` (`x-->`) -- a background-filled `<ellipse>` plus
+ * two diagonal `<line>`s forming an "X", centered at the transition's RAW
+ * (untrimmed) TAIL endpoint (`points[0]`). Jar-verified
+ * (`ExtremityFactoryCircleCross#createUDrawable`): the cross is ALWAYS
+ * axis-aligned at literal +-45deg/+-135deg -- the edge's own tangent
+ * `angle` is accepted by the factory but never read by the constructor it
+ * calls, so this decoration never rotates with the line direction, unlike
+ * every other extremity this module draws.
+ */
+export function buildCrossStartMarkup(transition: TransitionGeo, color: Paint, background: Paint): string {
+  const points = transition.points;
+  if (points.length === 0) return '';
+  const p = points[0]!;
+  const circle = ellipse(p.x, p.y, CROSS_START_RADIUS, CROSS_START_RADIUS, {
+    fill: background,
+    stroke: color,
+    'stroke-width': DECOR_CIRCLE_STROKE_WIDTH,
+  });
+  const d = CROSS_START_RADIUS * Math.SQRT1_2;
+  const diag1 = line(p.x + d, p.y + d, p.x - d, p.y - d, { stroke: color, strokeWidth: 1 });
+  const diag2 = line(p.x + d, p.y - d, p.x - d, p.y + d, { stroke: color, strokeWidth: 1 });
+  return circle + diag1 + diag2;
 }

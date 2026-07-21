@@ -190,6 +190,20 @@ export interface TransitionGeo {
   /** mission G4 S7 -- see `StateNodeGeo.creationIndex`'s own doc comment;
    *  same raw-value contract, sourced from `Transition.creationIndex`. */
   creationIndex?: number;
+  /**
+   * mission G4 S15: `Transition.crossStart`/`.circleEnd` (`x-->`/`-->o`
+   * arrow decorations, `LinkDecor.CIRCLE_CROSS`/`ARROW_AND_CIRCLE`),
+   * threaded through unchanged from the AST -- both pipelines
+   * (`layout.ts#buildFlatTransitionGeos`, `state-composite-pass.ts
+   * #buildLevelTransitionGeos`) already have the source `Transition` in
+   * scope where `TransitionGeo` is built, so this is a pure pass-through,
+   * consumed only by `renderer-arrowhead.ts#buildCircleEndMarkup`/
+   * `#buildCrossStartMarkup`. `undefined` for every ordinary transition
+   * (the overwhelming majority) and for a hand-built test geometry.
+   * @see plans/g4-state-svg/ledger.md (S15)
+   */
+  crossStart?: boolean;
+  circleEnd?: boolean;
 }
 
 export interface StateGeometry {

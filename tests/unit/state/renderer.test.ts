@@ -513,6 +513,45 @@ describe('renderState — transitions', () => {
     expect(result).toContain('C5,30 5,55 5,85'); // last two points shifted by the arrowhead trim
     expect(result).not.toContain('<path d="M5,10 L');
   });
+
+  // mission G4 S15: `-->o`/`x-->` decorations (`TransitionGeo.circleEnd`/
+  // `.crossStart`) -- jar-verified against xexika-61-fedu273 (see
+  // renderer-arrowhead-decor.test.ts for the pure-function geometry tests;
+  // these cover the FULL `renderState` wiring: dispatch, draw order, and
+  // the `Link#idCommentForSvg` id-separator rule).
+  it('circleEnd draws an ellipse AFTER the arrowhead polygon, using -to- in the path id', () => {
+    const t = makeTransition({ circleEnd: true });
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).toContain('id="A-to-B"');
+    const polygonIdx = result.indexOf('<polygon');
+    const ellipseIdx = result.indexOf('<ellipse');
+    expect(polygonIdx).toBeGreaterThan(-1);
+    expect(ellipseIdx).toBeGreaterThan(polygonIdx);
+  });
+
+  it('crossStart draws an ellipse+lines BEFORE the arrowhead polygon, collapsing the id separator to a bare dash', () => {
+    const t = makeTransition({ crossStart: true });
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    // `looksLikeNoDecorAtAllSvg`: a plain forward transition's head decor
+    // (ARROW) is always non-NONE, so a non-NONE tail decor (crossStart)
+    // makes BOTH sides non-NONE -- jar collapses to "A-B", not "A-to-B".
+    expect(result).toContain('id="A-B"');
+    expect(result).not.toContain('id="A-to-B"');
+    const ellipseIdx = result.indexOf('<ellipse');
+    const polygonIdx = result.indexOf('<polygon');
+    expect(ellipseIdx).toBeGreaterThan(-1);
+    expect(polygonIdx).toBeGreaterThan(ellipseIdx);
+  });
+
+  it('neither decoration flag draws no extra ellipse/line markup', () => {
+    const t = makeTransition();
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).not.toContain('<ellipse');
+    expect(result).toContain('id="A-to-B"');
+  });
 });
 
 // ---------------------------------------------------------------------------

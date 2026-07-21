@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-21T05:20:06.721Z",
+  "generatedAt": "2026-07-21T06:51:53.167Z",
   "fixtures": [
     {
       "slug": "bajelo-54-dixe684",
@@ -22,7 +22,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 55.874000000000024,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@fill",
+      "firstDiff": "svg/g[1]/g[3][childCount]",
       "maxDeltaPath": "svg/g[1]/g[5]/text[1]/@y"
     },
     {
@@ -954,7 +954,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 43.5005,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@fill",
+      "firstDiff": "svg/g[1]/g[1]/text[1]/@font-size",
       "maxDeltaPath": "svg/g[1]/g[1]/rect[1]/@width"
     },
     {
@@ -1927,9 +1927,9 @@
       "type": "state",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 10.005000000000052,
+      "maxDelta": 17.858000000000004,
       "firstDiff": "svg/g[1]/g[1][childCount]",
-      "maxDeltaPath": "svg/g[1]/g[4]/text[1]/@x"
+      "maxDeltaPath": "svg/g[1]/g[11]/path[1]/@d[2]"
     },
     {
       "slug": "vinujo-20-kugi617",
@@ -2054,9 +2054,9 @@
       "slug": "xexika-61-fedu273",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[3][childCount]"
+      "verdict": "structural-match",
+      "maxDelta": 7.709099999999999,
+      "maxDeltaPath": "svg/g[1]/g[4]/path[1]/@d[0]"
     },
     {
       "slug": "xeziki-47-zomo866",

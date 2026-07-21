@@ -36,7 +36,7 @@
 import type { StateNodeGeo, StateTextLine } from './state-geo-types.js';
 import type { Theme } from '../../core/theme.js';
 import { rect, line, text, path } from '../../core/svg.js';
-import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFillBucketed, resolveStateBorder, textAscent } from './state-render-colors.js';
+import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFillBucketed, resolveStateBorder, resolveStateFontColor, textAscent } from './state-render-colors.js';
 import { javaRound4 } from '../../core/number-format.js';
 
 const STATE_BOX_RX = 12.5;
@@ -54,11 +54,16 @@ function renderTextLines(
   xForLine: (ln: StateTextLine) => number,
   startY: number,
   theme: Theme,
+  // mission G4 S15: `skinparam stateFontColor<<X>>` -- see
+  // `state-render-colors.ts#resolveStateFontColor`'s own doc comment.
+  // Defaults to jar's own hardcoded `#000000` label-text default (every
+  // pre-S15 call site's unchanged behavior).
+  fill: string = '#000000',
 ): string {
   let out = '';
   lines.forEach((ln, i) => {
     out += text(xForLine(ln), startY + i * theme.fontSize, ln.text, {
-      fill: '#000000',
+      fill,
       fontFamily: theme.fontFamily,
       fontSize: theme.fontSize,
       lengthAdjust: 'spacing',
@@ -197,11 +202,15 @@ export function renderNormal(node: StateNodeGeo, theme: Theme): string {
   }
 
   const ascent = textAscent(theme.fontSize);
+  // mission G4 S15: `StateFontColor<<X>>` cascade -- see
+  // `resolveStateFontColor`'s own doc comment.
+  const fontColor = resolveStateFontColor(node, theme, '#000000');
   const headerMarkup = renderTextLines(
     node.headerLines,
     (ln) => node.x + node.width / 2 - ln.width / 2,
     node.y + MARGIN + ascent,
     theme,
+    fontColor,
   );
 
   const dividerY = node.y + MARGIN + node.headerLines.length * theme.fontSize + MARGIN_LINE;
@@ -211,7 +220,7 @@ export function renderNormal(node: StateNodeGeo, theme: Theme): string {
   });
 
   const bodyLines = node.bodyLines ?? [];
-  const bodyMarkup = renderTextLines(bodyLines, () => node.x + MARGIN, dividerY + MARGIN_LINE + ascent, theme);
+  const bodyMarkup = renderTextLines(bodyLines, () => node.x + MARGIN, dividerY + MARGIN_LINE + ascent, theme, fontColor);
 
   return box + divider + headerMarkup + bodyMarkup;
 }

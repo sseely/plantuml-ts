@@ -73,6 +73,8 @@ dot-sync-report (frozen) · class census (294 set intact) · object census
 | S13 | Re-landed the fenced item (edge-label real-size HTML injection, independently re-verified) exactly per S12's own derivation, TDD-first, then attempted THREE distinct label-ink formulas for the adjacent `buildPlainAutonomSpec` ink-under-count floor (full box from the render-position approximation; full box from graphviz's REAL computed label position, threaded as a NEW separate `TransitionGeo.labelInk` field; the same box halved) -- each jar-verified against a 10-fixture control set (the 6-fixture `0.244904in` multi-edge family, the `bunade`/`beguxu` S4 pair, 3 large-pre-existing-gap controls) via a disposable delta-measurement script. Variant 1 fixed the multi-edge family but regressed 10 previously-fine fixtures; Variant 2 fixed NONE of the 13 originally-failing fixtures while introducing a NEW regression (`zacajo-09-tamu628`, concurrent regions, PASS->FAIL); Variant 3 fixed `bemena` but broke `bunade` and worsened `zacajo` further -- no formula net-improved. Root-caused the instability (jar-verified via `bemena-23-zebu249`'s own cached golden SVG `<text>` element) to TWO compounding gaps: jar's real `SvekEdge.java` label placement is NOT simply "centered on graphviz's own virtual label-node position" (a genuine positional divergence, not yet characterized exactly), AND this port's own `StringMeasurer` measures at least "EvNewValueSaved" ~7% WIDER than jar's real Java font metrics (a NEW, likely cross-diagram-type calibration gap) -- the same measured width feeds both graphviz's label-reservation position AND any ink-box formula, compounding the error. This is the mission's THIRD independent attempt at this mechanism (S4, S12, S13) to hit the same wall. Per protocol ("if the final state widens ANY entry [or flips PASS to FAIL], revert both and report"), REVERTED (a)+(b) in full back to the exact S12 HEAD commit (9 touched files restored via `git show HEAD:`, 4 created files deleted, `git status --short`/`git diff --stat` verified EMPTY) -- `npm test -- --run` 10053/10053 (identical to S12), `state-dot-parity.test.ts` 268/268, all 4 censuses and the DOT gate re-verified fresh and IDENTICAL to S12. Census: `46/271` -> `46/271` zero-diff, unchanged (same SET, 0 new pins, 0 regressions). See `plans/g4-state-svg/ledger.md` S13 for the full 3-variant derivation, the jar-verified root-cause numeric evidence, the attribution table, and the S14+ queue (item 1: close the text-measurement calibration gap FIRST; item 2: either port `SvekEdge.java`'s real label-placement algorithm or re-attempt the geometric-box formula only after item 1 lands). | done |
 | S14 | Landed mechanism 25 (CONC-region bare-name global numbering, `net.atmp.CucaDiagram#cpt2` -- a SEPARATE diagram-wide counter from `cpt1`, ticking once per `--`/`||` separator in document order regardless of owning composite) as an ADDITIVE translation table (`ParseState.concurrentGlobalIds` -> `StateDiagramAST.concurrentGlobalIds` -> `StateGeometry.concurrentGlobalIds`, consumed only by `renderer.ts#localScopeName`) rather than changing the internal `concurrentRegionScopeId` dedup key itself (load-bearing for 4 other internal lookups) -- jar-verified byte-exact against both named target fixtures (`lalava-26-zosi801`, `tegali-39-molu382`). Also landed mechanism 26 (`<<sdlreceive>>` folded-frame shape, `EntityImageState2`/`USymbolFrame#drawFrame`): a NEW `renderer-box.ts#renderSdlReceive` (unwrapped box + fold-notch `<path>` + top-left-anchored, NOT centered, label) plus a corrected `state-sizing.ts#measureSdlReceive` width formula (traced `BodyEnhanced1#getMarginX()=6` LEFT+RIGHT instead of the S9-era "unverified, off by ~12pt" placeholder) -- jar-verified byte-exact against `cekolo-21-gini183`. Sampled all 27 fixtures from the 1-3 bucket plus 15 from 4-10 BEFORE fixing anything (full attribution table, ledger S14): confirmed 5 of the 27 (`decede`/`lasasi`/`soxene`/`tofezi`/`xojudi`) are actually mechanism-16-blocked (entity-vs-cluster wrap), not the `<style>` blocks they also carry; diagnosed in full but explicitly did NOT land (unverifiable or genuinely larger-than-"cheap", diagnosis.md discipline): composite-scoped notes (all 4 known fixtures still cross-blocked by unrelated mechanisms), `maruju-55-soko478`'s json-table content (zero row-drawing infra exists), the `<style>` cascade family's TWO sub-mechanisms (`stateDiagram`-ancestor tier; cross-diagram-type `activityBar{.fork/.join}` + `arrow{LineColor/HeadColor}`), and `stateBackgroundColor<<X>>`/`FontColor`/`FontSize` (`laferu-31-tice836` -- FontSize alone requires layout-time measurement threading, not a render-time swap). Also newly named 2 previously-unseen mechanisms (`<<entrypoint>>`/`<<exitpoint>>` pseudostates, `o-->`/`x-->` special arrowhead endpoints) and re-confirmed `buildConcurrentRegionLeaf`'s own `creationIndex` gap is UNAFFECTED by mechanism 25 (a different mechanism: id VALUE vs region NAME). A mid-iteration `svg-parity-survey.ts` tooling incident (overlapping same-output-file background invocations under heavy system load produced false-alarm timeout counts, 18-54, on two attempts) was diagnosed with no code impact -- resolved via a clean single, uncontended re-run (`SVG_PARITY_TIMEOUT_MS=30000 SVG_PARITY_CONCURRENCY=2`), confirmed against the reliable single-process `svg-conformance-census.ts`'s consistent 49/271 throughout. Census: `46/271` -> `49/271` zero-diff (`1-3:27->22, 4-10:127->127, 11-30:26->26, 31+:45->47`), +3 new pins (`lalava-26-zosi801`, `tegali-39-molu382`, `cekolo-21-gini183`), 0 regressed, ratchet now 51 tests (49 pins). See `plans/g4-state-svg/ledger.md` S14 for the full attribution table, both mechanism derivations, the deferred-item assessments, and the S15+ queue. | done |
 
+| S15 | Landed mechanism 27 (`-->o`/`x-->` arrow decorations, `ExtremityArrowAndCircle`/`ExtremityCircleCross`, jar-verified against the corpus's only fixture `xexika-61-fedu273`, both edges) in full -- machinery correct (TDD, non-regressing) but 0 net pins: landing it unmasked a NEW, pre-existing self-loop/short-edge spline `path/@d` delta (2-8 units, not root-caused, named mechanism 27's own remainder) on the SAME fixture, cross-blocking it from zero. Also landed mechanism 28 (`stateBackgroundColor<<X>>`/`stateFontColor<<X>>` stereotype-qualified skinparam, mirroring S9's `StateBorderColor<<X>>` precedent exactly) -- also 0 net pins (`laferu-31-tice836`, the one known fixture, still needs `stateFontSize<<X>>`, a materially larger layout-time change, explicitly excluded). Sampled the FULL `<<entrypoint>>`/`<<exitpoint>>` corpus family (20 fixtures, not just the 1 S14 sampled) and CONFIRMED it is cross-blocked by parked mechanism 16 on every single one (`state-composite-detect.ts#hasBorderPointDescendant` unconditionally disqualifies the owning composite from autonom whenever a border-point descendant exists, forcing the non-autonom `cluster` render path, which hits mechanism 16's own dashed-rect placeholder) -- correctly deferred without attempting the render shape (fully pre-derived and documented for whenever mechanism 16 lands). Confirmed the `<style>` cascade family (`activityBar {.fork/.join}`, `arrow {LineColor/HeadColor}`) is WRITE-SET BLOCKED, not merely "not cheap": traced the exact injection point (`core/style-map-theme.ts#applyStyleMap`, the ONLY place any diagram-type `<style>` selector gets merged into `theme`) and confirmed that file is outside this mission's write-set -- a sharper diagnosis than S14's own framing. Re-confirmed composite-scoped notes (4 known fixtures, still cross-blocked by unrelated mechanisms each) and root-caused `maruju-55-soko478`'s json-table content to full shape precision (rx=2.5 box + title + 2 dividers + per-cell key/value text) without landing it (genuinely new feature, `MeasuredJsonState` lacks per-row layout data). A tooling incident (two overlapping `svg-parity-survey.ts` background invocations racing on the same output file, the SAME S9/S14-documented hazard) was diagnosed and resolved with no code impact (`pkill` + one clean single re-run; `svg-conformance-census.ts`, which does not depend on that file, was the authoritative source for every census number this iteration). Census: `49/271` -> `49/271` zero-diff, unchanged (same 49-fixture SET, 0 new pins, 0 regressions), ratchet still 51 tests (49 pins). See `plans/g4-state-svg/ledger.md` S15 for the full attribution table, both mechanism derivations, the mechanism-16 cross-block confirmation, the write-set-blocked confirmation, and the S16+ queue. | done |
+
 ## Standing rules
 
 Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
@@ -88,11 +90,11 @@ parallel implementation. graphviz-ts findings go in
 `getLayout()`) applies. Complexity playbook, TDD, ledger:
 `plans/g4-state-svg/ledger.md`.
 
-## Gates (S14, final)
+## Gates (S15, final)
 
 - `state` census: **49/271** zero-diff (`1-3:22, 4-10:127, 11-30:26, 31+:47,
-  errors:0`) — the 46 S13 pins plus 3 new: `lalava-26-zosi801`,
-  `tegali-39-molu382`, `cekolo-21-gini183`.
+  errors:0`) — SAME 49-fixture set as S14, unchanged (byte-verified
+  against `oracle/goldens/svg-state/ratchet.json`'s own 49 entries).
 - Class census: **303/718**, intact, unchanged.
 - Object census: **22/80**, intact, unchanged.
 - Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
@@ -102,97 +104,90 @@ parallel implementation. graphviz-ts findings go in
 - `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing at
   both the START and END of this iteration (neither landed mechanism
   touches a sizing formula).
-- `npm test -- --run`: **10066/10066** passing (372 files), up from
-  10053/10053 (+13: 5 CONC-global-id tests, 5 sdlreceive tests, +3 new
-  ratchet AC1 tests). `npm run typecheck` / `npm run lint`: both clean.
-- `state.golden.ratchet.test.ts`: **51 tests** (49 pins), up from 48 (46
-  pins).
+- `npm test -- --run`: **10089/10089** passing (374 files), up from
+  10078/10078. `npm run typecheck` / `npm run lint`: both clean.
+- `state.golden.ratchet.test.ts`: **51 tests** (49 pins), unchanged from
+  S14.
 
-## Mission status (S14, 2026-07-21)
+## Mission status (S15, 2026-07-21)
 
-**OPEN.** Landed mechanism 25 (CONC-region bare-name global numbering,
-`net.atmp.CucaDiagram#cpt2` — a SEPARATE diagram-wide counter from `cpt1`,
-ticking once per `--`/`||` separator in document order regardless of
-owning composite) as an ADDITIVE translation table
-(`ParseState.concurrentGlobalIds` → `StateDiagramAST.concurrentGlobalIds` →
-`StateGeometry.concurrentGlobalIds`, consumed only by
-`renderer.ts#localScopeName`) rather than changing the internal
-`concurrentRegionScopeId` dedup key itself (load-bearing for 4 other
-internal lookups: `ctx.resolvedRegions` map keys, `__init_`/`__final_`
-scoped pseudo-anchor ids, `noteScopeId`) — jar-verified byte-exact against
-both named target fixtures (`lalava-26-zosi801`, `tegali-39-molu382`).
+**OPEN.** Landed mechanism 27 (`-->o`/`x-->` arrow decorations,
+`ExtremityArrowAndCircle`/`ExtremityCircleCross`) in full: the parser
+ALREADY captured `Transition.crossStart`/`.circleEnd` (a prior mission,
+unused downstream) — threaded both fields onto `TransitionGeo` (both the
+flat AND composite pipelines), then derived the exact rendered geometry
+from Java source + byte-verified against the corpus's ONLY fixture
+(`xexika-61-fedu273`, both edges): `circleEnd` draws a background-filled
+`<ellipse rx="5">` at the transition's RAW head endpoint AFTER the
+existing (unchanged) arrowhead polygon; `crossStart` draws a
+background-filled `<ellipse rx="7">` plus two fixed-±45deg diagonal lines
+at the RAW tail endpoint BEFORE the head arrowhead, with zero path trim.
+Landing it also surfaced and fixed a THIRD bug in the same area
+(`Link#idCommentForSvg`'s `-to-`-vs-`-` id-separator rule: a non-NONE tail
+decor collapses the separator to a bare `-`). The machinery is correct,
+TDD, non-regressing — but produces **0 net pins**: fixing `xexika`'s own
+`childCount` gap unmasked a NEW, pre-existing self-loop/short-edge spline
+`path/@d` delta (2-8 units) on the SAME fixture, not root-caused this
+iteration (named mechanism 27's own remainder, deferred — no second
+self-loop sample currently near-zero to triangulate against).
 
-Also landed mechanism 26 (`<<sdlreceive>>` folded-frame shape,
-`EntityImageState2`/`USymbolFrame#drawFrame`): a NEW `renderer-box.ts
-#renderSdlReceive` (unwrapped box, no divider, a fold-notch `<path>`
-derived from `USymbolFrame#drawFrame`'s `dimTitle.getWidth()===0` branch —
-`textWidth=width/3, cornersize=7, textHeight=12` — and a top-left-anchored,
-NOT centered, label) plus a corrected `state-sizing.ts#measureSdlReceive`
-width formula (traced `BodyEnhanced1#getMarginX()=6`, applied LEFT+RIGHT,
-instead of the S9-era "unverified, off by ~12pt" placeholder). Jar-verified
-byte-exact against `cekolo-21-gini183`.
+Also landed mechanism 28 (`stateBackgroundColor<<X>>`/`stateFontColor<<X>>`
+stereotype-qualified skinparam), mirroring S9's `StateBorderColor<<X>>`
+mechanism exactly (`core/skinparam.ts` two new regexes/accumulators;
+`theme.ts` two new `colors.graph` fields; `state-render-colors.ts` a new
+precedence tier in `resolveStateFillBucketed` + a new `resolveStateFontColor`
+sibling; `renderer-box.ts#renderNormal` wires both). Also **0 net pins**:
+`laferu-31-tice836` (the one known fixture) is jar-verified correct on
+BackgroundColor+FontColor now, but still needs `stateFontSize<<X>>` (a
+materially larger, explicitly-deferred `state-sizing.ts` layout-time
+threading change) to reach zero.
 
-Per this iteration's own task order, sampled all 27 fixtures from the 1-3
-bucket plus 15 from the 4-10 bucket BEFORE fixing anything (full
-attribution table, `ledger.md` S14) — this surfaced that 5 of the 27
-(`decede`/`lasasi`/`soxene`/`tofezi`/`xojudi`) are actually
-mechanism-16-blocked (entity-vs-cluster wrap, confirmed via a direct
-`<g>`-tree structural dump), not blocked by the `<style>` blocks they also
-happen to carry, correctly keeping them out of scope per this iteration's
-own explicit instruction not to attempt mechanism 16.
+Per this iteration's own task order, sampled the FULL `<<entrypoint>>`/
+`<<exitpoint>>` corpus family (20 fixtures — S14 had only sampled 1) and
+CONFIRMED via direct code read + a render probe that ALL 20 are
+cross-blocked by the explicitly PARKED mechanism 16
+(`state-composite-detect.ts#hasBorderPointDescendant` unconditionally
+disqualifies the owning composite from `autonom`, forcing the
+non-autonom `cluster` render path, which hits mechanism 16's own
+dashed-rect placeholder fallback) — correctly deferred WITHOUT attempting
+the render shape, which is nonetheless fully pre-derived and documented
+(`ledger.md` S15) for whenever mechanism 16 eventually lands.
+
+Also confirmed the `<style>` cascade family (`activityBar {.fork/.join}`,
+`arrow {LineColor/HeadColor}`) is **WRITE-SET BLOCKED**, a sharper
+diagnosis than S14's own "genuinely new subsystem" framing: traced the
+exact injection point (`core/style-map-theme.ts#applyStyleMap` is the
+ONLY place any diagram-type-specific `<style>` selector gets merged into
+`theme` — json/yaml/hcl's own `arrow`/separator overrides are each a
+hardcoded `if` block there, no generic dispatch exists) and confirmed that
+file is OUTSIDE this mission's write-set (`skinparam.ts`/`theme.ts`/
+`style-map-element.ts` ARE, `style-map-theme.ts` is not).
 
 Diagnosed in full but explicitly did NOT land (per diagnosis.md's evidence
-requirement — landing any of these would be either unverifiable against the
-current corpus or genuinely larger than "cheap"):
+requirement):
 
-- **Composite-scoped notes** (S10/S12 item 4) — the exact injection points
-  remain correctly named, but a fresh per-fixture check confirms all 4
-  known fixtures are STILL cross-blocked by a separate, unrelated mechanism
-  each (note-on-link ×2 — parked; 3-level concurrent nesting; hyperlinks).
-- **`maruju-55-soko478`'s json-table content** — root-caused precisely
-  (`renderJson` reuses `renderNormal` verbatim, zero row-drawing infra) but
-  a genuinely new multi-hour feature, comparable in scope to the
-  notes/composite-box mechanisms.
-- **The `<style>` cascade family** — TWO independent, both-unbuilt
-  sub-mechanisms confirmed: the `stateDiagram`-ancestor tier
-  (`RoundCorner`/`Shadowing`/`BackgroundColor`/`LineColor`/`FontColor`) and
-  the cross-diagram-type `activityBar{.fork/.join}` + `arrow{LineColor/
-  HeadColor}` selectors — both mirror class's dedicated 200+-line
-  `style-cascade-class.ts`, OUTSIDE this mission's write-set; building an
-  equivalent state-only subsystem is a new cascade resolver, not an
-  extension.
-- **`stateBackgroundColor<<X>>`/`FontColor`/`FontSize`**
-  (`laferu-31-tice836`) — re-diagnosed sharper than S9's queue framing:
-  `FontSize` changes MEASURED text width/box size, a layout-time change
-  (threading a per-state font-size override through `state-sizing.ts`'s
-  measurement functions), not a render-time color swap — the three fields
-  are load-bearing together, not independently landable.
+- **Composite-scoped notes** (S10/S12/S14 item 4) — re-confirmed fresh,
+  all 4 known fixtures still cross-blocked by a separate mechanism each
+  (note-on-link ×2 — parked; 3-level concurrent nesting; hyperlinks),
+  unchanged from S14.
+- **`maruju-55-soko478`'s json-table content** — root-caused to FULL shape
+  precision this iteration (rx=2.5 box + title + 2 dividers + per-cell
+  key/value text; `state-json-sizing.ts#MeasuredJsonState` already exists
+  for DOT sizing but exposes no per-row layout data) — still a genuinely
+  new multi-hour feature.
 
-Also newly named 2 previously-unseen mechanisms
-(`<<entrypoint>>`/`<<exitpoint>>` pseudostates, `lulozu-10-bopu547`;
-`o-->`/`x-->` special arrowhead endpoints, `xexika-61-fedu273`) and
-re-confirmed `buildConcurrentRegionLeaf`'s own `creationIndex` gap is
-UNAFFECTED by mechanism 25 (a genuinely different mechanism: id VALUE vs.
-region NAME — re-sampled both known fixtures fresh after mechanism 25
-landed, neither unmasked).
+A mid-iteration `svg-parity-survey.ts` tooling incident (the SAME
+S9/S14-documented hazard: overlapping background invocations racing on
+the same `--out` path) recurred TWICE and was resolved both times with no
+code impact (`pkill` + `git status --short` verification that no partial
+write occurred + one clean single re-run); `svg-conformance-census.ts`
+(independent of that file) was the authoritative source for every census
+number this iteration.
 
-A mid-iteration `svg-parity-survey.ts` tooling incident (overlapping
-same-output-file background invocations, launched while diagnosing the
-Bash tool's own background/foreground timing, produced false-alarm timeout
-counts — 18, then 54, on two successive attempts under heavy concurrent
-system load) was diagnosed with NO code impact: confirmed against the
-reliable, single-process `svg-conformance-census.ts`, which consistently
-reported 49/271 throughout every attempt, then resolved with a clean,
-single, uncontended re-run (`SVG_PARITY_TIMEOUT_MS=30000
-SVG_PARITY_CONCURRENCY=2`), which reproduced 49 conformant / 0 timeouts.
-
-Census: 46/271 → **49/271** zero-diff (`1-3:27→22, 4-10:127→127,
-11-30:26→26, 31+:45→47`), +3 new pins (`lalava-26-zosi801`,
-`tegali-39-molu382`, `cekolo-21-gini183`), 0 regressed, all 4 censuses and
-the DOT gate re-verified fresh. See `plans/g4-state-svg/ledger.md` S14 for
-the full attribution table (27+15 sampled fixtures), both mechanism
-derivations, the deferred-item assessments, and the S15+ queue (item 1:
-the `<style>` cascade `activityBar`/`arrow` sub-family, `koguvo-74-kubo455`
-and `nanozi-96-foda024` — both ISOLATED, single-mechanism targets, unlike
-the `stateDiagram`-ancestor tier's 5 known fixtures which are ALL
-independently blocked by mechanism 16 or lack a clean isolated target).
+Census: 49/271 → **49/271** zero-diff, unchanged (SAME 49-fixture set, 0
+new pins, 0 regressed), all 4 censuses and the DOT gate re-verified fresh.
+See `plans/g4-state-svg/ledger.md` S15 for the full attribution table,
+both mechanism derivations, the mechanism-16 cross-block confirmation, the
+write-set-blocked confirmation, and the S16+ queue (item 1: mechanism 27's
+own self-loop spline remainder; item 6: `stateFontSize<<X>>`, which alone
+would zero `laferu-31-tice836`).

@@ -458,6 +458,56 @@ describe('layoutState — transition without label', () => {
 });
 
 // ---------------------------------------------------------------------------
+// mission G4 S15: crossStart/circleEnd threading (flat pipeline)
+// ---------------------------------------------------------------------------
+
+describe('layoutState — crossStart/circleEnd threading (mission G4 S15)', () => {
+  it('threads Transition.circleEnd onto TransitionGeo.circleEnd', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('A'), makeState('B')],
+      transitions: [makeTransition('A', 'B', { circleEnd: true })],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.transitions[0]?.circleEnd).toBe(true);
+    expect(result.transitions[0]?.crossStart).toBeUndefined();
+  });
+
+  it('threads Transition.crossStart onto TransitionGeo.crossStart', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('A'), makeState('B')],
+      transitions: [makeTransition('A', 'B', { crossStart: true })],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.transitions[0]?.crossStart).toBe(true);
+    expect(result.transitions[0]?.circleEnd).toBeUndefined();
+  });
+
+  it('an ordinary transition carries neither flag', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('A'), makeState('B')],
+      transitions: [makeTransition('A', 'B')],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.transitions[0]?.crossStart).toBeUndefined();
+    expect(result.transitions[0]?.circleEnd).toBeUndefined();
+  });
+
+  it('threads circleEnd/crossStart through the COMPOSITE pipeline too (an inner transition owned by a composite)', () => {
+    const child1 = makeState('D1');
+    const child2 = makeState('D2');
+    const composite = makeState('DOuter', {
+      children: [child1, child2],
+      transitions: [makeTransition('D1', 'D2', { circleEnd: true })],
+    });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const outer = result.states.find((s) => s.id === 'DOuter');
+    const innerT = outer?.transitions.find((tr) => tr.from === 'D1');
+    expect(innerT?.circleEnd).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Pseudostate fixed sizes
 // ---------------------------------------------------------------------------
 

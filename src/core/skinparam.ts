@@ -309,6 +309,14 @@ const CLASS_BORDER_THICKNESS_STEREO_RE = new RegExp('^classborderthickness<<(.+)
 // S9's own queue).
 const STATE_BORDER_COLOR_STEREO_RE = new RegExp('^statebordercolor<<(.+)>>$');
 
+// mission G4 S15: `skinparam stateBackgroundColor<<stereo>> #X` /
+// `skinparam stateFontColor<<stereo>> #X` -- same direct-value-lookup shape
+// as `STATE_BORDER_COLOR_STEREO_RE` above, see `theme.ts
+// #stateBackgroundColorByStereo`'s own doc comment for the precedence tier
+// and the FontSize<<X>> exclusion rationale.
+const STATE_BACKGROUND_COLOR_STEREO_RE = new RegExp('^statebackgroundcolor<<(.+)>>$');
+const STATE_FONT_COLOR_STEREO_RE = new RegExp('^statefontcolor<<(.+)>>$');
+
 export function resolveSkinparam(
   skinparams: ReadonlyMap<string, string>,
   base: Theme,
@@ -373,6 +381,10 @@ export function resolveSkinparam(
   // G4 S9: `stateBorderColor<<X>>` -- accumulated OUTSIDE the main switch,
   // same shape as `classBorderThicknessByStereo` above.
   let stateBorderColorByStereo: Record<string, string> | undefined;
+  // mission G4 S15: `stateBackgroundColor<<X>>`/`stateFontColor<<X>>` --
+  // same accumulation shape as `stateBorderColorByStereo` above.
+  let stateBackgroundColorByStereo: Record<string, string> | undefined;
+  let stateFontColorByStereo: Record<string, string> | undefined;
   // G2 N51: `arrowThickness` -- the class-edge default stroke-width (see
   // `theme.ts#arrowThickness`'s doc comment).
   let arrowThickness: number | undefined;
@@ -466,6 +478,8 @@ export function resolveSkinparam(
     if (key.includes('<<')) {
       const stereoMatch = CLASS_BORDER_THICKNESS_STEREO_RE.exec(key);
       const stateBorderStereoMatch = STATE_BORDER_COLOR_STEREO_RE.exec(key);
+      const stateBackgroundStereoMatch = STATE_BACKGROUND_COLOR_STEREO_RE.exec(key);
+      const stateFontStereoMatch = STATE_FONT_COLOR_STEREO_RE.exec(key);
       if (stereoMatch !== null) {
         const v = Number.parseFloat(value.trim());
         if (Number.isFinite(v)) {
@@ -477,6 +491,14 @@ export function resolveSkinparam(
         const stereo = stateBorderStereoMatch[1]!.trim();
         stateBorderColorByStereo ??= {};
         stateBorderColorByStereo[stereo] = resolveColor(value);
+      } else if (stateBackgroundStereoMatch !== null) {
+        const stereo = stateBackgroundStereoMatch[1]!.trim();
+        stateBackgroundColorByStereo ??= {};
+        stateBackgroundColorByStereo[stereo] = resolveColor(value);
+      } else if (stateFontStereoMatch !== null) {
+        const stereo = stateFontStereoMatch[1]!.trim();
+        stateFontColorByStereo ??= {};
+        stateFontColorByStereo[stereo] = resolveColor(value);
       } else {
         unknown.push(key);
       }
@@ -818,6 +840,8 @@ export function resolveSkinparam(
     classBorderThickness !== undefined ||
     classBorderThicknessByStereo !== undefined ||
     stateBorderColorByStereo !== undefined ||
+    stateBackgroundColorByStereo !== undefined ||
+    stateFontColorByStereo !== undefined ||
     arrowThickness !== undefined ||
     classAttributeFontSize !== undefined ||
     classAttributeFontFamily !== undefined ||
@@ -898,6 +922,10 @@ export function resolveSkinparam(
       graphOverride.classBorderThicknessByStereo = classBorderThicknessByStereo;
     if (stateBorderColorByStereo !== undefined)
       graphOverride.stateBorderColorByStereo = stateBorderColorByStereo;
+    if (stateBackgroundColorByStereo !== undefined)
+      graphOverride.stateBackgroundColorByStereo = stateBackgroundColorByStereo;
+    if (stateFontColorByStereo !== undefined)
+      graphOverride.stateFontColorByStereo = stateFontColorByStereo;
     if (arrowThickness !== undefined) graphOverride.arrowThickness = arrowThickness;
     if (classAttributeFontSize !== undefined)
       graphOverride.classAttributeFontSize = classAttributeFontSize;

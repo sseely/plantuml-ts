@@ -28,7 +28,7 @@ import { INITIAL_ID, FINAL_ID } from './state-dot-graph.js';
 import { buildStateUidPlan } from './renderer-uid.js';
 import type { StateUidPlan } from './renderer-uid.js';
 import { wrapEntity, wrapStartEntity, wrapEndEntity, wrapLink } from './renderer-group.js';
-import { buildTransitionArrowhead, applyHeadTrim } from './renderer-arrowhead.js';
+import { buildTransitionArrowhead, applyHeadTrim, buildCircleEndMarkup, buildCrossStartMarkup } from './renderer-arrowhead.js';
 import {
   renderInitial,
   renderFinal,
@@ -326,7 +326,12 @@ function localScopeName(scopeId: string, concurrentGlobalIds: ReadonlyMap<string
  *  mechanism 3: inline `<polygon>` arrowhead instead of a `<marker>`
  *  reference -- `ExtremityArrow`'s decorationLength-based path trim
  *  (`applyHeadTrim`) must run BEFORE `buildPathD` so the connecting line
- *  stops at the arrow's outer edge, matching jar exactly. */
+ *  stops at the arrow's outer edge, matching jar exactly. mission G4 S15:
+ *  `circleEnd`/`crossStart` decorations (`renderer-arrowhead.ts
+ *  #buildCircleEndMarkup`/`#buildCrossStartMarkup`) draw AT the transition's
+ *  own RAW (pre-trim) endpoints -- neither decoration changes `applyHeadTrim`
+ *  itself (see that module's own top doc comment for the jar-verified
+ *  derivation showing the head trim is UNCHANGED by `circleEnd`). */
 function buildTransitionInnerMarkup(
   transition: TransitionGeo,
   theme: Theme,
@@ -337,11 +342,30 @@ function buildTransitionInnerMarkup(
   const d = buildPathD(points);
   if (d === '') return '';
 
+  // mission G4 S15 (`Link#idCommentForSvg`): the `-to-` separator only
+  // fires when EXACTLY ONE side carries a non-NONE decor -- a plain forward
+  // transition always has a non-NONE HEAD decor (the trailing arrowhead), so
+  // `crossStart` (a non-NONE TAIL decor too) makes BOTH sides non-NONE,
+  // collapsing to a bare `-` separator (`looksLikeNoDecorAtAllSvg`, already
+  // ported in `core/svek/extremity/link-decor.ts` for the class engine's own
+  // use -- jar-verified `xexika-61-fedu273`'s own self-loop:
+  // `id="foo-foo"`, not `"foo-to-foo"`). `circleEnd` alone does not
+  // trigger this (the head side was already non-NONE) -- jar-verified
+  // `id="*start*-to-foo"` on the SAME fixture's other edge.
+  const idSep = transition.crossStart === true ? '-' : '-to-';
   const pathEl = path(d, {
     stroke: theme.colors.arrow,
     strokeWidth: 1,
-    id: `${svgEndpointId(transition.from, concurrentGlobalIds)}-to-${svgEndpointId(transition.to, concurrentGlobalIds)}`,
+    id: `${svgEndpointId(transition.from, concurrentGlobalIds)}${idSep}${svgEndpointId(transition.to, concurrentGlobalIds)}`,
   });
+
+  const decorBackground = resolveColorToSvgHex(theme.colors.background);
+  const circleEndEl = transition.circleEnd === true
+    ? buildCircleEndMarkup(transition, theme.colors.arrow, decorBackground)
+    : '';
+  const crossStartEl = transition.crossStart === true
+    ? buildCrossStartMarkup(transition, theme.colors.arrow, decorBackground)
+    : '';
 
   const labelEl =
     transition.label === undefined
@@ -352,7 +376,7 @@ function buildTransitionInnerMarkup(
           fill: theme.colors.text,
         });
 
-  return pathEl + arrowhead.markup + labelEl;
+  return pathEl + crossStartEl + arrowhead.markup + circleEndEl + labelEl;
 }
 
 function renderTransitionWrapped(

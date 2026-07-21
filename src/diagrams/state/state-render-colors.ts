@@ -52,6 +52,21 @@ function resolveStateBucketBackground(theme: Theme): string | undefined {
   return typeof bucket === 'string' ? resolveColorToSvgHex(bucket) : undefined;
 }
 
+/** mission G4 S15: `skinparam stateBackgroundColor<<stereo>> #X` --
+ *  `theme.colors.graph.stateBackgroundColorByStereo`'s own doc comment
+ *  (theme.ts) for the precedence tier this sits at (below the `#color`
+ *  inline override, above the bare `state`-element bucket). Keyed by the
+ *  node's OWN lowercased stereotype, mirroring `resolveStateBorder`'s
+ *  identical lookup shape. */
+function resolveStateBackgroundByStereo(
+  node: Pick<StateNodeGeo, 'stereotype'>,
+  theme: Theme,
+): string | undefined {
+  if (node.stereotype === undefined) return undefined;
+  const override = theme.colors.graph.stateBackgroundColorByStereo?.[node.stereotype.toLowerCase()];
+  return override !== undefined ? resolveColorToSvgHex(override) : undefined;
+}
+
 /**
  * `resolveStateFill` PLUS the `state`-element bucket tier, for the call
  * sites that share jar's `EntityImageStateCommon` StyleSignature (plain
@@ -60,17 +75,18 @@ function resolveStateBucketBackground(theme: Theme): string | undefined {
  * colors and stay on the plain {@link resolveStateFill} (module doc
  * comment's own scoping note; `core/skinparam.ts`'s `'state'` bucket entry
  * doc comment). Precedence: `#color`/`#back:color` inline override (highest)
- * -> `skinparam stateBackgroundColor` bucket -> `fallback` (the per-kind
+ * -> `skinparam stateBackgroundColor<<stereo>>` (mission G4 S15) ->
+ * `skinparam stateBackgroundColor` bucket -> `fallback` (the per-kind
  * hardcoded default, e.g. {@link STATE_DEFAULT_BACKGROUND}).
  */
 export function resolveStateFillBucketed(
-  node: Pick<StateNodeGeo, 'color'>,
+  node: Pick<StateNodeGeo, 'color' | 'stereotype'>,
   theme: Theme,
   fallback: string,
 ): string {
   const override = resolveBareOrBackColor(node.color);
   if (override !== undefined) return resolveColorToSvgHex(override);
-  return resolveStateBucketBackground(theme) ?? fallback;
+  return resolveStateBackgroundByStereo(node, theme) ?? resolveStateBucketBackground(theme) ?? fallback;
 }
 
 /**
@@ -93,6 +109,26 @@ export function resolveStateBorder(
     if (override !== undefined) return resolveColorToSvgHex(override);
   }
   return theme.colors.border;
+}
+
+/**
+ * `skinparam StateFontColor<<X>> #color` -- mission G4 S15, the SAME
+ * direct-value-lookup mechanism as {@link resolveStateBorder}, applied to
+ * a state box's own label text color. Wins over `fallback` (the box's
+ * pre-existing hardcoded `#000000` text default) when `node`'s OWN
+ * stereotype (lowercased) has a matching entry in
+ * `theme.colors.graph.stateFontColorByStereo`.
+ */
+export function resolveStateFontColor(
+  node: Pick<StateNodeGeo, 'stereotype'>,
+  theme: Pick<Theme, 'colors'>,
+  fallback: string,
+): string {
+  if (node.stereotype !== undefined) {
+    const override = theme.colors.graph.stateFontColorByStereo?.[node.stereotype.toLowerCase()];
+    if (override !== undefined) return resolveColorToSvgHex(override);
+  }
+  return fallback;
 }
 
 /**

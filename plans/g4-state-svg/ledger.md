@@ -5106,3 +5106,361 @@ throughout, checked before and after both mechanisms landed.
 16. `skin debug`/named-skin-file directive support -- unchanged, unscoped.
 17. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
     choice/history/deepHistory call sites (S10, small follow-up).
+    choice/history/deepHistory call sites (S10, small follow-up).
+
+## S15 — `-->o`/`x-->` arrow-decoration machinery LANDED in full
+(jar-verified, cross-blocked by a newly-unmasked self-loop spline residual,
+0 net pins); `stateBackgroundColor<<X>>`/`stateFontColor<<X>>` LANDED as
+verified, additive infra mirroring S9's `StateBorderColor<<X>>` precedent
+(also 0 net pins, `stateFontSize<<X>>` still required for the ONE known
+fixture); `<<entrypoint>>`/`<<exitpoint>>` pseudostates and the `<style>`
+`activityBar`/`arrow` cascade sub-families DIAGNOSED and correctly NOT
+landed (the former cross-blocked by parked mechanism 16 on every one of
+its 20 corpus fixtures; the latter genuinely BLOCKED by the write-set
+boundary, not merely "not cheap") — 49/271 -> 49/271
+
+### Attribution table (this iteration's own priority queue, sampled BEFORE
+### any fix, per this iteration's own instruction)
+
+| Item | Fixtures | Finding | Landed? |
+|---|---|---|---|
+| `<<entrypoint>>`/`<<exitpoint>>` pseudostates | 20 corpus fixtures (`lulozu-10-bopu547` + 19 others, full corpus grep) | The parent composite of ANY entrypoint/exitpoint descendant is ALWAYS disqualified from autonom (`state-composite-detect.ts#hasBorderPointDescendant`, unconditional) -> ALWAYS takes the non-autonom `cluster` render path -> ALWAYS hits the pre-mechanism-6 dashed-rect fallback (`renderer-composite-box.ts#renderCompositeFallback`, mechanism 16's own gap). Confirmed via direct render probe on `lulozu-10-bopu547`: even with the (correctly landable) entrypoint ellipse shape built, the ENCLOSING composite still renders as the dashed placeholder. 100% of the 20 fixtures are cross-blocked by the explicitly PARKED mechanism 16 | **NOT LANDED** (correctly deferred per PARKED instruction — landing the ellipse shape alone reaches zero on ZERO fixtures) |
+| `o-->`/`x-->` arrow decorations | 1 corpus fixture (`xexika-61-fedu273`, 2 edges: `[*] -->o foo` circleEnd, `foo x--> foo` crossStart) | `Transition.crossStart`/`.circleEnd` were ALREADY parsed (pre-existing `state-transitions.ts` grammar, unused downstream) — derived `ExtremityArrowAndCircle`/`ExtremityCircleCross`'s exact geometry from Java source + byte-verified against BOTH of `xexika`'s edges (see mechanism 27 below). Landing correctly fixed the fixture's OWN `childCount` gap and a THIRD, independently-discovered bug (`Link#idCommentForSvg`'s `-to-`-vs-`-` id-separator rule) — but unmasked a FOURTH, pre-existing, unrelated bug: both of `xexika`'s edges show 2-8-unit `path/@d` deltas once childCount stops short-circuiting the comparison (self-loop/short-edge spline routing, NOT characterized this iteration) | **LANDED** (machinery correct, TDD, non-regressing) — 0 fixtures reach zero (cross-blocked by the newly-unmasked spline residual, named mechanism 27) |
+| Composite-scoped notes (S10/S12/S14 item 4) | 4 known (`xupefu-98-roni234`, `tumaba-64-tosu281`, `dajipi-09-doki542`, `joleju-94-maru748`) | Re-sampled fresh: ALL 4 still cross-blocked by a SEPARATE, unrelated, already-named mechanism each (note-on-link x2 — PARKED; 3-level concurrent nesting; hyperlinks) — UNCHANGED from S14's own re-confirmation | Not landed (unverifiable against any corpus fixture, diagnosis.md's evidence requirement) |
+| `maruju-55-soko478` json+composite childCount | 1 (`maruju-55-soko478`) | Root-caused to full shape precision (S9/S14 only had the childCount count, not the shape): jar's json box is rx=2.5/ry=2.5 (DISTINCT rounding from a normal state box's rx=12.5) + title text + a horizontal AND a vertical divider line (splitting a one-row key/value table) + per-cell key/value text — `state-json-sizing.ts#MeasuredJsonState` already exists for DOT sizing (aggregate width/height only, `dotEqual:true` confirms it's correct) but exposes NO per-row/per-cell layout data, so rendering needs a genuinely new row-measurement + row-render pass, matching class's own more sophisticated json renderer in scope | Not landed (root-caused precisely, confirmed genuinely new feature, comparable in scope to mechanisms 5/6/21) |
+| `<style>` cascade, `activityBar {.fork/.join}` (`koguvo-74-kubo455`) | 1 (isolated target, 2 diffs) | Confirmed the bare `state{BackGroundColor}` part of this fixture's own `<style>` block ALREADY renders correctly (`ELEMENT_BUCKET_SNAMES`'s pre-existing generic `'state'` bucket, S10's own `resolveStateFillBucketed`) — the ONLY missing piece is `activitybar..fork`/`activitybar..join`'s fork/join-bar fill. Traced the exact injection point: `core/style-map-theme.ts#applyStyleMap` is the ONLY place any diagram-type-specific `<style>` selector (json/yaml/hcl's own `arrow`/separator overrides are ALL hardcoded there, one `if` block per diagram type, NO generic dispatch) gets merged into `theme` — and that file is NOT in this mission's write-set (`src/core/skinparam.ts`/`theme.ts`/`style-map-element.ts` ARE, `style-map-theme.ts` is not) | **NOT LANDED — confirmed WRITE-SET BLOCKED** (sharper than S14's "genuinely new subsystem" framing: the blocking file is now precisely identified) |
+| `<style>` cascade, `arrow {LineColor/HeadColor}` (`nanozi-96-foda024`) | 1 (isolated target, 3 diffs) | Selector `statediagram.arrow` with `linecolor`/`headcolor` -- confirmed jar splits the path `stroke` (LineColor) from the arrowhead polygon `fill`+`stroke` (HeadColor), a genuinely NEW two-color split this port's `buildTransitionInnerMarkup` doesn't have (single `theme.colors.arrow` feeds both today). SAME write-set-blocked injection point as the `activityBar` item above | **NOT LANDED — confirmed WRITE-SET BLOCKED** |
+| `stateBackgroundColor<<X>>`/`FontColor<<X>>`/`FontSize<<X>>` (`laferu-31-tice836`) | 1 (11 diffs) | Re-checked per this iteration's own instruction: BackgroundColor/FontColor ARE now cheap — mirror S9's `StateBorderColor<<X>>` mechanism EXACTLY (a direct stereotype-qualified skinparam VALUE lookup, not a `<style>` cascade, so NOT write-set-blocked like the two items above). `FontSize<<X>>` remains excluded (changes MEASURED text width -> box dimensions, a layout-time `state-sizing.ts` threading change, materially larger) | **LANDED** (BackgroundColor+FontColor only, jar-verified fill/text-color match) — fixture stays non-zero (FontSize's own box-size gap, `viewBox`/`rect`/`line`/`font-size`/`textLength` diffs, unaffected) |
+
+### Mechanism 27 (NEW) — `-->o`/`x-->` arrow decorations (LANDED)
+
+Read `ArrowConfiguration.java`/`ArrowDecoration.java`/`ArrowHead.java`
+(`CROSSX`/`CIRCLE`) and `CommandLinkState.java`'s regex (`ARROW_CROSS_START`
+= `x` immediately before the arrow body, `ARROW_CIRCLE_END` = `o[space]+`
+immediately after `>`) BEFORE writing any code — confirmed this port's OWN
+parser (`state-transitions.ts`) ALREADY captures `Transition.crossStart`/
+`.circleEnd` (a prior mission, unused downstream until now). Traced
+`CommandLinkStateCommon.java:186` (`new LinkType(circleEnd ?
+ARROW_AND_CIRCLE : ARROW, crossStart ? CIRCLE_CROSS : NONE)`) into
+`LinkDecor.java`'s `ExtremityFactoryArrowAndCircle`/`ExtremityFactoryCircleCross`
+(the SAME `svek/extremity/` family `core/svek/extremity/link-decor.ts`
+already ports a subset of for the class/description engines — but
+`ARROW_AND_CIRCLE`/`CIRCLE_CROSS` are explicitly UNREACHABLE from that
+module's own description-diagram grammar, per its own doc comment, so this
+mission ports the two Java classes as STATE-LOCAL pure functions over
+`core/svg.ts`'s `ellipse`/`line` primitives instead of extending that
+shared file — outside this mission's write-set).
+
+Derived the exact rendered geometry EMPIRICALLY against `xexika-61-fedu273`'s
+own two decorated edges (`compareSvg`-independent manual point-matching,
+BEFORE trusting the Java source's own `angle - PI/2`/`angle + PI/2`
+rotation-composition algebra, which — once the two factory-vs-constructor
+adjustments are composed — reduces to using `angle` DIRECTLY, IDENTICAL to
+the plain `ExtremityArrow`'s own rotation):
+
+- **`-->o` (`circleEnd`, `ExtremityArrowAndCircle`)**: the polygon
+  arrowhead is BYTE-IDENTICAL to the existing plain-`ARROW` shape
+  (`buildTransitionArrowhead`, unchanged, same trim=5) — `circleEnd` ADDS a
+  `<ellipse rx="5" ry="5" fill="{background}" stroke="{arrow color}"
+  stroke-width="1.5">` centered at the transition's RAW (pre-trim) head
+  endpoint (the SAME point the polygon's own tip anchors on), drawn AFTER
+  the polygon.
+- **`x-->` (`crossStart`, `ExtremityCircleCross`)**: `ExtremityFactoryCircleCross
+  #createUDrawable` DROPS the `angle` parameter entirely (confirmed by
+  reading the Java factory, then verifying: the cross renders IDENTICALLY
+  regardless of the edge's own direction) — a `<ellipse rx="7" ry="7"
+  fill="{background}" stroke="{arrow color}" stroke-width="1.5">` PLUS two
+  `<line stroke-width="1">`s at literal +-45deg/+-135deg through the SAME
+  center, drawn BEFORE the head-side arrowhead polygon, at the transition's
+  RAW tail endpoint (`points[0]`), with ZERO path trim (unlike `circleEnd`,
+  the connecting path's own start point is UNCHANGED).
+
+Landing the DOM-order fix (crossStart draws BEFORE the head polygon;
+circleEnd draws AFTER it — jar-verified via BOTH of `xexika`'s own edges,
+corrected from an initial wrong assumption caught by `compareSvg` itself)
+surfaced a THIRD bug in the SAME area: `renderer.ts`'s `<path id="...">`
+build always used a hardcoded `-to-` separator
+(`svgEndpointId(from)-to-svgEndpointId(to)`) — jar's real
+`Link#idCommentForSvg` only uses `-to-` when EXACTLY ONE side's decor is
+non-NONE; a plain forward transition's HEAD decor (the trailing arrowhead)
+is ALWAYS non-NONE, so `crossStart` (a non-NONE TAIL decor too) makes BOTH
+sides non-NONE, collapsing to a bare `-` — jar-verified `xexika`'s own
+`id="foo-foo"` (crossStart self-loop) vs `id="*start*-to-foo"` (circleEnd
+only, unaffected).
+
+Jar-verified byte-exact (modulo the SAME float-precision-vs-jar's-own-
+rounded-display convention every prior mission iteration's numeric
+comparisons already tolerate) against BOTH of `xexika-61-fedu273`'s edges
+via a disposable `compareSvg`-based probe BEFORE landing. TDD-first:
+`tests/unit/state/renderer-arrowhead-decor.test.ts` (5 new tests, the pure
+`buildCircleEndMarkup`/`buildCrossStartMarkup` geometry functions,
+including the "angle-independent" cross-shape assertion), 3 new tests in
+`renderer.test.ts` (full `renderState` wiring: draw order, id-separator
+rule, no-decoration no-op), 3 new tests in `layout.test.ts` (flat pipeline)
++ 1 (composite pipeline) verifying `TransitionGeo.crossStart`/`.circleEnd`
+thread through BOTH `buildFlatTransitionGeos` and `buildLevelTransitionGeos`.
+
+**Newly unmasked (NOT landed, named for a future iteration): mechanism 27's
+own remainder** — landing the decoration markup fixed `xexika`'s own
+`childCount` gap (the fixture's ONLY diff before this iteration, per the
+pre-S15 `parity-state.json`), which unmasked BOTH of its edges' own
+`path/@d` control-point deltas (2-8 units, well past the 0.01 tolerance) —
+a genuinely different, pre-existing mechanism (`dotEqual: true` was already
+confirmed true before S15, meaning graphviz's own STRUCTURAL graph matches;
+the divergence is in the exact spline COORDINATES graphviz-ts computes for
+this specific self-loop/short-edge shape). Ruled out: NOT the already-named
+`pevene-26-kebo361` clip-inset gap (that one is sub-0.5px, this is 2-8px, a
+different order of magnitude); NOT the edge-label-injection mechanism
+(neither of `xexika`'s edges carries a label). No other corpus fixture with
+a plain (undecorated) self-loop is currently zero-diff or near-zero, so
+there is no independent second sample to triangulate against yet — deferred
+whole, not guessed at.
+
+### Mechanism 28 (NEW) — `stateBackgroundColor<<X>>`/`stateFontColor<<X>>`
+### stereotype-qualified skinparam (LANDED, BackgroundColor+FontColor only)
+
+Re-checked this iteration's own instruction ("re-check whether the border
+threading from S9 made them cheap now") by mirroring S9's
+`STATE_BORDER_COLOR_STEREO_RE`/`stateBorderColorByStereo` mechanism EXACTLY
+for two new keys: `statebackgroundcolor<<X>>` -> NEW
+`theme.colors.graph.stateBackgroundColorByStereo`, `statefontcolor<<X>>` ->
+NEW `theme.colors.graph.stateFontColorByStereo` (`core/skinparam.ts`, two
+new regexes + two new accumulator vars + two new `<<`-branch cases + two
+new `graphOverride` fields, additive-only). Consumed by
+`state-render-colors.ts`: `resolveStateFillBucketed` gained a NEW
+precedence tier (`#color` inline override -> **`stateBackgroundColor<<X>>`
+(NEW)** -> bare `state`-element `<style>` bucket (S10) -> hardcoded
+fallback) via a new `resolveStateBackgroundByStereo` helper; a NEW sibling
+function `resolveStateFontColor` mirrors `resolveStateBorder`'s exact
+shape for the text-color case, wired into `renderer-box.ts#renderNormal`'s
+two `renderTextLines` calls (header + body) via a new optional `fill`
+parameter on that function (default `'#000000'`, every OTHER pre-existing
+call site — `renderEmptyDescription`/`renderUnmeasuredFallback`/
+`renderSdlReceive` — left unchanged, since `laferu-31-tice836`'s own shape
+only ever exercises the `renderNormal` header-line path).
+
+`stateFontSize<<X>>` is explicitly NOT included (S9/S14's own conclusion
+re-confirmed: it changes MEASURED text width and therefore the box's own
+dimensions, a `state-sizing.ts` LAYOUT-time threading change, materially
+larger than a render-time color swap).
+
+Jar-verified against `laferu-31-tice836`'s own `state1` box: `fill="#FF0000"`
+(BackgroundColor) and label `fill="#FFFF00"` (FontColor) now match jar
+byte-exact; the fixture itself stays non-zero (9 remaining diffs, ALL
+attributable to the still-unimplemented `stateFontSize<<X>>`'s own
+`font-size`/`textLength`/box-dimension effects — `viewBox`/`width`/`rect
+@width`/`line @x2`/`text @y` all trace to the SAME root cause, confirmed by
+inspecting each diff individually before concluding "load-bearing
+together" is still correct).
+
+TDD-first: `tests/unit/state/state-skinparam-cascade.test.ts` (5 new tests
+— kept in `tests/unit/state/` rather than the top-level
+`tests/unit/skinparam.test.ts`, which is OUTSIDE this mission's write-set
+despite being the more conventional home for a `core/skinparam.ts` test; a
+first attempt DID add to that file, caught by a `git status --short`
+write-set audit before finishing, and reverted via `git show HEAD:` restore
+before re-homing the equivalent coverage), 6 new tests in
+`state-render-colors.test.ts` (precedence ordering: stereotype skinparam
+wins over the bare bucket, inline `#color` still wins over the stereotype
+skinparam, non-matching stereotype falls through).
+
+### Mechanism 16 re-confirmation — `<<entrypoint>>`/`<<exitpoint>>`
+### pseudostates are CROSS-BLOCKED, not independently landable (NOT landed,
+### PARKED per this iteration's own instruction)
+
+`state-entity-position.ts` (`EntityPositionKind`, `getEntityPosition`,
+`isBorderPoint`, `BORDER_POINT_SIZE=12`) and its DOT-sizing/cluster-port
+consumers (`state-leaf-node.ts#buildLeafNode`, `state-composite-cluster.ts`'s
+`isInputPosition`/`isOutputPosition`) already exist in full from a prior
+mission (A4/T4) — the DOT-layer plumbing (fixed 12x12 sizing, port-shape
+dispatch, cluster rank ordering) is CORRECT (the state DOT gate's own
+267/267 already covers every entrypoint/exitpoint fixture in the frozen
+267-subset). The gap is ENTIRELY at the RENDER layer: no `StateNodeGeo`
+field carries `EntityPositionKind` at all, and `renderer.ts`'s dispatch has
+no case for it — a `state d <<entrypoint>>` state currently renders as a
+full `kind:'normal'` box (rx=12.5, divider line, centered label), NOT
+jar's real `<ellipse rx="6" ry="6">` sitting ON the composite's own top
+border with a label ABOVE (derived directly from `diteme-18-favi840`'s own
+raw SVG: `<ellipse cx="89" cy="92" .../>` where `cy=92` EXACTLY equals the
+owning composite's own `rect y=92`).
+
+BUT: `state-composite-detect.ts#hasBorderPointDescendant` unconditionally
+disqualifies ANY composite containing an entrypoint/exitpoint descendant
+(at any depth) from the `autonom` classification — confirmed by direct code
+read (`isAutarkic`'s own first line: `if (hasBorderPointDescendant(state))
+return false`), meaning the OWNING composite ALWAYS takes the non-autonom
+`cluster` render path. `state-composite-geo.ts#materializeCluster` never
+sets `headerLines` on a cluster node, so `renderer-composite-box.ts
+#renderComposite` ALWAYS falls back to the pre-mechanism-6 dashed-rect
+placeholder (`renderCompositeFallback`) for it — the EXPLICITLY PARKED
+mechanism 16 ("entity-vs-cluster wrap"). Verified directly by rendering
+`lulozu-10-bopu547` (the task's own named target) through the CURRENT
+pipeline: the entrypoint children measure correctly (12x12, `resolveStateFill`
+default) but the composite box itself is the dashed placeholder, NOT jar's
+real half-rounded-header `cluster` shape.
+
+Since PARKED mechanism 16 is a hard "do NOT attempt" per this iteration's
+own scope, and it is now CONFIRMED (not merely suspected) that ALL 20
+corpus fixtures using `<<entrypoint>>`/`<<exitpoint>>` route through it,
+landing the entrypoint/exitpoint ellipse render shape THIS iteration would
+reach zero-diff on ZERO fixtures. Correctly deferred without attempting the
+render shape at all — the ellipse geometry itself (SIZE=12, `rx=6 ry=6`,
+fill=`resolveStateFill` default, stroke=`#181818` width=1.5, label
+top-anchored ABOVE the shape) is derived and documented here for whenever
+mechanism 16 eventually lands, so a future iteration does not need to
+re-derive it.
+
+### Files changed (S15)
+
+- `src/diagrams/state/state-geo-types.ts` — `TransitionGeo.crossStart`/
+  `.circleEnd` fields (mechanism 27).
+- `src/diagrams/state/layout.ts` — `buildFlatTransitionGeos` threads
+  `t.crossStart`/`t.circleEnd` (mechanism 27).
+- `src/diagrams/state/state-composite-pass.ts` — `buildLevelTransitionGeos`
+  threads `t.crossStart`/`t.circleEnd` (mechanism 27).
+- `src/diagrams/state/renderer-arrowhead.ts` — NEW `buildCircleEndMarkup`/
+  `buildCrossStartMarkup` (mechanism 27).
+- `src/diagrams/state/renderer.ts` — `buildTransitionInnerMarkup` wires the
+  two new decorations (draw order: crossStart, arrowhead, circleEnd) +
+  the `Link#idCommentForSvg` id-separator fix (mechanism 27).
+- `src/core/skinparam.ts` — `STATE_BACKGROUND_COLOR_STEREO_RE`/
+  `STATE_FONT_COLOR_STEREO_RE` + accumulator vars + `<<`-branch cases +
+  `graphOverride` fields (mechanism 28).
+- `src/core/theme.ts` — `colors.graph.stateBackgroundColorByStereo`/
+  `.stateFontColorByStereo` fields (mechanism 28).
+- `src/diagrams/state/state-render-colors.ts` — `resolveStateBackgroundByStereo`
+  (new precedence tier in `resolveStateFillBucketed`), NEW
+  `resolveStateFontColor` (mechanism 28).
+- `src/diagrams/state/renderer-box.ts` — `renderTextLines` gains an
+  optional `fill` param; `renderNormal` resolves + passes
+  `resolveStateFontColor` (mechanism 28).
+- `tests/unit/state/renderer-arrowhead-decor.test.ts` — NEW, 5 tests
+  (mechanism 27).
+- `tests/unit/state/renderer.test.ts` — +3 tests (mechanism 27 full-pipeline
+  wiring).
+- `tests/unit/state/layout.test.ts` — +4 tests (mechanism 27 threading,
+  both pipelines).
+- `tests/unit/state/state-render-colors.test.ts` — +6 tests (mechanism 28
+  precedence).
+- `tests/unit/state/state-skinparam-cascade.test.ts` — NEW, 5 tests
+  (mechanism 28 skinparam parsing — kept in-write-set, see mechanism 28's
+  own doc for why NOT `tests/unit/skinparam.test.ts`).
+
+### Ratchet / pins
+
+**0 new pins** (49 -> **49**, SAME set, verified via a fresh
+`svg-conformance-census.ts` zero-diff-list diff against
+`oracle/goldens/svg-state/ratchet.json`'s own 49 entries — byte-identical).
+`state.golden.ratchet.test.ts` stays **51 tests** (49 pins), unchanged.
+Both landed mechanisms are genuinely correct, jar-verified, additive
+infrastructure that simply do not reach zero on any CURRENTLY-known corpus
+fixture this iteration (cross-blocked by a newly-unmasked residual for
+mechanism 27; blocked by the OTHER two fields of a three-field
+load-bearing-together fixture for mechanism 28) — matching the mission's
+own established S10/S12 precedent for landing verified-but-non-pinning
+infrastructure rather than leaving parsed-but-unused fields in place.
+
+### size-backlog.json: unchanged (0 entries touched)
+
+Neither mechanism touches a sizing formula (mechanism 27 is pure render-time
+decoration; mechanism 28 is a pure render-time color/text-fill swap, no
+box-dimension change). `state-dot-parity.test.ts` (size-backlog ratchet)
+stayed **268/268** passing throughout, checked before and after both
+mechanisms landed.
+
+### Gates (S15, final)
+
+- `state` census: **49/271** zero-diff (`1-3:22, 4-10:127, 11-30:26,
+  31+:47, errors:0`) — SAME 49-fixture set as S14, byte-verified via a
+  fresh `svg-conformance-census.ts` run diffed against
+  `oracle/goldens/svg-state/ratchet.json`.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
+  78/80 - state 267/267` — EXACTLY unchanged, re-verified fresh via
+  `dot-sync-report.ts`.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing at
+  both the START and END of this iteration.
+- `npm test -- --run`: **10089/10089** passing (374 files), up from
+  10078/10078 (+11: 5 renderer-arrowhead-decor + 3 renderer.test.ts +
+  3 layout.test.ts, minus the +9 skinparam.test.ts attempt reverted and
+  replaced by state-skinparam-cascade.test.ts's own 5, plus
+  state-render-colors.test.ts's own 6 — net +11 over S14's 10078).
+  `npm run typecheck` / `npm run lint`: both clean.
+- `state.golden.ratchet.test.ts`: **51 tests** (49 pins), unchanged from
+  S14.
+
+### A tooling incident, same class as S9/S14's own (no code impact)
+
+Mid-iteration, TWO separate attempts to regenerate `parity-state.json` via
+`svg-parity-survey.ts` in the background raced against a STILL-RUNNING
+prior invocation (the Bash tool's own "long command auto-backgrounds"
+behavior combined with this agent's own earlier explicit
+`run_in_background: true` calls), producing overlapping same-output-file
+writes — detected via `ps aux | grep svg-parity-survey` showing TWO
+independent process trees (different start timestamps) writing to the
+SAME `--out` path, exactly the S9/S14-documented hazard. Resolved BOTH
+times via `pkill -f svg-parity-survey` (verified `git status --short
+tests/oracle/svg-conformance/parity-state.json` showed NO partial/corrupt
+write before each kill — the script only writes its output file at the
+very end, atomically, so a killed mid-run process never corrupts the
+existing file) followed by exactly ONE clean, single, uncontended re-run.
+No code or data was affected; `svg-conformance-census.ts` (which does not
+depend on `parity-state.json` at all) was used throughout for all
+authoritative census numbers, matching S14's own resolution pattern.
+
+### S16+ queue
+
+1. **Mechanism 27's own remainder** (self-loop/short-edge spline delta,
+   `xexika-61-fedu273`, 2-8 unit `path/@d` deltas on BOTH its edges) — NOT
+   root-caused this iteration; needs a second independent self-loop sample
+   to triangulate (none currently near-zero in the corpus) before any fix
+   attempt.
+2. **`json` table content** (`maruju-55-soko478`) — root-caused to full
+   shape precision this iteration (rx=2.5 box + title + 2 dividers +
+   per-cell key/value text; `MeasuredJsonState` needs a per-row layout
+   extension), still a multi-hour feature, deferred.
+3. **Composite-scoped notes** (S10/S12/S14/S15 item 4) — re-confirmed
+   unchanged, still unverifiable against any corpus fixture.
+4. **`<<entrypoint>>`/`<<exitpoint>>` pseudostates** — CONFIRMED
+   cross-blocked by mechanism 16 on all 20 corpus fixtures (this
+   iteration's own full derivation + render-shape spec above); landable
+   THE MOMENT mechanism 16 lands, not before. Render shape fully
+   pre-derived (SIZE=12, `rx=6 ry=6`, `resolveStateFill` default fill,
+   `#181818` stroke width 1.5, top-anchored label) — a future iteration
+   that lands mechanism 16 should check this fixture family immediately
+   afterward.
+5. **`<style>` cascade family** (`activityBar {.fork/.join}`,
+   `arrow {LineColor/HeadColor}`) — CONFIRMED write-set-blocked
+   (`core/style-map-theme.ts`'s `applyStyleMap` is the ONLY merge point
+   for any diagram-type-specific `<style>` selector, and it is OUTSIDE
+   this mission's write-set) — needs either a write-set expansion or a
+   dedicated cross-mission task, not landable as a state-only change.
+   `stateDiagram`-ancestor tier (RoundCorner/Shadowing/BackgroundColor/
+   LineColor/FontColor at the diagram-ancestor level) is the SAME
+   write-set-blocked shape, unchanged from S14.
+6. **`stateFontSize<<X>>`** (`laferu-31-tice836`'s own remaining gap) —
+   needs `state-sizing.ts` measurement-function threading (a per-state
+   font-size override affecting BOTH `measureState`'s text-line
+   measurement AND the DOT node width/height fed to graphviz) — the
+   fixture will reach zero the MOMENT this lands (BackgroundColor/
+   FontColor are already correct as of this iteration).
+7. Mechanism 16 (entity-vs-cluster wrap dimension) — unchanged, STILL the
+   largest family in the near-zero bucket AND now confirmed to also gate
+   the entire entrypoint/exitpoint family (item 4 above).
+8. `<<sdlsend>>`/`<<rect>>`/`<<junction>>` pseudostate stereotypes
+   (`fakali-52-zuje420`/`livuni-63-fira764`, unchanged).
+9. `pevene-26-kebo361`'s minlen=0 same-rank clip-inset delta (S8,
+   unchanged) — RULED OUT as the same mechanism as item 1 above (different
+   order of magnitude, 0.5px vs 2-8px).
+10. State hyperlink (`[[url]]`) (S8/S9, unchanged, re-scoped).
+11. `skin debug`/named-skin-file directive support — unchanged, unscoped.
+12. Creole/table note content (`fatupo-62-bemu777`, unchanged).
+13. Creole bold (`**text**`) markup for state description lines
+    (`mazuzu-54-mene929`, unchanged).
+14. `gojuja-90-pune699`/`nufigo-87-pivi558` forward-declared composite
+    ordering (S14, unchanged, not root-caused).
+15. `gokife-89-boja382`'s `skinparam state { backgroundColor<<X>> }`
+    NESTED-block form (distinct syntax from mechanism 28's flat form) —
+    still not isolated from a possible mechanism-16 interaction.

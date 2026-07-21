@@ -9,7 +9,7 @@
  * comment for the full derivation.
  */
 import { describe, it, expect } from 'vitest';
-import { resolveStateBorder, resolveStateFillBucketed } from '../../../src/diagrams/state/state-render-colors.js';
+import { resolveStateBorder, resolveStateFillBucketed, resolveStateFontColor } from '../../../src/diagrams/state/state-render-colors.js';
 import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 
 describe('resolveStateBorder', () => {
@@ -70,5 +70,55 @@ describe('resolveStateFillBucketed', () => {
       colors: { elements: { state: { background: { color1: '#FF0000', color2: '#FFFF00', policy: '/' } } } },
     });
     expect(resolveStateFillBucketed({}, theme, '#F1F1F1')).toBe('#F1F1F1');
+  });
+
+  // mission G4 S15: `skinparam stateBackgroundColor<<X>> #color` --
+  // jar-verified `laferu-31-tice836`: `skinparam stateBackgroundColor<<Foo>>
+  // red` + `state state1 <<Foo>>` -> `fill="#FF0000"`.
+  it('the stereotype-scoped skinparam wins over the bare state-element bucket', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: {
+        elements: { state: { background: 'yellow' } },
+        graph: { stateBackgroundColorByStereo: { foo: 'red' } },
+      },
+    });
+    expect(resolveStateFillBucketed({ stereotype: 'Foo' }, theme, '#F1F1F1')).toBe('#FF0000');
+  });
+
+  it('an inline #color override still wins over the stereotype-scoped skinparam', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateBackgroundColorByStereo: { foo: 'red' } } },
+    });
+    expect(resolveStateFillBucketed({ color: '#blue', stereotype: 'Foo' }, theme, '#F1F1F1')).toBe('#0000FF');
+  });
+
+  it('does not match a DIFFERENT stereotype not present in the bucket', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateBackgroundColorByStereo: { foo: 'red' } } },
+    });
+    expect(resolveStateFillBucketed({ stereotype: 'other' }, theme, '#F1F1F1')).toBe('#F1F1F1');
+  });
+});
+
+// mission G4 S15: `skinparam stateFontColor<<X>> #color` -- jar-verified
+// `laferu-31-tice836`: `skinparam stateFontColor<<Foo>> yellow` + `state
+// state1 <<Foo>>` -> label `fill="#FFFF00"`.
+describe('resolveStateFontColor', () => {
+  it('falls back to the given default when the node has no stereotype', () => {
+    expect(resolveStateFontColor({}, defaultTheme, '#000000')).toBe('#000000');
+  });
+
+  it('resolves the stereotype-scoped skinparam override to an SVG hex color', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateFontColorByStereo: { foo: 'yellow' } } },
+    });
+    expect(resolveStateFontColor({ stereotype: 'Foo' }, theme, '#000000')).toBe('#FFFF00');
+  });
+
+  it('does not match a DIFFERENT stereotype not present in the bucket', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateFontColorByStereo: { foo: 'yellow' } } },
+    });
+    expect(resolveStateFontColor({ stereotype: 'other' }, theme, '#000000')).toBe('#000000');
   });
 });

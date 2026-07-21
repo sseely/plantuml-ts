@@ -238,6 +238,25 @@ export interface Theme {
        *  outline `rect` and divider `line`; its plain (non-stereotyped)
        *  children keep the `#181818` default). */
       stateBorderColorByStereo?: Readonly<Record<string, string>>;
+      /**
+       * mission G4 S15: `skinparam stateBackgroundColor<<stereo>> #X` /
+       * `skinparam stateFontColor<<stereo>> #X` -- the SAME direct-value-
+       * lookup mechanism as {@link stateBorderColorByStereo} above, applied
+       * to a state box's own FILL / text color instead of its border.
+       * Scoped to these two color fields only -- `stateFontSize<<X>>` is
+       * NOT included (it changes MEASURED text width, a layout-time
+       * concern requiring `state-sizing.ts` threading, not a render-time
+       * color swap -- see `plans/g4-state-svg/ledger.md` S9/S14's own
+       * "three fields load-bearing together" queue note). Keyed by the
+       * LOWERCASED stereotype label (`core/skinparam.ts
+       * #STATE_BACKGROUND_COLOR_STEREO_RE`/`#STATE_FONT_COLOR_STEREO_RE`).
+       * Read by `state-render-colors.ts#resolveStateFillBucketed`/
+       * `#resolveStateFontColor` as a fallback tier BELOW the `#color`
+       * inline override and ABOVE the bare `state`-element `<style>`
+       * bucket (mission G4 S10's own `resolveStateBucketBackground`).
+       */
+      stateBackgroundColorByStereo?: Readonly<Record<string, string>>;
+      stateFontColorByStereo?: Readonly<Record<string, string>>;
       /** G2 N51: `skinparam arrowThickness N` -- `FromSkinparamToStyle.java
        *  :150`: `SName.arrow` LineThickness, the DEFAULT stroke-width every
        *  edge draws at when it carries no `-[thickness=N]->`/`-[bold]->`

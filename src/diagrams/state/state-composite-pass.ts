@@ -416,6 +416,8 @@ export function buildLevelTransitionGeos(acc: PassAccumulator, result: DotLayout
     geos.push({
       from: resolved?.from ?? t.from, to: resolved?.to ?? t.to, points: edgeResult.points, ...(label !== undefined ? { label } : {}),
       ...(t.creationIndex !== undefined ? { creationIndex: t.creationIndex } : {}),
+      ...(t.crossStart !== undefined ? { crossStart: t.crossStart } : {}),
+      ...(t.circleEnd !== undefined ? { circleEnd: t.circleEnd } : {}),
     });
   }
   return geos;

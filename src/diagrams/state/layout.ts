@@ -133,6 +133,8 @@ function buildFlatTransitionGeos(ast: StateDiagramAST, result: DotLayoutResult):
     geos.push({
       from, to, points: edgeResult.points, ...(label !== undefined ? { label } : {}),
       ...(t.creationIndex !== undefined ? { creationIndex: t.creationIndex } : {}),
+      ...(t.crossStart !== undefined ? { crossStart: t.crossStart } : {}),
+      ...(t.circleEnd !== undefined ? { circleEnd: t.circleEnd } : {}),
     });
   }
   return geos;
