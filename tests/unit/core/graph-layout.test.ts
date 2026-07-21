@@ -308,3 +308,78 @@ describe('layoutGraph — cluster title-table label (G5 C3, mechanism 16 shape h
     expect(a.y - c.y).not.toBeCloseTo(19, 5);
   });
 });
+
+// G5 C7, mechanism 16 margin half: `innerMarginLevels` mirrors jar's
+// ClusterDotString "i"/"p1" protection-wrapper nesting -- each extra
+// `subgraph cluster*` level gets graphviz's own default CL_OFFSET(8pt)
+// margin around its children, compounding to jar's real 16px (1 level) or
+// 24px (2 levels) side/top/bottom margin between real content and the
+// drawn cluster boundary (DotInputCluster.innerMarginLevels's own doc
+// comment has the full jar-source derivation + corpus evidence).
+describe('layoutGraph — cluster inner margin levels (G5 C7, mechanism 16 margin half)', () => {
+  it('doubles the side margin (8px -> 16px) with innerMarginLevels: 1', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], innerMarginLevels: 1 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(a.x - c.x).toBeCloseTo(16, 5);
+    expect(c.x + c.width - (a.x + a.width)).toBeCloseTo(16, 5);
+    expect(a.y - c.y).toBeCloseTo(16, 5);
+    expect(c.y + c.height - (a.y + a.height)).toBeCloseTo(16, 5);
+  });
+
+  it('triples the side margin (8px -> 24px) with innerMarginLevels: 2', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], innerMarginLevels: 2 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(a.x - c.x).toBeCloseTo(24, 5);
+    expect(c.x + c.width - (a.x + a.width)).toBeCloseTo(24, 5);
+  });
+
+  it('a cluster with no innerMarginLevels keeps the bare 8px default (unchanged)', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'] }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(a.x - c.x).toBeCloseTo(8, 5);
+  });
+
+  it('unwrappedNodeId stays a direct child of the outer cluster (bare 8px margin) while the rest of nodeIds gets the deeper wrap', () => {
+    const g: DotInputGraph = {
+      nodes: [box('anchor'), box('a')],
+      edges: [{ id: 'e0', from: 'anchor', to: 'a' }],
+      clusters: [
+        {
+          id: 'grp1',
+          nodeIds: ['anchor', 'a'],
+          innerMarginLevels: 2,
+          unwrappedNodeId: 'anchor',
+        },
+      ],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const anchor = r.nodes.find((n) => n.id === 'anchor')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    // The anchor is the topmost node (edge anchor->a, TB rankdir) -- its own
+    // top margin from the cluster boundary is the SHALLOW unwrapped value,
+    // not the deep innerMarginLevels:2 value the wrapped 'a' node gets.
+    expect(anchor.y - c.y).toBeCloseTo(8, 5);
+  });
+});

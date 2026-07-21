@@ -180,7 +180,28 @@ export function addClusters(b: GvGraphBuilder, input: DotInputGraph): ClusterInd
   };
   for (const c of clusters) {
     const sg = builderFor(c);
-    for (const id of c.nodeIds) sg.addNode(id);
+    const levels = c.innerMarginLevels;
+    if (levels === undefined) {
+      for (const id of c.nodeIds) sg.addNode(id);
+      continue;
+    }
+    // G5 C7, mechanism 16 margin half: mirror jar's ClusterDotString "i"/
+    // "p1" protection-wrapper nesting (see DotInputCluster.innerMarginLevels'
+    // own doc comment for the full jar-source derivation) -- each extra
+    // `subgraph cluster*` level gets graphviz's own default CL_OFFSET(8pt)
+    // margin around ITS children, compounding to jar's real 16/24px side
+    // margin. Names deliberately do NOT match the oracle comparator's
+    // `^cluster\d+$` pattern (tests/oracle/svek-dot.ts#parseClusters skips
+    // exactly this "clusterNp0/clusterN/clusterNp1" shape, by design, per
+    // that file's own doc comment) -- so this nesting is structurally
+    // invisible to the DOT-parity gate, same as jar's own protection wrappers.
+    const outerName = nameFor(c);
+    let inner = sg;
+    if (levels === 2) inner = inner.addSubgraph(`${outerName}i`, {});
+    inner = inner.addSubgraph(`${outerName}p1`, {});
+    for (const id of c.nodeIds) {
+      (id === c.unwrappedNodeId ? sg : inner).addNode(id);
+    }
   }
   return { idByName };
 }
@@ -248,5 +269,8 @@ export function addEdges(b: GvGraphBuilder, input: DotInputGraph): EdgeIndex {
     inputEdgeById.set(e.id, e);
   }
   return { idQueues, inputEdgeById };
+  // #lizard forgives -- pre-existing (unmodified by G5 C7) faithful mirror
+  // of SvekEdge's per-edge attr assembly; each branch below is one
+  // independently-conditional DOT attr (label/tailLabel/headLabel/weight/
+  // minlen/arrowhead override), not decision complexity to simplify.
 }
-

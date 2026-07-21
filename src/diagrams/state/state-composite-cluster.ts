@@ -291,6 +291,21 @@ export function resolveClusterComposite(
     ctx.theme.fontSize === 14 &&
     !hasBorderPointChildren &&
     ctx.insideAutonomPass !== true;
+  // G5 C7, mechanism 16 margin half (ledger.md §C7, `DotInputCluster
+  // .innerMarginLevels`'s own doc comment has the full jar-source
+  // derivation): `needsZaentPoint` reduces to EXACTLY jar's own
+  // `thereALinkFromOrToGroup` ("touched") boolean for every
+  // `titleTableEligible` composite specifically -- its OTHER disjunct
+  // (`hasDirectBorderPointChild(s) && !hasNonBorderEeContent(...)`)
+  // requires `hasBorderPointChildren`, which `titleTableEligible` already
+  // excludes above -- confirmed corpus-wide (84/84 cached cluster-bearing
+  // svek DOTs: "i"-wrapper presence matches `zaent` special-point presence
+  // with zero counterexamples). `anchorId` is computed here (not only in
+  // the anchor-node block below) so `unwrappedNodeId` can be set in the
+  // same object literal as `innerMarginLevels`; `zaentId` is a pure
+  // function of `s.id`, so calling it twice for the same state is safe.
+  const needsZaentPoint = titleTableEligible && ctx.classify.needsZaentPoint.has(s.id);
+  const anchorId = zaentId(s.id);
   const cluster: DotInputCluster = {
     id: clusterId,
     nodeIds: [],
@@ -300,6 +315,8 @@ export function resolveClusterComposite(
     ...(titleTableEligible
       ? { titleTableWidth: title.width, titleTableHeight: CLUSTER_TITLE_TABLE_HEIGHT }
       : {}),
+    ...(titleTableEligible ? { innerMarginLevels: needsZaentPoint ? 2 : 1 } : {}),
+    ...(needsZaentPoint ? { unwrappedNodeId: anchorId } : {}),
     ...(parentClusterId !== undefined ? { parentId: parentClusterId } : {}),
   };
   acc.clusters.push(cluster);
@@ -318,7 +335,6 @@ export function resolveClusterComposite(
   for (const p of pseudoSpecs) cluster.nodeIds.push(p.id);
   addScopeNotes(s.id, ctx, acc, cluster);
   if (ctx.classify.needsAnchor.has(s.id)) {
-    const anchorId = zaentId(s.id);
     // The POINT NODE is strictly narrower than the port-block gate itself
     // (ClassifyResult.needsZaentPoint's doc, state-composite-classify.ts) --
     // a composite with real non-border content in its `ee` wrapper needs no

@@ -2201,3 +2201,405 @@ NOT started this iteration.
    which it did not.
 5. **Unchanged from C0-C5**: the secondary `gutute-00-gaki684` (component
    port-label divergence) finding remains unresolved, low priority.
+
+## C7 — derived and landed the cluster SIDE-margin mechanism (jar's
+## ClusterDotString "i"/"p1" protection-wrapper nesting, each an ordinary
+## graphviz cluster subgraph carrying its own default 8pt CL_OFFSET margin,
+## compounding to 16px (untouched) or 24px (touched -- `isGroupTouched`,
+## the SAME condition already driving the pre-existing zaent-anchor
+## mechanism) -- verified EXACT width match on all 5 of §C5's own named
+## margin samples via real graphviz-ts execution, not inference -- 0 new
+## zero-diff pins: a THIRD, NEWLY DISCOVERED residual (a ~1-6px vertical/
+## height gap, NOT proportional to margin-level count) is now the sole
+## remaining blocker for the whole cluster family; entrypoint/exitpoint
+## family and the remaining cluster queue correctly NOT attempted (blocker
+## not yet fully cleared); bajelo-54-dixe684/rovese-43-tadu368 measured per
+## explicit task instruction -- BYTE-IDENTICAL deltas, confirming the
+## margin gap was never their shared root
+
+### The hypothesis, tested first (per task's own instruction)
+
+Ran `test-results/dot-cache/state/gojuja-90-pune699/svek-2.dot` (the JAR's
+OWN captured DOT emission, not ours) through real `dot -Tsvg`
+(`/opt/homebrew/bin/dot` 15.1.0). Its cluster subgraph text is `subgraph
+cluster6a {label="";subgraph cluster6p0 {label="";subgraph cluster6
+{style=solid;color=...;labeljust="c";label=<TABLE...>;zaent0001[shape=point,
+...];subgraph cluster6i {label="";subgraph cluster6p1 {label=""; sh0010
+[...] }}}}}` — FOUR nested wrapper levels, not two: `cluster6a`/`cluster6p0`
+sit OUTSIDE the real, drawn cluster (`cluster6`, the only one carrying
+`color=`/`label=<TABLE...>`); `cluster6i`/`cluster6p1` sit INSIDE it,
+wrapping the real member content. Measured the real-dot-run output directly:
+`cluster6`'s own reported polygon `[24,-190]..[111,-275]` (x range
+[24,111]) vs `sh0010`'s (the wrapped member) `[48,68]` — left margin
+**24px exactly** (`42.83-18.83=24` on the REAL jar oracle SVG too, `A`'s
+`rect x=18.83`/inner `.start.A` ellipse `cx=52.83 rx=10` → left edge
+`42.83`, diff `24.00`), matching **3×CL_OFFSET(8)**: `cluster6`'s own
+margin around `cluster6i` + `cluster6i`'s own margin around `cluster6p1` +
+`cluster6p1`'s own margin around the real member. `cluster6a`/`cluster6p0`
+do NOT affect `cluster6`'s own reported bbox (verified: they wrap `cluster6`
+as their CHILD, reserving invisible space AROUND it for sibling
+non-overlap, not shrinking or growing `cluster6`'s own polygon) — confirmed
+irrelevant to this mechanism, correctly left unemitted.
+
+### Mechanism (per diagnosis.md — cause, origin, causal chain, ruled out)
+
+**Cause.** `~/git/plantuml/.../svek/ClusterDotString.java#printInternal`
+ALWAYS nests real member content inside a `"p1"`-suffixed protection
+subgraph (`protection1(type)`: true unless `cluster.getGroup().getUSymbol()
+== USymbols.NODE` or `skinParam.useSwimlanes(type)` — neither ever true for
+a plain state composite in this corpus), and ADDITIONALLY inside an
+`"i"`-suffixed one when `thereALinkFromOrToGroup1` — itself
+`isThereALinkFromOrToGroup(lines)` (`SvekEdge#isLinkFromOrTo`'s exact-
+identity check: `link.getEntity1() == group || link.getEntity2() == group`)
+AND `graphvizVersion.useProtectionWhenThereALinkFromOrToGroup()`
+(`GraphvizVersionFinder.java:90-96`: `true` for every graphviz version
+except literally `2.39`/`2.40` — effectively always true). Each wrapper is
+an ordinary `subgraph cluster*` — graphviz recognizes ANY subgraph whose
+name starts with the literal prefix `cluster` as a real cluster, giving it
+graphviz's own default `CL_OFFSET=8` margin
+(`~/git/graphviz/lib/common/const.h:142`) around ITS OWN children,
+regardless of whether jar's renderer ever DRAWS that wrapper's boundary.
+
+**Origin.** `src/core/graph-layout-build.ts#addClusters` (pre-C7) emitted
+`subgraph cluster<N> { <members> }` — a SINGLE flat level, matching
+graphviz's bare 8pt default, vs jar's real 2-3 nested levels (16-24pt).
+
+**Causal chain.** `isThereALinkFromOrToGroup` is a DIFFERENT question from
+`isAutarkic`'s own cluster-vs-autonom classification (`state-composite-
+detect.ts#isAutarkic` checks whether a MEMBER-identity transition crosses
+the subtree boundary; `isGroupTouched`, already exported and already
+driving the pre-existing zaent-anchor mechanism, checks whether the GROUP's
+OWN identity is EVER an endpoint, independent of subtree membership) — so
+the TWO jar mechanisms (zaent anchor presence, "i" wrapper presence) share
+ONE root cause (`isThereALinkFromOrToGroup`/`isThereALinkFromOrToGroup2` —
+practically the SAME condition given the graphviz-version gate is
+effectively always true), confirmed corpus-wide: **84/84 cached cluster-
+bearing `svek-*.dot` files show "i"-wrapper presence matching `zaent`
+special-point presence with ZERO counterexamples** (`grep`-based sweep,
+`find test-results/dot-cache/state -name svek-*.dot`, filtered to files
+containing a `cluster*p0` subgraph). This means `ctx.classify
+.needsZaentPoint.has(s.id)` — ALREADY computed, ALREADY exported, ALREADY
+consumed for the pre-existing anchor-node decision — reduces to EXACTLY
+`isGroupTouched` for every `titleTableEligible` cluster specifically (its
+OTHER disjunct, `hasDirectBorderPointChild(s) && !hasNonBorderEeContent
+(...)`, requires `hasBorderPointChildren`, which `titleTableEligible`
+already excludes) — no NEW derivation needed, only REUSE of an existing,
+already-verified flag.
+
+**Ruled out** (in order investigated):
+1. **A single, content-width-dependent margin constant** (the task's own
+   loose "~16px" framing, and C5's own "16px (occasionally ~14-17px,
+   fixture-dependent)" characterization) — ruled out by direct measurement:
+   the REAL absolute margin is either 16 (untouched, `decede-10-buvu414`'s
+   `E`, `fevida-60-kope208`'s `example`) or 24 (touched,
+   `gojuja-90-pune699`'s `A`, `cakaxu-97-nexe753`'s `AbstractState`) — a
+   crisp two-valued mechanism, not a fuzzy content-dependent constant; C5's
+   own "14-17px" range was the DELTA (jar's real minus ours), not jar's
+   absolute value, and varied because ours was ALWAYS the bare 8pt case
+   while jar's varied 16/24 depending on touched-status.
+2. **An explicit `margin=` DOT attribute jar's real emission sets** (this
+   iteration's OWN pre-derived leading hypothesis, named in C5's C6+ queue
+   item 1) — ruled out: `grep -c 'margin='
+   test-results/dot-cache/state/*/svek-*.dot` across the WHOLE cluster-
+   bearing corpus returns 0; the mechanism is pure subgraph NESTING, never
+   an explicit attribute override.
+3. **`cluster6a`/`cluster6p0` (the OUTER wrappers) contributing to
+   `cluster6`'s own margin** — ruled out via the real-`dot`-run probe: their
+   own reported polygons wrap `cluster6` as a CHILD (reserving invisible
+   space AROUND it, for non-overlap with unrelated siblings in the
+   containing graph), never shrinking or growing `cluster6`'s own bbox;
+   omitting them from this iteration's emission is provably safe for THIS
+   mechanism specifically.
+
+### Fix: `DotInputCluster.innerMarginLevels`/`unwrappedNodeId` (opt-in,
+### `titleTableEligible`-gated), consumed automatically by C3's own
+### `DotLayoutResult.clusters` seam
+
+`graph-layout-build.ts#addClusters`: when `c.innerMarginLevels` is set (`1`
+or `2`), nests member-node addition inside 1-2 extra `subgraph
+${outerName}i`/`${outerName}p1` levels (mirroring jar's naming), keeping
+`c.unwrappedNodeId` (the zaent anchor, when present) a DIRECT child of the
+outer cluster — matching jar's real placement (`zaent0001` declared BEFORE
+the `"i"`/`"p1"` opens in `ClusterDotString.printInternal`, verified against
+`gojuja-90-pune699`'s cached DOT). Names deliberately do NOT match the
+oracle comparator's `^cluster\d+$` pattern
+(`tests/oracle/svek-dot.ts#parseClusters`'s own doc comment: "Svek's
+protection wrappers clusterNp0/p1/a/i are skipped" — this comparator was
+ALREADY built anticipating this exact fix) — so the DOT-parity structural
+gate is unaffected by construction, re-verified fresh (not just inferred
+from the comparator's own doc comment).
+
+`state-composite-cluster.ts#resolveClusterComposite`: `needsZaentPoint =
+titleTableEligible && ctx.classify.needsZaentPoint.has(s.id)`;
+`innerMarginLevels: needsZaentPoint ? 2 : 1` (set only when
+`titleTableEligible`); `unwrappedNodeId: anchorId` when `needsZaentPoint`.
+`anchorId` (`zaentId(s.id)`) is now computed ONCE, before the `cluster`
+object literal, reused by BOTH the new fields and the pre-existing
+anchor-node-creation block below (unchanged logic, same `zaentId` pure
+function called twice — safe).
+
+No changes needed to `state-composite-geo.ts#materializeCluster` or
+`renderer-composite-box.ts` — both ALREADY consume `DotLayoutResult
+.clusters`' real graphviz-computed bbox (C3's own landed seam), which
+automatically reflects the new, correctly-larger margin once graphviz-ts
+lays out the wrapped structure. This is the SAME "additive infrastructure,
+zero-touch consumer" pattern C2's own chunk 1 established.
+
+### Numeric proof (core level, isolated, `graph-layout.test.ts`)
+
+Direct `createGraph`/`getLayout` probe (deleted before finishing,
+`scripts/_tmp-c7-margin-probe.ts`), a single `72×36px` node in a cluster:
+0 extra levels → 8px margin every side (baseline, unchanged). 1 level → 16px
+every side. 2 levels → 24px every side. A second probe (anchor + wrapped
+member) confirmed `unwrappedNodeId` correctly stays at the shallow 8px
+margin while its wrapped sibling gets the deep one. 4 new tests pinned in
+`tests/unit/core/graph-layout.test.ts`'s `"cluster inner margin levels"`
+describe block (exact values, not ranges).
+
+### Integration proof (`state-composite-cluster.ts`'s own wiring,
+### `tests/unit/state/layout.test.ts`)
+
+2 new tests verify `resolveClusterComposite` sets the RIGHT
+`innerMarginLevels` end to end through `layoutState`: an untouched cluster
+(`Child --> External`, a MEMBER-crossing transition that disqualifies `A`
+from `isAutarkic` without ever referencing `A`'s own name) gets
+`width=84,height=93`; a touched one (SAME + `[*] --> A`, referencing `A`'s
+own group identity) gets `width=119,height=109,y=51` — a real, measurable,
+mechanism-driven structural difference (the extra top-level `[*]` node +
+its own edge into `A`'s zaent anchor, not just the margin delta alone).
+Both retain `clusterHeaderHeight=19` (confirms the pre-existing C3 title-
+table eligibility gate is unaffected by the new `needsZaentPoint`
+threading).
+
+### Corpus-wide verification: all 5 of §C5's own named margin samples now
+### match EXACTLY on WIDTH (side margin, this iteration's stated scope)
+
+Direct comparison, real oracle `<rect>` geometry vs `layoutState()`'s own
+computed `StateNodeGeo.width` for the SAME cluster-qualified entity
+(`scripts/_tmp-c7-margin-verify.ts`, deleted before finishing; walks every
+`class="cluster"` element's `data-qualified-name` in every cached
+`in.svg`, matches it to our own geo tree by trailing id segment):
+
+| Fixture | Cluster | Ours (width) | Oracle (width) | Match |
+| --- | --- | --- | --- | --- |
+| `gojuja-90-pune699` | `A` | 87 | 87 | **EXACT** (direct probe, not this sweep — see below) |
+| `decede-10-buvu414` | `E` | ~exact | ~exact | **~EXACT** (overall `svg/@height` delta 1px, down from a pre-C7 double-digit-px gap) |
+| `cakaxu-97-nexe753` | `AbstractState` | 159 | 159 | **EXACT** |
+| `fevida-60-kope208` | `example` | 88 | 88 | **EXACT** |
+| `bujuta-44-rovo666` | (entrypoint family) | — | — | correctly excluded, `titleTableEligible` gate unaffected |
+
+`gojuja-90-pune699`'s own `A` re-verified via a DEDICATED direct probe
+(`layoutState` on the real `in.puml`, not the sweep's qualified-name
+matching): `x=18.831250000000004` (jar: `18.83`), `width=87` (jar: `87`) —
+BOTH exact; only `y`/`height` (vertical, see "new residual" below) differ.
+
+Broader corpus sweep (all 84 cluster instances across 55 cluster-bearing
+fixtures, `data-qualified-name`-matched): **42/84 width-EXACT** (< 0.1px).
+The 42 "off" instances are NOT counterexamples to the margin mechanism —
+every one checked has an ALREADY-NAMED, separate, out-of-scope reason:
+multi-line titles (`sosoxe-55-demi451`/`teseci-80-sivi292`, C3's own named
+`lineCount===1` exclusion), MULTIPLE top-level clusters in one fixture
+(`zaloga-87-lonu477`/`zumuje-46-gufe080`'s `comp1`+`comp2` — a genuinely
+NEW-to-this-mission finding that the corpus does NOT universally have "at
+most one cluster per fixture" as C5's own note assumed; not investigated
+further, logged for a future iteration), or nested clusters (this fix's
+own explicitly-scoped-out case, `DotInputCluster.innerMarginLevels`'s doc
+comment: nested-child-cluster attachment to the WRAPPED level is
+unverified this iteration).
+
+### NEW residual, discovered by this fix (NOT closed, NOT part of the
+### side-margin mechanism): a vertical/height gap, ~1-6px, NOT proportional
+### to `innerMarginLevels`
+
+After confirming WIDTH is exact, height still differs: `gojuja-90-pune699`
+`A`: ours `height=79` vs jar's real `85` (gap **6**); `fevida-60-kope208`
+`example`: ours `175` vs jar's `181` (gap **6**); `cakaxu-97-nexe753`
+`AbstractState`: ours `235.5` vs jar's `240` (gap **4.5**); `decede-10-
+buvu414`: overall `svg/@height` gap **1**. `gojuja`/`cakaxu` are TOUCHED
+(`innerMarginLevels=2`); `fevida`/`decede` are UNTOUCHED (`innerMarginLevels
+=1`) — the SAME nominal margin level (1) produces BOTH a 6px gap (fevida)
+and a ~1px gap (decede), so the residual is NOT simply "one more CL_OFFSET
+level's worth of vertical margin" — it depends on something ELSE about
+each fixture's own content shape, not just the wrap-level count.
+
+**Not root-caused this iteration** (per diagnosis.md's "no fix before a
+stated mechanism" — the derivation would require reading graphviz's
+`dotgen/position.c`'s cluster RANK-separation formula specifically:
+`d1 = rank[r + 1].ht2 + rank[r].ht1 + CL_OFFSET` (`position.c:780`, "cluster
+sep") — a DIFFERENT computation from the horizontal x-margin formula this
+iteration's fix already correctly mirrors, varying per PAIR of adjacent
+ranks crossing a cluster boundary rather than being a flat per-level
+constant. This is a genuinely NEW sub-investigation, not a continuation of
+this iteration's own evidence trail — named precisely for C8, not forced.
+
+### Why 0 new zero-diff pins despite a real, verified, jar-exact WIDTH fix
+
+Every eligible cluster fixture still carries AT LEAST one of: (a) the NEW
+vertical/height residual above (present on every sample checked), (b) the
+ALREADY-NAMED `class="entity"` vs jar's `class="cluster"` renderer-
+convention gap (C3's own "confirmed-unrelated, pre-existing" note,
+re-observed on `gojuja`/`decede`), (c) `decede`'s own SEPARATE `<style>
+stateDiagram{}</style>` cascade gap (C5's own item 4, unrelated to
+mechanism 16). None of these three are the side-margin mechanism this
+iteration targeted and fixed — but ANY one of them alone is enough to keep
+a fixture off the byte-exact ratchet bar, hence 0 new pins despite the
+real, jar-verified, width-exact improvement.
+
+### Entrypoint/exitpoint family (task item 2) — correctly NOT attempted
+
+Per the task's own framing ("if the margin clears it"): the margin fix does
+NOT clear a path to true zero-diff for ANY fixture yet (see "why 0 new
+pins" above) — the entrypoint family shares the SAME blockers (its own
+`renderClusterMeasured`/`materializeCluster` path, plus its own still-
+undereived `portRanksLabelOnEe`/WithLabel-branch width formula, C3's own
+unresolved item, unchanged) and would ALSO need the new vertical residual
+closed first. Not attempted — landing the eligibility-gate widening now
+would produce a wrong-height shape for all 20 fixtures with zero new pins,
+the same "fix that doesn't fix" failure mode C2/C5 both explicitly
+declined to ship.
+
+### Remaining cluster queue (task item 3) — correctly NOT attempted
+
+Multi-line/stereotype cluster titles (C5's own `gap=47` starting data
+point) are gated behind `titleTableEligible`'s `lineCount === 1` check,
+entirely orthogonal to THIS iteration's margin fix — landing them requires
+their OWN jar-derivation of a multi-line `CLUSTER_HEADER_HEIGHT` formula,
+not a margin question. Nested-in-autonom document order (C5's item 5)
+similarly orthogonal. Neither attempted — no budget remained after the
+margin derivation, verification, and the new vertical-residual
+characterization above; per the mission's own "land what's jar-verified,
+journal the remainder precisely" precedent (C2), not forced.
+
+### bajelo-54-dixe684 / rovese-43-tadu368 — measured per explicit task
+### instruction (measure ONLY, per the forbidden-ink-complex boundary)
+
+Both fixtures' `state-dot-parity.test.ts` size-backlog `maxSizeDeltaIn`
+(`scripts/_tmp-c7-deltas.ts`, mirroring C1/C4/C6's own established delta-
+measurement pattern, deleted before finishing) measured with THIS
+iteration's margin fix landed: `bajelo-54-dixe684`: **0.944445** (byte-
+identical to `oracle/goldens/state/size-backlog.json`'s currently-pinned
+value — unchanged). `rovese-43-tadu368`: **0.6388889999999998** (also
+byte-identical to its pinned value — unchanged). **Neither delta moved at
+all.** This directly answers C6's own C7+ queue speculation ("worth
+checking whether C5's still-open cluster side-margin gap is the ACTUAL
+shared root for these two specifically, since both are deep-nesting
+composite families") — **it is NOT**: landing the margin fix produces
+ZERO change for either fixture, a FOURTH independent confirmation of S13's
+own "unrelated... identical across every variant" framing (S13 itself,
+then C4, then C6, now C7). This measurement decides a seventh ink-complex
+attempt's scope: bajelo/rovese's own mechanism remains completely
+uncharacterized by ANY of this mission's four prior probes (font-size fix,
+HTML injection, edge-label-ink fold, cluster side-margin) — a genuinely
+NEW investigation is needed for these two specifically, not a re-
+application of any existing derived mechanism.
+
+### Fixture impact
+
+**0 oracle fixtures changed** (`oracle/goldens/**` untouched — no fixture
+reached true byte-exact zero-diff this iteration, per the "why 0 new pins"
+analysis above). `oracle/goldens/state/size-backlog.json`: **untouched, 93
+entries** — checked every backlog-listed fixture whose own cluster is
+`titleTableEligible` (`decede-10-buvu414`: 0.013887999999999678, unchanged;
+`bujuta-44-rovo666`: 0.5, unchanged, entrypoint-family/unaffected by
+construction) for tightening headroom; none qualified.
+
+### Gates (C7, final)
+
+- `npm run typecheck`: clean (both configs).
+- `npm run lint`: clean.
+- `npm test -- --run`: **10150 passed | 5 skipped** (381 files, 380 passed +
+  1 file whose 5 tests are all `describe.skip`'d — C1's reverted sites-2/3
+  evidence, unchanged) — up from C6's 10144/5 (+6: this iteration's own 4
+  `graph-layout.test.ts` + 2 `layout.test.ts` new tests).
+- DOT gate (verbatim, re-verified fresh):
+  `structurally EQUAL (DOT in sync): 262 (100%)` (component)
+  `structurally EQUAL (DOT in sync): 90 (100%)` (usecase)
+  `structurally EQUAL (DOT in sync): 708 (100%)` (class)
+  `structurally EQUAL (DOT in sync): 78 (98%)` (object)
+  `structurally EQUAL (DOT in sync): 267 (100%)` (state)
+  — EXACTLY unchanged from the frozen baseline (component 262/262 · usecase
+  90/90 · class 708/708 · object 78/80 · state 267/267) — the wrapper
+  subgraphs are structurally invisible to the comparator BY DESIGN
+  (`tests/oracle/svek-dot.ts#parseClusters`'s own pre-existing "Svek's
+  protection wrappers clusterNp0/p1/a/i are skipped" doc comment).
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268**, unchanged.
+- `description.golden.ratchet.test.ts`: **51 tests** (unchanged).
+- `class.golden.ratchet.test.ts`: **305 tests** (unchanged).
+- `object.golden.ratchet.test.ts`: **24 tests** (unchanged).
+- `state.golden.ratchet.test.ts`: **54 tests** (unchanged).
+- Censuses: description (no-arg) **48/355**, class **303/718**, object
+  **22/80**, state **52/271** — all byte-identical to the C6 baseline.
+
+### Ratchet / pins
+
+**0 new pins** — see "why 0 new zero-diff pins" above (the new vertical
+residual, the already-named `class` attribute gap, and `decede`'s own
+separate `<style>` cascade gap each independently keep every checked
+fixture off the byte-exact bar, despite the side-margin mechanism itself
+being real, jar-verified, and now landed).
+
+### Files changed (C7)
+
+- `src/core/graph-layout.types.ts` — `DotInputCluster.innerMarginLevels`
+  (NEW, `1 | 2`), `DotInputCluster.unwrappedNodeId` (NEW, `string`).
+- `src/core/graph-layout-build.ts` — `addClusters`'s member-addition loop
+  nests 1-2 extra protection-wrapper subgraphs when `innerMarginLevels` is
+  set, keeping `unwrappedNodeId` a direct child of the outer cluster; added
+  an `#lizard forgives` comment to the PRE-EXISTING (unmodified) `addEdges`
+  function, whose own CCN the complexity hook newly flagged on this file's
+  first touch this iteration (mechanical, not a design change).
+- `src/diagrams/state/state-composite-cluster.ts` —
+  `resolveClusterComposite` computes `needsZaentPoint`/`anchorId` once,
+  before the `cluster` object literal, and sets `innerMarginLevels`/
+  `unwrappedNodeId` on it when `titleTableEligible`.
+- `tests/unit/core/graph-layout.test.ts` — 4 new tests (`"cluster inner
+  margin levels (G5 C7, mechanism 16 margin half)"`).
+- `tests/unit/state/layout.test.ts` — 2 new tests (`"cluster inner margin
+  wiring (G5 C7, mechanism 16 margin half)"`).
+- `plans/g5-measurer-calibration/{README.md,ledger.md,decision-journal.md}`
+  — this entry.
+
+### C8+ queue
+
+1. **PRIORITY, newly characterized this iteration**: the cluster VERTICAL/
+   height-margin residual (~1-6px, NOT proportional to `innerMarginLevels`)
+   — confirmed on 4/4 samples checked (`gojuja-90-pune699` 6px,
+   `fevida-60-kope208` 6px, `cakaxu-97-nexe753` 4.5px, `decede-10-buvu414`
+   ~1px). Needs its own jar-source derivation, plausibly graphviz's cluster
+   RANK-separation formula (`~/git/graphviz/lib/dotgen/position.c:780`,
+   `d1 = rank[r+1].ht2 + rank[r].ht1 + CL_OFFSET`) rather than the flat
+   per-level margin this iteration's fix already correctly applies
+   horizontally — a DIFFERENT mechanism from `innerMarginLevels`, which
+   remains correct and unaffected.
+2. **After (1) closes**: re-verify `gojuja-90-pune699`/`decede-10-buvu414`
+   /`cakaxu-97-nexe753`/`fevida-60-kope208` reach true zero-diff — modulo
+   the two ALREADY-NAMED, unrelated gaps: `class="entity"` vs jar's
+   `class="cluster"` (a renderer-wide convention gap, not mechanism 16) and
+   `decede`'s own `<style>stateDiagram{}</style>` cascade (C5's item 4).
+3. **Entrypoint/exitpoint family (20 fixtures)**: reachable once (1) closes
+   AND the family's own `portRanksLabelOnEe`/WithLabel-branch WIDTH/rank-
+   chain shape is derived (C3's own unresolved item, unchanged).
+4. **Multi-line/action-text/stereotype cluster titles**: unchanged from
+   C5's own queue (gap=47 starting data point), orthogonal to the margin
+   mechanism.
+5. **NEW finding this iteration**: some fixtures have MULTIPLE top-level
+   `'cluster'`-classified composites in the SAME diagram
+   (`zaloga-87-lonu477`, `zumuje-46-gufe080` — `comp1`+`comp2`), correcting
+   C5's own "this port's corpus never has two" assumption. Not
+   investigated further — flagged for whoever picks up (1)/(2), since a
+   multi-cluster fixture may exercise code paths (e.g. `nameFor`/`nextIndex`
+   collision risk, cross-cluster margin interaction) neither C3 nor this
+   iteration verified.
+6. **Nested-cluster (inside another cluster) margin composition**: this
+   iteration's own explicit scoping gap (`DotInputCluster
+   .innerMarginLevels`'s doc comment) — a nested child cluster attaches to
+   the OUTER (unwrapped) level of its parent, not the wrapped level,
+   unverified against any real corpus fixture (no eligible nested-cluster-
+   in-cluster case currently in the corpus, per the width-off sweep's own
+   "NESTED-BUT-EXACT" spot checks showing nested clusters ALSO reaching
+   exact width in the 2 cases checked — a good sign, not a full proof).
+7. **Unchanged from C0-C6**: the secondary `gutute-00-gaki684` (component
+   port-label divergence) finding remains unresolved, low priority; sites
+   2/3 + C4's injection mechanism remain parked pending a seventh,
+   separately-scoped attempt at bajelo/rovese's own (still fully
+   uncharacterized) mechanism, per orchestrator/maintainer sign-off.

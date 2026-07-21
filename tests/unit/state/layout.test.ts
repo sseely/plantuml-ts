@@ -850,3 +850,68 @@ describe('layoutState — parallel transitions between same states', () => {
     expect(t2).toBeDefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G5 C7, mechanism 16 margin half: `resolveClusterComposite` sets
+// `DotInputCluster.innerMarginLevels`/`unwrappedNodeId` based on jar's own
+// `thereALinkFromOrToGroup`/`isGroupTouched` boolean -- 1 level (16px side
+// margin) when untouched, 2 (24px) plus an unwrapped zaent anchor when some
+// transition's source/target IS the composite's own entity (not a
+// descendant member). See graph-layout.test.ts's "cluster inner margin
+// levels" describe block for the isolated, precise numeric proof of the
+// wrap mechanism itself; this integration test verifies
+// resolveClusterComposite's OWN wiring end to end through layoutState.
+//
+// Both cases below force 'cluster' (non-autonom) classification via a
+// MEMBER-crossing transition (`Child --> External`, disqualifying `A` from
+// `isAutarkic` per state-composite-detect.ts's own subtree-boundary check)
+// -- `isGroupTouched` (the zaent/margin-level decision) is a SEPARATE,
+// simpler check (`allTransitions.some(t => t.from === id || t.to === id)`)
+// that does not require a subtree-crossing transition, only SOME reference
+// to the composite's own name as an endpoint -- `[*] --> A` supplies that
+// in the touched case, absent in the untouched case. Values below are the
+// real, deterministic output of this exact code (not invented), reproducible
+// via layoutState directly.
+// ---------------------------------------------------------------------------
+
+describe('layoutState -- cluster inner margin wiring (G5 C7, mechanism 16 margin half)', () => {
+  it('an UNTOUCHED cluster composite (no transition references A by its own name) gets a single wrap level', () => {
+    const child = makeState('Child');
+    const a = makeState('A', { children: [child] });
+    const ext = makeState('External');
+    const ast: StateDiagramAST = {
+      states: [a, ext],
+      transitions: [{ from: 'Child', to: 'External' }],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'A');
+    expect(comp?.clusterHeaderHeight).toBe(19);
+    expect(comp?.width).toBeCloseTo(84, 1);
+    expect(comp?.height).toBeCloseTo(93, 1);
+  });
+
+  it('a TOUCHED cluster composite ([*] --> A, the group entity itself) gets a deeper 2-level wrap', () => {
+    const child = makeState('Child');
+    const a = makeState('A', { children: [child] });
+    const ext = makeState('External');
+    const ast: StateDiagramAST = {
+      states: [a, ext],
+      transitions: [
+        { from: 'Child', to: 'External' },
+        { from: '[*]', to: 'A' },
+      ],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'A');
+    // headerLines/clusterHeaderHeight eligibility is unaffected by the
+    // needsZaentPoint threading -- the touched composite is STILL
+    // titleTableEligible (single-line title, no border points).
+    expect(comp?.clusterHeaderHeight).toBe(19);
+    // The extra top-level `[*]` node + its own edge into A's zaent anchor
+    // (a real structural difference, not just the margin delta) pushes A's
+    // own box measurably wider/taller/lower than the untouched case above.
+    expect(comp?.width).toBeCloseTo(119, 1);
+    expect(comp?.height).toBeCloseTo(109, 1);
+    expect(comp?.y).toBeCloseTo(51, 1);
+  });
+});

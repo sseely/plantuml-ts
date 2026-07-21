@@ -200,6 +200,48 @@ export interface DotInputCluster {
    *  existing plain-text `label` attr, unchanged. */
   titleTableWidth?: number;
   titleTableHeight?: number;
+  /** G5 C7, mechanism 16 margin half (ledger.md §C7): jar's real cluster
+   *  side/top/bottom margin is NOT graphviz's bare 8pt `CL_OFFSET` default —
+   *  `ClusterDotString.printInternal` (`~/git/plantuml/.../svek/
+   *  ClusterDotString.java`) nests a cluster's own real content inside 1-2
+   *  extra "protection" `subgraph cluster*` wrappers ("p1" always, when
+   *  `protection1()` — true for every non-swimlane, non-NODE-usymbol state
+   *  composite in this port's corpus; "i" ADDITIONALLY when
+   *  `thereALinkFromOrToGroup1` — a link's source or target is the group
+   *  ENTITY ITSELF, not a descendant member, `SvekEdge#isLinkFromOrTo`'s
+   *  exact-identity check), each an ordinary graphviz cluster subgraph that
+   *  gets ITS OWN `CL_OFFSET` margin around its children — compounding to
+   *  16px (1 extra level) or 24px (2) between real content and the drawn
+   *  cluster boundary, jar-verified via a direct `dot -Tsvg` run on cached
+   *  `svek-N.dot` (`gojuja-90-pune699`'s `A`: real oracle left margin
+   *  42.83-18.83=24, matching 3×8pt: the outer cluster's own margin + "i" +
+   *  "p1") and corpus-wide (84/84 cluster-bearing cached DOTs: "i" wrapper
+   *  presence matches `zaent` special-point presence with ZERO
+   *  counterexamples — the SAME `isThereALinkFromOrToGroup` boolean gates
+   *  both, since `useProtectionWhenThereALinkFromOrToGroup` is true for
+   *  every graphviz version this corpus's cache used,
+   *  `GraphvizVersionFinder.java:90-96`). `1` emits ONE extra "p1"-only
+   *  wrapper (16px); `2` ADDITIONALLY nests an "i" wrapper inside the outer
+   *  cluster, outside "p1" (24px) — mirroring jar's exact nesting order.
+   *  Additive: absent (every pre-C7 caller) falls back to the plain,
+   *  unwrapped `sg.addNode(id)` loop (graphviz's bare 8pt default),
+   *  unchanged. Set ONLY for `titleTableEligible` clusters (`state-
+   *  composite-cluster.ts#resolveClusterComposite`) — jar's own
+   *  `Cluster#manageEntryExitPoint`/`FrontierCalculator` path (the
+   *  entrypoint/exitpoint family, excluded from `titleTableEligible`) reads
+   *  member positions directly rather than graphviz's own reported cluster
+   *  bbox, so this margin mechanism does not apply there (unverified,
+   *  deferred). */
+  innerMarginLevels?: 1 | 2;
+  /** The one member of `nodeIds` that stays a DIRECT child of the outer
+   *  cluster subgraph, unwrapped by `innerMarginLevels` — jar's zaent
+   *  special-point anchor (`Cluster.getSpecialPointId`), which
+   *  `ClusterDotString.printInternal` declares BEFORE opening the "i"/"p1"
+   *  wrappers, not inside them (verified directly against `gojuja-90-
+   *  pune699`'s cached `svek-2.dot`: `zaent0001` sits as a direct child of
+   *  `cluster6`, sibling to — not descendant of — `cluster6i`). Ignored
+   *  when `innerMarginLevels` is absent. */
+  unwrappedNodeId?: string;
 }
 
 export interface DotInputGraph {
