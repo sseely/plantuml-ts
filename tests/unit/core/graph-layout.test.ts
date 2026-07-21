@@ -148,3 +148,96 @@ describe('layoutGraph — defensive and option paths', () => {
     expect(r.nodes).toHaveLength(2);
   });
 });
+
+// G5 C2: graphviz-ts 0.1.26072115 landed `clusters` in getLayout()'s
+// snapshot (docs/graphviz-issues/06-cluster-bbox-not-in-getlayout.md,
+// RESOLVED note). layoutGraph() must thread the real cluster bbox back to
+// the caller, keyed by OUR OWN DotInputCluster.id (not graphviz-ts's
+// internal `cluster0`/`cluster1` name) — the seam consumers (state
+// composite pipeline, mechanism 16) never see graphviz-ts's naming scheme.
+describe('layoutGraph — cluster geometry (G5 C2, mechanism 16)', () => {
+  it('omits the clusters field when the input graph has no clusters', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a'), box('b')],
+      edges: [{ id: 'e0', from: 'a', to: 'b' }],
+    };
+    const r = layoutGraph(g);
+    expect(r.clusters).toBeUndefined();
+  });
+
+  it('exposes a real bbox for one cluster, keyed by the input cluster id', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a'), box('b')],
+      edges: [{ id: 'e0', from: 'a', to: 'b' }],
+      clusters: [{ id: 'grp1', nodeIds: ['a'] }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    expect(r.clusters).toHaveLength(1);
+    const c = r.clusters![0]!;
+    expect(c.id).toBe('grp1');
+    expect(c.width).toBeGreaterThan(0);
+    expect(c.height).toBeGreaterThan(0);
+    // Cluster margins wrap node 'a' -- its bbox must strictly contain
+    // (not merely touch) that node's own laid-out box.
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    expect(c.x).toBeLessThan(a.x);
+    expect(c.y).toBeLessThan(a.y);
+    expect(c.x + c.width).toBeGreaterThan(a.x + a.width);
+    expect(c.y + c.height).toBeGreaterThan(a.y + a.height);
+  });
+
+  it('exposes one entry per nested cluster, outer containing inner', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a'), box('b'), box('c')],
+      edges: [
+        { id: 'e0', from: 'a', to: 'b' },
+        { id: 'e1', from: 'b', to: 'c' },
+      ],
+      clusters: [
+        { id: 'outer', nodeIds: [] },
+        { id: 'inner', nodeIds: ['a', 'b'], parentId: 'outer' },
+      ],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    expect(r.clusters).toHaveLength(2);
+    const outer = r.clusters!.find((c) => c.id === 'outer')!;
+    const inner = r.clusters!.find((c) => c.id === 'inner')!;
+    expect(outer).toBeDefined();
+    expect(inner).toBeDefined();
+    expect(outer.x).toBeLessThanOrEqual(inner.x);
+    expect(outer.y).toBeLessThanOrEqual(inner.y);
+    expect(outer.x + outer.width).toBeGreaterThanOrEqual(inner.x + inner.width);
+    expect(outer.y + outer.height).toBeGreaterThanOrEqual(inner.y + inner.height);
+  });
+
+  it('rides the same origin-shift translation as nodes/edges, pinned exact', () => {
+    // graphviz's own cluster margin (8pt each side, its documented default)
+    // means the cluster box legitimately extends BEYOND the topmost/leftmost
+    // member node -- shiftToOrigin() deliberately derives its translation
+    // from nodes/edges alone (so pre-existing node/edge output stays
+    // byte-identical for every caller that ignores `clusters`) and applies
+    // that SAME translation to cluster boxes, which can therefore land at a
+    // small negative x/y. Pinned to the exact deterministic values (not a
+    // >=0 assumption, which does not hold for this real geometry) so a
+    // future regression in either the shift-sharing wiring OR the
+    // snapshot-to-id remapping fails loudly.
+    const g: DotInputGraph = {
+      nodes: [box('a'), box('b')],
+      edges: [{ id: 'e0', from: 'a', to: 'b' }],
+      clusters: [{ id: 'grp1', nodeIds: ['a', 'b'] }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const b = r.nodes.find((n) => n.id === 'b')!;
+    expect(a).toEqual({ id: 'a', x: 0, y: 0, width: 72, height: 36 });
+    expect(b).toEqual({ id: 'b', x: 0, y: 72, width: 72, height: 36 });
+    const c = r.clusters![0]!;
+    expect(c.x).toBeCloseTo(-8, 5);
+    expect(c.y).toBeCloseTo(-8, 5);
+    expect(c.width).toBeCloseTo(88, 5);
+    expect(c.height).toBeCloseTo(124, 5);
+  });
+});

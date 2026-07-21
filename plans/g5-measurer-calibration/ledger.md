@@ -517,3 +517,314 @@ logging-not-chasing the `gutute-00-gaki684` secondary finding).
 4. **Unchanged from C0**: the secondary `gutute-00-gaki684` (component
    port-label divergence) finding remains unresolved, low priority,
    unrelated to this mechanism.
+
+## C2 — landed the cluster-geometry seam (`DotLayoutResult.clusters`,
+## graphviz-ts 0.1.26072115), TDD-tested and additive; deep jar-verified
+## diagnosis of mechanism 16's render half (BLOCKED on a graphviz-ts
+## builder-API gap, filed as issue 07); confirmed sites 2/3 blocked for a
+## DIFFERENT, more precise reason than the C1 queue's own hypothesis --
+## 0 state/ files touched, all protected sets unchanged
+
+### Chunk 1 — `layoutGraph()` exposes real per-cluster geometry (LANDED)
+
+`docs/graphviz-issues/06-cluster-bbox-not-in-getlayout.md`'s RESOLVED note
+(graphviz-ts 0.1.26072115, repo bump already landed as this iteration's
+HEAD commit) confirmed `getLayout()`'s snapshot now carries a `clusters`
+array (`name`/`x`/`y`/`width`/`height`, byte-matching real `dot -Tsvg`
+cluster polygons). This chunk threads that into the public seam:
+
+- `graph-layout-build.ts#addClusters` now returns a `ClusterIndex`
+  (`idByName: Map<graphviz-ts's own 'cluster<N>' name, our
+  DotInputCluster.id>`), built alongside the existing name-assignment loop
+  (zero behavior change to the DOT emitted to graphviz-ts — same names,
+  same nesting, same node membership).
+- `graph-layout.types.ts#DotLayoutResult` gains an optional `clusters`
+  field, keyed by `DotInputCluster.id` (NOT graphviz-ts's internal name —
+  callers never need to know that naming scheme).
+- `graph-layout.ts#layoutGraph` maps `snap.clusters` through the
+  `ClusterIndex` (new `mapClusters` helper) and threads the result through
+  `shiftToOrigin` (extended to accept an optional `clusters` param) so
+  cluster boxes ride the SAME node/edge-derived origin translation.
+
+**Deliberate design choice — clusters do NOT participate in DERIVING the
+origin shift, only in RECEIVING it.** `shiftToOrigin`'s `minX`/`minY` are
+still computed from nodes/edges alone, exactly as before this chunk. This
+was verified necessary, not just convenient: graphviz's own default
+cluster margin (confirmed 8pt via direct probe) means a cluster box
+legitimately extends BEYOND its topmost/leftmost member node, so if
+clusters participated in deriving the shift, EVERY existing
+cluster-bearing caller (state composites, class namespaces) would see its
+node/edge positions shift by that margin — a real regression risk for
+zero benefit. Verified empirically (pinned test, exact values): for a
+2-node TB cluster, nodes stay at `(0,0)`/`(0,72)` (byte-identical to
+pre-chunk-1 behavior) while the cluster box lands at `(-8,-8)`,
+`88×124` — a legitimate negative coordinate in the SAME frame, not a bug.
+
+**TDD**: 4 new tests in `tests/unit/core/graph-layout.test.ts`
+(`layoutGraph — cluster geometry (G5 C2, mechanism 16)`): no-clusters
+omits the field; single cluster's bbox strictly contains its member node;
+nested clusters (outer contains inner, both entries present, keyed by
+input id); the pinned-exact origin-shift-sharing test above. All RED
+before the implementation (`Target cannot be null or undefined` /
+`Cannot read properties of undefined`), GREEN after.
+
+**Additive, verified**: `addClusters`'s only production call site
+(`graph-layout.ts`) is unchanged in what it feeds graphviz-ts (same
+subgraph names/nesting/membership) — only its RETURN VALUE changed shape
+(`void` → `ClusterIndex`). No existing consumer reads
+`DotLayoutResult.clusters` yet, so this is provably a no-op for every
+current caller (state composite pipeline, class namespace clusters,
+description package clusters) until a consumer is written. DOT gate,
+size-backlog ratchet, all four golden ratchets, and all four censuses
+re-verified byte-identical BEFORE any chunk-2 investigation began (see
+Gates below) — confirms the "additive" claim held, not just assumed.
+
+### Chunk 2 — mechanism 16 (entity-vs-cluster wrap): deep diagnosis,
+### NOT landed this iteration -- render half BLOCKED on a graphviz-ts
+### builder-API gap (filed, docs/graphviz-issues/07)
+
+Per diagnosis.md discipline: instrumented before hypothesizing, at every
+step, against BOTH the real jar (`oracle/dist/plantuml-oracle.jar`,
+`-DPLANTUML_DETERMINISTIC_TEXT=true`, the SAME invocation
+`dot-sync-report.ts` uses to build the cached corpus) and this port's own
+`layoutGraph()` seam directly (throwaway `scripts/_tmp-c2-*` probes,
+deleted before finishing, per the mission's hard boundaries).
+
+**Mechanism 16 is TWO independently-gated problems, not one**, confirmed
+by reading `state-composite-geo.ts#materializeCluster` (the size half) and
+`renderer-composite-box.ts#renderComposite` (the shape half) together:
+
+1. **Size** (which this chunk's chunk-1 seam unblocks): `materializeCluster`
+   computes the composite's outer box as `boundingBox(children)` — a flat
+   12px pad on every side over the children's own (already-correct)
+   positions. The ledger's own S1/S3/S6 finding (16px vs 24px side margin,
+   19px header height, re-confirmed this iteration on 19 real fixtures —
+   see below) already proved this is NOT a derivable constant; it needs
+   graphviz's OWN cluster bbox. Chunk 1 makes that bbox available.
+2. **Shape** (NOT unblocked by chunk 1): `renderComposite` dispatches
+   PURELY on `node.headerLines === undefined` — `materializeCluster` never
+   sets `headerLines` (a deliberate, named deferral, per that module's own
+   doc comment), so EVERY `'cluster'`-classified composite renders via
+   `renderCompositeFallback` (a dashed rect + one unmeasured centered
+   label) — NOT jar's real shape (two filled half-rounded `<path>`s, a
+   solid outline, ONE divider, a `textLength`-measured centered title —
+   confirmed directly from `decede-10-buvu414`'s cached `in.svg`). This is
+   a STRUCTURALLY DIFFERENT SVG shape from both (a) the current fallback
+   AND (b) `renderCompositeMeasured`'s existing `'autonom'`-composite shape
+   (which uses a DIFFERENT header-height formula, `MARGIN(5) +
+   lines*fontSize + MARGIN_LINE(5)` = 24 for one line at font 14 — verified
+   this IS jar-exact for genuine `'autonom'` composites via a fresh
+   `state E { state F }` minimal repro with NO transitions at all,
+   `class="entity"`, header gap exactly 24 — but wrong for the `'cluster'`
+   path specifically, which is a DOT-native `ClusterDotString` shape, not
+   `InnerStateAutonom`).
+
+**Why the shape half is blocked — the real jar mechanism, derived from
+source + verified against the real jar + verified against this port's own
+seam (three independent confirmations):**
+
+Read `~/git/plantuml/.../svek/ClusterHeader.java` and
+`~/git/plantuml/.../svek/ClusterDotString.java:121-133`: every
+`'cluster'`-classified composite's DOT `label=` attribute is an HTML
+`<TABLE BGCOLOR=".." FIXEDSIZE="TRUE" WIDTH="w" HEIGHT="h">` (built by
+`SvekEdge.appendTable`, `h = cluster.getTitleAndAttributeHeight() - 5`) —
+a FIXEDSIZE table forces graphviz's own label-reservation to EXACTLY
+`w×h`, independent of the actual text drawn inside it (the VISIBLE text is
+drawn separately, by jar's own SVG renderer, using jar's own
+`WidthTableMeasurer`-equivalent — the HTML table exists ONLY to tell
+graphviz how much space to reserve).
+
+Confirmed the CONSTANT this drives, jar-side, on **19 real corpus
+fixtures** (well above the mission's own ≥15 hand-sample bar) plus 4
+synthetic minimal jar repros (`state E { state F }`, with/without a
+cross-boundary transition, 1-char vs 24-char titles) — every single-line
+title at the default font-size (14) produces an EXACT, content-width-
+independent header gap of **19px** (`cluster.y` to the header/body
+divider), confirmed via direct byte extraction from cached `in.svg`:
+`bajelo-54-dixe684`, `decede-10-buvu414`, `gojuja-90-pune699`,
+`bemena-23-zebu249`, `bujuta-44-rovo666`, `lasasi-13-nona547`,
+`soxene-95-domu248`, `nufigo-87-pivi558`, `xojudi-20-keco020`,
+`cakaxu-97-nexe753`, `cesifo-37-rugu443`, `cinoni-00-sere847`,
+`darime-88-moda428`, `fajegu-17-joba577`, `giniti-22-fexo000`,
+`fevida-60-kope208`, `figevo-73-dani805`, `filunu-15-losu567` — 18/19
+EXACTLY 19.0px; the 19th (`jaxebo-54-nifi592`, 11.0565px) is fully
+explained (not a counterexample) by that fixture's own `scale 350 width`
+document-level pragma (`11.0565 / 19 = 0.5819`, matching the required
+uniform post-layout scale factor exactly) — confirmed the SAME mechanism
+independently on `zoriza-41-rege543` (`scale 1.4`, header gap 26.6 =
+`19 * 1.4` exactly).
+
+**The gap**: `graph-layout-build.ts#addClusters` (the programmatic
+`GvGraphBuilder.addSubgraph`/`.setAttr` seam `layoutGraph()` actually
+calls in production) has no way to construct an HTML label — `attrs.label`
+is always treated as a literal DOT string unless prefixed with
+graphviz-ts's internal `HTML_STRING_MARK` (a single U+0001 control
+character, `common/html-string.d.ts`), which is NOT exported from the
+package's public surface (absent from `api/index.d.ts`/`index.d.ts`).
+Issue 05 (`docs/graphviz-issues/05-cluster-label-dimensions-ignored.md`)
+already confirmed the graphviz-ts LAYOUT ENGINE honors HTML-table labels
+correctly once given one — but ONLY demonstrated through DOT-TEXT parsing
+(where `label=<...>` is natively recognized), never through the
+programmatic builder path this port's `layoutGraph()` exclusively uses.
+
+Verified (throwaway probe, NOT landed in `src/`) that manually
+constructing the marker (`String.fromCharCode(1) + '<TABLE
+FIXEDSIZE="TRUE" WIDTH=".." HEIGHT="..">...'`) DOES work end-to-end
+through the exact programmatic path `graph-layout-build.ts` uses,
+producing a clean, PERFECTLY LINEAR relationship between the FIXEDSIZE
+`HEIGHT` and the resulting cluster-to-content gap: `gap = HEIGHT + 16`,
+confirmed on 15 data points (`HEIGHT` from 1 to 50, both with and without
+an outbound edge from the wrapped node) — and `HEIGHT=3` gives `gap=19`,
+EXACTLY matching the jar-verified constant above. This is strong evidence
+the render-shape fix is mechanically tractable — but it depends on an
+UNDOCUMENTED, unexported internal constant, which is a DIFFERENT class of
+dependency than this iteration's two pre-sanctioned channels (SVG-text
+regex for port labels; the new `clusters` snapshot field for geometry).
+Per the mission's own channel-scoping boundary, adopting it needs explicit
+sign-off, not a unilateral C2 decision — filed as
+`docs/graphviz-issues/07-html-label-mark-not-exported.md` (the ask:
+export `HTML_STRING_MARK` or add a builder-level HTML-label convenience)
+rather than landed silently.
+
+**NOT closed this iteration, named precisely for the next one:**
+1. The WIDTH-side formula (`getTitleAndAttributeWidth()`, presumably this
+   port's own already-jar-exact `measureClusterTitle().width` — G5 C0
+   already proved `WidthTableMeasurer` is jar-exact for this exact class of
+   text sample) and the SIDE/BOTTOM margin formula (already named
+   non-constant by S1/S3/S6 — 16px vs 24px, tracks child content shape;
+   chunk 1's real bbox is the fix for THIS part specifically, but wasn't
+   independently re-verified against the marker-based label technique this
+   iteration).
+2. Multi-line titles, action-text (`attributeHeight` in
+   `ClusterHeader.java`), and stereotype-bearing clusters — the 19px
+   constant is verified ONLY for the single-line, no-action-text,
+   no-stereotype case (the overwhelming majority of the 92-fixture family,
+   but not proven exhaustive).
+3. The render SHAPE itself needs a NEW function (jar's real cluster shape
+   fills its ENTIRE body area with the background color, unlike
+   `renderCompositeMeasured`'s `'autonom'` shape, which leaves everything
+   below the header/action-zone transparent so nested children show
+   through) — not a reuse of the existing autonom-composite renderer.
+4. `getTitleAndAttributeHeight()`'s own value (8, backed out from
+   `HEIGHT=3` and the Java formula's `-5`) does NOT match this port's
+   current `measureClusterTitle`/`WidthTableMeasurer` convention
+   (`height = font.size` = 14 for one line) — a genuine, UNRESOLVED
+   discrepancy between this port's text-block HEIGHT convention and jar's
+   real `ClusterHeader`/`Display` TextBlock height for this specific
+   context. NOT chased further this iteration (would require reading
+   jar's `TextBlockUtils`/`Display.create()` height computation in full,
+   a nontrivial side investigation of its own) — named for whoever attempts
+   the shape fix next, since it blocks a jar-exact WIDTH-independent
+   height formula even once the marker-export gap (item above) is
+   resolved.
+
+Given (1)-(4) above and the mission's own explicit instruction ("If the
+composite rewrite proves deeper than one iteration, land the seam
+adoption + whatever is jar-verified, journal the remainder precisely, and
+report — do not force"), **no `src/diagrams/state/*.ts` file was touched
+this iteration.** Landing a partial fix (real size, wrong shape; or
+correct-for-single-line-only shape) risked shipping exactly the
+case-by-case-approximation failure mode `CLAUDE.md`'s porting-discipline
+section warns against, for a mechanism this project's own `DIVERGENCES.md`
+discipline would otherwise flag as "surprising to a long-time PlantUML
+user" if shipped wrong.
+
+### Sites 2/3 (G5 C1's own queue item 1): re-examined, CONFIRMED STILL
+### BLOCKED — for a more precise reason than the queue's own hypothesis
+
+C1's queue speculated cluster geometry MIGHT unblock
+`state-composite-autonom.ts#buildPlainAutonomSpec`'s `Math.max
+(geometry.width, result.width)` floor (the prerequisite for re-landing G5
+sites 2/3). Checked directly: `bemena-23-zebu249` (the S13/C1 founding
+fixture) is `NotShooting { [*] --> Idle; Idle --> Configuring : EvConfig;
+Configuring --> Idle : EvConfig }` plus a separately-autonom `Configuring
+{ [*] --> NewValueSelection; NewValueSelection --> NewValuePreview :
+EvNewValue; ... }` — **`Configuring`'s own child pass contains ZERO
+nested clusters** (only leaf states + `[*]` pseudo-nodes). Re-reading
+`buildPlainAutonomSpec`'s own ink-extent call
+(`computeSvekResultGeometry(inkStates, inkTransitions)`,
+`layout-ink-extent.ts`) confirms its gap is EDGE-LABEL ink not folding
+into `geometry.width` at all (`TransitionGeo.label does not carry` into
+the ink walk — that module's OWN doc comment, unchanged since G4) — a
+mechanism with NO dependency on cluster geometry whatsoever for this
+fixture family. **Mechanism 16's cluster-bbox work does not unblock sites
+2/3** — C1's own hypothesis does not hold, confirmed by direct
+inspection rather than assumed. The real prerequisite for sites 2/3 is
+the ALREADY-3-STRIKE-PARKED G4 S11/S12/S13 edge-label-ink mechanism,
+which C1 itself already flagged as requiring orchestrator/maintainer
+sign-off before a 4th attempt — unchanged, not re-attempted this
+iteration (no sign-off requested or granted).
+
+### Fixture impact
+
+**0 oracle fixtures changed.** `oracle/goldens/**` untouched (no fixture
+newly reached zero-diff/dotEqual — chunk 1 is generic infrastructure with
+no consumer yet; chunk 2 landed no `src/diagrams/**` change).
+`oracle/goldens/state/size-backlog.json`: **untouched, 103 entries**.
+
+### Gates (C2, final — chunk 1 landed, chunk 2 investigation-only)
+
+- `npm run typecheck`: clean (both configs).
+- `npm run lint`: clean.
+- `npm test -- --run`: **10138 passed | 5 skipped** (381 files) — up from
+  C1's 10134/5 (+4: this chunk's own 4 new `graph-layout.test.ts` cases;
+  the 5 skipped are UNCHANGED, still C1's reverted sites-2/3 evidence).
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, re-verified fresh via
+  `dot-sync-report.ts` after chunk 1 landed.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268**,
+  unchanged.
+- `description.golden.ratchet.test.ts`: **51 tests** (unchanged).
+- `class.golden.ratchet.test.ts`: **305 tests** (unchanged).
+- `object.golden.ratchet.test.ts`: **24 tests** (unchanged).
+- `state.golden.ratchet.test.ts`: **54 tests** (unchanged).
+- Censuses: description (no-arg) **48/355**, class **303/718**, object
+  **22/80**, state **52/271** — all byte-identical to the C1 baseline,
+  re-verified fresh (not assumed) after chunk 1 landed, per-type AND via
+  the combined no-arg invocation the mission brief's own baseline used.
+
+### Ratchet / pins
+
+**0 new pins.** Chunk 1 is additive infrastructure with no consumer this
+iteration (cannot move any ratchet by construction — no `src/diagrams/**`
+file reads `DotLayoutResult.clusters` yet). Chunk 2 landed no source
+change.
+
+### Files changed (C2)
+
+- `src/core/graph-layout-build.ts` — `addClusters` returns `ClusterIndex`
+  (NEW export), `idByName` populated alongside existing name assignment.
+- `src/core/graph-layout.types.ts` — `DotLayoutResult.clusters` (NEW,
+  optional field).
+- `src/core/graph-layout.ts` — `mapClusters` (NEW), `shiftToOrigin`
+  accepts an optional `clusters` param, `layoutGraph` wires both through.
+- `tests/unit/core/graph-layout.test.ts` — 4 new tests (`layoutGraph —
+  cluster geometry (G5 C2, mechanism 16)`).
+- `docs/graphviz-issues/07-html-label-mark-not-exported.md` — NEW (the
+  builder-API gap blocking mechanism 16's render half).
+- `docs/graphviz-issues/TRACKER.md` — new unchecked entry for issue 07.
+- `plans/g5-measurer-calibration/README.md`, `.../ledger.md`,
+  `.../decision-journal.md` — this entry.
+
+### C3+ queue
+
+1. **Mechanism 16 shape half** — now precisely scoped (4 named sub-items
+   above), still needs: (a) sign-off to depend on the unexported
+   `HTML_STRING_MARK` marker (or a graphviz-ts release exporting it —
+   issue 07), (b) the WIDTH/side-margin formula re-verified against
+   chunk-1's real bbox specifically (not just the marker-based HEIGHT
+   finding), (c) the `getTitleAndAttributeHeight()` height-convention
+   discrepancy (item 4 above) resolved, (d) a NEW render-shape function
+   (not a `renderCompositeMeasured` reuse), (e) multi-line/action-text/
+   stereotype coverage verified before touching the shared dispatch in
+   `renderer-composite-box.ts#renderComposite`.
+2. **Entrypoint/exitpoint family (20 fixtures)** — still blocked
+   transitively on (1); `hasBorderPointDescendant` unconditionally routes
+   through mechanism 16's `'cluster'` path (G4 §S15's own finding,
+   unchanged).
+3. **Sites 2/3** — confirmed blocked on the G4 S11-S13 edge-label-ink
+   mechanism specifically (NOT cluster geometry, per this iteration's
+   direct-inspection finding above); still requires orchestrator/
+   maintainer sign-off for a 4th attempt per the mission's 3-strike rule.
+4. **Unchanged from C0/C1**: the secondary `gutute-00-gaki684` (component
+   port-label divergence) finding remains unresolved, low priority.

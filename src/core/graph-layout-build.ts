@@ -98,6 +98,16 @@ export function addNodes(b: GvGraphBuilder, input: DotInputGraph): void {
   }
 }
 
+/** Maps graphviz-ts's own `cluster<N>` subgraph name back to OUR
+ *  `DotInputCluster.id` (G5 C2: threaded so `layoutGraph()` can re-key
+ *  `getLayout()`'s new `clusters` snapshot entries — graphviz-ts 0.1.26072115,
+ *  docs/graphviz-issues/06-cluster-bbox-not-in-getlayout.md's RESOLVED note —
+ *  into the caller's own id space; see `DotLayoutResult.clusters`). */
+export interface ClusterIndex {
+  /** graphviz-ts cluster name (`cluster0`, `cluster1`, …) → our cluster id. */
+  idByName: Map<string, string>;
+}
+
 /**
  * Forward `input.clusters` to graphviz-ts as `cluster<N>` subgraphs so dot
  * lays out container members together (contained) and routes splines across
@@ -116,12 +126,17 @@ export function addNodes(b: GvGraphBuilder, input: DotInputGraph): void {
  * though that emitter is a separate code path (it serializes `input.clusters`
  * directly and never calls this function).
  *
- * Additive: callers that pass no `clusters` are unaffected (the field was
- * previously emitter-only).
+ * Returns the `ClusterIndex` (G5 C2) so `layoutGraph()` can re-key the
+ * `getLayout()` snapshot's own `clusters` array (graphviz-ts's `cluster<N>`
+ * naming) back to `input.clusters[].id`. Additive: callers that pass no
+ * `clusters` are unaffected (the field was previously emitter-only) — they
+ * get back an empty `idByName` map, which `layoutGraph()` uses to omit
+ * `DotLayoutResult.clusters` entirely.
  */
-export function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
+export function addClusters(b: GvGraphBuilder, input: DotInputGraph): ClusterIndex {
+  const idByName = new Map<string, string>();
   const clusters = input.clusters;
-  if (clusters === undefined || clusters.length === 0) return;
+  if (clusters === undefined || clusters.length === 0) return { idByName };
   const byId = new Map<string, DotInputCluster>(
     clusters.map((c) => [c.id, c]),
   );
@@ -133,6 +148,7 @@ export function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
     if (cached !== undefined) return cached;
     const name = `cluster${nextIndex++}`;
     nameById.set(c.id, name);
+    idByName.set(name, c.id);
     return name;
   };
   const builderFor = (c: DotInputCluster): GvGraphBuilder => {
@@ -151,6 +167,7 @@ export function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
     const sg = builderFor(c);
     for (const id of c.nodeIds) sg.addNode(id);
   }
+  return { idByName };
 }
 
 export function addEdges(b: GvGraphBuilder, input: DotInputGraph): EdgeIndex {

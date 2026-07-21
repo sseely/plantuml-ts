@@ -41,17 +41,17 @@ aren't in any other task's write-set either"), C0 did NOT modify any
 `src/` file — there is no in-scope measurer bug to fix. See "Next
 iteration" below.
 
-## Gates table (re-verified fresh at C1 end — all protected sets
-## byte-identical to C0's baseline; `npm test -- --run` count grew only
-## by C1's own new, currently-passing/skipped tests)
+## Gates table (re-verified fresh at C2 end — all protected sets
+## byte-identical to C1's baseline; `npm test -- --run` count grew only
+## by C2's own new, currently-passing test cases)
 
 | Gate | Value |
 | --- | --- |
 | `npm run typecheck` | clean (both configs) |
 | `npm run lint` | clean |
-| `npm test -- --run` | 10134 passed \| 5 skipped (381 files) — C1's own 5 new test files; the 5 skipped are the reverted sites 2/3 evidence, preserved for C2 |
-| DOT gate | component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267 (unchanged at every C1 site landing) |
-| `state-dot-parity.test.ts` (size-backlog ratchet) | 268/268 (regressed to 251/268 with all five C1 sites landed — sites 2/3 reverted specifically to restore this) |
+| `npm test -- --run` | 10138 passed \| 5 skipped (381 files) — C2's own 4 new `graph-layout.test.ts` cases; the 5 skipped are UNCHANGED, still C1's reverted sites 2/3 evidence |
+| DOT gate | component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267 (unchanged after C2's chunk-1 landing) |
+| `state-dot-parity.test.ts` (size-backlog ratchet) | 268/268 (unchanged) |
 | `description.golden.ratchet.test.ts` | 51 tests (unchanged) |
 | `class.golden.ratchet.test.ts` | 305 tests (unchanged) |
 | `object.golden.ratchet.test.ts` | 24 tests (unchanged) |
@@ -86,7 +86,7 @@ iteration" below.
   found: font-size 14-vs-13 caller bug, NOT a measurer defect). Zero `src/`
   changes — no in-scope fix exists. See `ledger.md` §C0 and
   `decision-journal.md` for the full record.
-- **C1** (this iteration): landed 3 of 5 call sites (state flat pipeline,
+- **C1**: landed 3 of 5 call sites (state flat pipeline,
   class relationship labels, description edge labels — the last requiring
   a mandatory 500-line file split, `layout.ts`→`layout-dot-tree.ts`, plus
   a materially more careful fix than a constant swap, since that site's
@@ -100,30 +100,54 @@ iteration" below.
   identified). All protected sets (DOT gate, four censuses, four golden
   ratchets) verified byte-identical to baseline at every site landing and
   in the final state.
+- **C2** (this iteration): landed chunk 1 — `layoutGraph()`'s
+  `DotLayoutResult` now exposes real per-cluster geometry
+  (`graphviz-ts` 0.1.26072115's new `getLayout().clusters`, TDD, 4 new
+  tests, additive/no-consumer-yet). Deep jar-verified diagnosis of
+  mechanism 16 (entity-vs-cluster wrap)'s RENDER half found it blocked on
+  a graphviz-ts programmatic-builder-API gap (no supported way to
+  construct an HTML-table cluster label outside DOT-text parsing) — filed
+  `docs/graphviz-issues/07-html-label-mark-not-exported.md`, with a
+  jar-verified 19px header-height constant (18/19 real fixtures exact, the
+  19th fully explained by a `scale` pragma) and a confirmed-working (but
+  not-yet-sanctioned) marker-based technique that reproduces it exactly.
+  Re-examined C1's own sites-2/3 hypothesis ("cluster geometry might
+  unblock the `buildPlainAutonomSpec` floor") and found it does NOT hold —
+  the founding fixture's autonom composite has zero nested clusters; the
+  real, unrelated blocker is the already-3-strike-parked G4 S11-S13
+  edge-label-ink mechanism. Zero `src/diagrams/state/*.ts` changes (per
+  the mission's own "do not force" guidance) — see `ledger.md` §C2 for the
+  full derivation, evidence trail, and C3+ queue.
 
-## Next iteration (C2) — recommended scope
+## Next iteration (C3) — recommended scope
 
-1. **Priority, well-scoped, jar-verifiable in isolation**:
-   `state-composite-autonom.ts#buildPlainAutonomSpec`'s `childImg =
-   Math.max(geometry.width, result.width)` floor — replace with a formula
-   that folds edge-label ink into `geometry.width` (that function's OWN
-   doc comment already names this "NOT FULLY CLOSED... Queued for S5",
-   predating this mission — C1 proved it ALSO blocks G5's own remaining
-   two sites, not just G4's parked edge-label-ink mechanism). Re-enable
-   `tests/unit/state/state-composite-pass.test.ts`'s five `describe.skip`
-   blocks as the TDD anchor once this lands.
-2. **After (1) lands**: re-land G5 sites 2/3
-   (`state-composite-pass.ts:244,326`) verbatim — the font-size fix is
-   already correct and jar-verified; only the composite-bbox prerequisite
-   was missing. Full protection protocol again (DOT gate + size-backlog +
-   censuses + full suite), same discipline as C1.
-3. **After (1) AND (2) land**: the edge-label-ink mechanism (G4
-   S11/S12/S13, parked) becomes re-attemptable for a FOURTH time —
-   REQUIRES orchestrator/maintainer sign-off first (the mission's own
-   3-strike rule; G4 S13 already frames itself as attempt #3). Expected
-   residual after (1)+(2): S13's own smaller, single-variable
-   label-placement divergence (~2px-scale on the left edge), not the
-   current three-variable (measurement × ink-folding × placement) tangle.
+1. **Mechanism 16 shape half** (entity-vs-cluster wrap render, 92
+   fixtures + the 20-fixture entrypoint/exitpoint family): precisely
+   scoped by C2 into 5 named sub-items (ledger §C2's "C3+ queue" #1) —
+   (a) sign-off to depend on graphviz-ts's unexported `HTML_STRING_MARK`
+   marker, OR wait for `docs/graphviz-issues/07-html-label-mark-not-
+   exported.md` to land upstream; (b) the WIDTH/side-margin formula
+   (chunk 1's real bbox, re-verified against the marker-based technique
+   specifically); (c) the `getTitleAndAttributeHeight()` height-
+   convention discrepancy (this port's `height = font.size` convention
+   does not match jar's real single-line composite-title TextBlock
+   height); (d) a NEW render-shape function (jar's real cluster shape
+   fills its whole body, unlike the existing autonom-composite renderer);
+   (e) multi-line/action-text/stereotype coverage, verified only for the
+   single-line case this iteration.
+2. **After (1) lands**: the entrypoint/exitpoint family (20 fixtures)
+   becomes reachable — `hasBorderPointDescendant` unconditionally routes
+   through mechanism 16's `'cluster'` path (G4 §S15).
+3. **Sites 2/3 remain blocked, confirmed for a DIFFERENT reason than
+   previously hypothesized**: C2 confirmed (direct inspection, not
+   assumption) that cluster geometry does NOT unblock
+   `buildPlainAutonomSpec`'s floor — the founding fixture
+   (`bemena-23-zebu249`'s `Configuring` composite) has zero nested
+   clusters. The real, unchanged blocker is the G4 S11-S13 edge-label-ink
+   mechanism (3-strike parked) — REQUIRES orchestrator/maintainer sign-off
+   before a 4th attempt. Expected residual after that mechanism closes:
+   S13's own smaller, single-variable label-placement divergence
+   (~2px-scale on the left edge), not the current tangle.
 4. **Secondary, unrelated finding, unchanged from C0** (component
    diagrams only, low corpus impact — 1 of 265 fixtures dominates):
    `component/gutute-00-gaki684` (a `!pragma svek_trace on` stress-test

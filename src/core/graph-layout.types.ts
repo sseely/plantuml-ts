@@ -249,4 +249,21 @@ export interface DotLayoutResult {
   }>;
   width: number;
   height: number;
+  /** G5 C2: real per-cluster bbox from graphviz's own subgraph-cluster
+   *  layout (graphviz-ts 0.1.26072115's `getLayout().clusters`, see
+   *  docs/graphviz-issues/06-cluster-bbox-not-in-getlayout.md's RESOLVED
+   *  note) — keyed by `DotInputCluster.id` (re-mapped from graphviz-ts's own
+   *  `cluster<N>` naming by `graph-layout-build.ts#addClusters`'s
+   *  `ClusterIndex`, NOT graphviz-ts's internal name). `x`/`y` are the
+   *  top-left corner in the SAME origin-shifted frame as `nodes`/`edges`
+   *  (`shiftToOrigin` applies the identical node/edge-derived translation to
+   *  these boxes too — clusters never participate in DERIVING that
+   *  translation, only in receiving it, so pre-existing node/edge output is
+   *  byte-identical for every caller that ignores this field). Absent when
+   *  the input graph carried no `clusters` (mirrors `DotInputGraph.clusters`
+   *  itself being optional) — additive, no existing consumer reads this yet.
+   *  Replaces the entity-vs-cluster wrap APPROXIMATION named in G4 §S1/S3/S6
+   *  ("mechanism 16") and `state-composite-geo.ts#materializeCluster`'s own
+   *  fixed-`BOX_PAD` bounding box. */
+  clusters?: Array<{ id: string; x: number; y: number; width: number; height: number }>;
 }
