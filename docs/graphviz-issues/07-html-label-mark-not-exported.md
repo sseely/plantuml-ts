@@ -68,3 +68,16 @@ matching `HEIGHT=3` through this exact marker-prefixed path — `19 = 3 +
 16`); `docs/graphviz-issues/05-cluster-label-dimensions-ignored.md`
 (engine-level capability, confirmed resolved, but only exercised via
 DOT-text parsing, not the programmatic builder this port actually calls).
+
+---
+
+**RESOLVED — graphviz-ts 0.1.26072117 (verified 2026-07-21).** The ask's
+second option was delivered: `setHtmlAttr(k, v)` is now public on
+`GvNode`, `GvEdge`, and `GvGraphBuilder` (subgraphs included). Behavioral
+verification through the exact programmatic path this issue filed:
+`cluster.setHtmlAttr('label', '<TABLE FIXEDSIZE="TRUE" ... HEIGHT="H">')`
+reserves exactly `node_top − cluster_top = H + 16` across a 3/9/25/50pt
+sweep — matching the 15-point curve measured with the internal marker.
+No dependency on the unexported `HTML_STRING_MARK` needed. Consumer
+adoption (mechanism 16's shape half — addClusters emitting the jar's
+title tables via setHtmlAttr) is the next G5 iteration's scope.
