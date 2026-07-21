@@ -187,6 +187,21 @@ export const ELEMENT_BUCKET_SNAMES = new Set([
   'object',
   'map',
   'json',
+  // mission G4 S10: `EntityImageState`/`EntityImageStateCommon`'s own
+  // `StyleSignatureBasic.of(root, element, stateDiagram, state)` -- the SAME
+  // generic per-element bucket mechanism `object`/`map`/`json` already reuse
+  // for FREE (G3/O1 precedent above), for the PLAIN `skinparam
+  // {state}BackgroundColor`/`{state}BorderColor`/`{state}FontColor`/
+  // `{state}FontSize` form (`xexika-61-fedu273`'s own bare
+  // `StateBackgroundColor` skinparam, `plans/g4-state-svg/ledger.md` S9).
+  // Scoped at the CONSUMPTION site (`state/state-render-colors.ts
+  // #resolveStateFillBucketed`) to the plain leaf box, composite box, and
+  // choice/history/deepHistory pseudostates only -- initial/final/fork/
+  // join/syncBar keep their OWN distinct default colors (`PSEUDO_ANCHOR_
+  // COLOR`/`SYNCHRO_BAR_COLOR`, unrelated `state` StyleSignature) and never
+  // consult this bucket, mirroring `EntityImagePseudoState`'s real upstream
+  // per-kind StyleSignature split.
+  'state',
 ]);
 
 type ElementColorRole = 'background' | 'border' | 'font';

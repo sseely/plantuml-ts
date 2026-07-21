@@ -1,0 +1,6 @@
+@startuml
+[*] --> state1
+
+note left of state1 : coucou
+
+@enduml

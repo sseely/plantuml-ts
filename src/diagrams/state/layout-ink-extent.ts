@@ -173,6 +173,20 @@ function addDiamondInk(box: InkBox, cx: number, cy: number, size: number): void 
   addPoint(box, cx + size + HACK_X_FOR_POLYGON, cy + size);
 }
 
+/** mission G4 S10: a note's own `<path>`-based folded-corner/opale-notch
+ *  outline (`renderer-note.ts`) — `LimitFinder`'s generic path-vertex walk
+ *  for a `UPath`/`Opale` shape reports its own bounding box with NO
+ *  systematic inset on EITHER corner (unlike a `URectangle`'s own `-1`
+ *  stroke-half-width heuristic, {@link addStateBoxInk}) — jar-verified
+ *  against `labono-83-nega255`'s own document canvas: combining the
+ *  note's UNINSET `[x,y]..[x+w,y+h]` box with `foo`'s own `addStateBoxInk`
+ *  contribution reproduces the fixture's real `236x71` canvas exactly
+ *  (`plans/g4-state-svg/ledger.md` S10 has the full arithmetic). */
+function addNoteInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x, y);
+  addPoint(box, x + w, y + h);
+}
+
 /** One node's own ink contribution (recurses into composite children AND
  *  this node's own nested `.transitions` — `state-composite-geo.ts`
  *  already positions both in the SAME absolute coordinate space
@@ -213,6 +227,9 @@ function addNodeInk(box: InkBox, node: StateNodeGeo, includeArrowheadInk: boolea
     case 'normal':
     case 'json':
       addStateBoxInk(box, node.x, node.y, node.width, node.height);
+      return;
+    case 'note':
+      addNoteInk(box, node.x, node.y, node.width, node.height);
       return;
     // #lizard forgives -- faithful one-branch-per-StateKind dispatch,
     // mirroring renderer.ts#renderNode's own shape switch.

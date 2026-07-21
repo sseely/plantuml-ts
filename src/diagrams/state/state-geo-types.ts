@@ -17,7 +17,7 @@ export interface StateTextLine {
 
 export interface StateNodeGeo {
   id: string;
-  kind: StateKind;
+  kind: StateKind | 'note';
   display: string;
   x: number;
   y: number;
@@ -137,6 +137,33 @@ export interface StateNodeGeo {
    * `undefined` for a state with no `<<tag>>`.
    */
   stereotype?: string;
+  /**
+   * mission G4 S10 (notes never render): present ONLY for `kind: 'note'` --
+   * per-line note-body text + measured width (mirrors `headerLines`'s
+   * identical per-line-width rationale, `state-note-layout.ts#measureNote`).
+   * A note has no `display`/`headerLines`/`bodyLines` shape of its own.
+   */
+  noteLines?: readonly StateTextLine[];
+  /**
+   * mission G4 S10: present ONLY for `kind: 'note'` WITH a resolved host
+   * (`note <pos> of X` / implicit-position-attached -- `StateNote.target !==
+   * undefined`) whose connector spline resolved to a real notch (`../class/
+   * note-opale.ts#resolveOpaleConnector`) -- the Opale zigzag-notch merge
+   * REPLACES the plain folded-corner box + separate line every OTHER note
+   * takes (`renderer-note.ts#renderStateNoteFreestanding`). `pp1`/`pp2` are
+   * LOCAL to this node's own (0,0)-at-top-left frame (`note-opale.ts
+   * #OpaleConnector`'s own doc) -- safe under the document-margin shift
+   * (`layout.ts#shiftStateNode` only ever translates `x`/`y`, never touches
+   * this field, mirroring how `separators`' own absolute coordinates are
+   * the ones that DO need re-shifting while opale's LOCAL offsets don't).
+   * `undefined` for a freestanding note or an attached note whose connector
+   * spline didn't resolve (falls back to the plain-box shape).
+   */
+  noteOpale?: {
+    readonly direction: 'left' | 'right' | 'up' | 'down';
+    readonly pp1: { readonly x: number; readonly y: number };
+    readonly pp2: { readonly x: number; readonly y: number };
+  };
 }
 
 /** One stacked concurrent region's own materialized content -- see

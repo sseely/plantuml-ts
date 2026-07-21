@@ -307,7 +307,7 @@ export function measureBodyTextLines(
  *  fixed 22x22 size differs from every other pseudostate, not this label).
  *  @see ~/git/plantuml/.../svek/image/EntityImagePseudoState.java
  *  @see ~/git/plantuml/.../svek/image/EntityImageDeepHistory.java */
-export function historyLabelText(kind: StateKind): string {
+export function historyLabelText(kind: StateKind | 'note'): string {
   return kind === 'deepHistory' ? 'H*' : 'H';
 }
 

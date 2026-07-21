@@ -317,6 +317,28 @@ export interface StateNote {
    * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:192
    */
   scopeId: string;
+  /**
+   * mission G4 S10 (notes never render): the parse-time creation tick
+   * (`nextCreationIndex`) this note's own entity was stamped with -- same
+   * raw-value contract as `State.creationIndex`/`Transition.creationIndex`
+   * (see those fields' own doc comments). For an ATTACHED note (`target !==
+   * undefined`), upstream burns an EXTRA tick immediately before this one
+   * (`CommandFactoryNoteOnEntity.java:327`'s `diagram.getUniqueSequence("GMN")`
+   * -- generates the note's internal quark name, `reallyCreateLeaf` then
+   * ticks AGAIN for the entity's own id) -- the burned tick's result is
+   * discarded (the `GMN<n>` string only ever reaches `data-qualified-name`,
+   * which `tests/oracle/svg-conformance/normalize.ts` strips before
+   * comparison entirely, so this port never threads the string itself, only
+   * the tick-count it consumes) -- jar-verified `gedude-95-subi666`/
+   * `xodazu-26-cube992` (`id="ent0005"` after 4 prior ticks: start-pseudo,
+   * state1, the `[*]-->state1` transition, the burned GMN tick). A
+   * freestanding note (`CommandFactoryNote`, has an explicit `as <alias>`)
+   * never generates a GMN name (`quarkInContext` uses the alias directly),
+   * so it consumes exactly ONE tick. `undefined` only for a hand-built test
+   * literal predating this mission.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt1
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------

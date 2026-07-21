@@ -38,6 +38,7 @@ import {
 } from './renderer-pseudostate.js';
 import { renderNormal } from './renderer-box.js';
 import { renderComposite } from './renderer-composite-box.js';
+import { renderStateNote } from './renderer-note.js';
 
 // ---------------------------------------------------------------------------
 // Node shape renderers
@@ -87,6 +88,8 @@ function renderShape(node: StateNodeGeo, theme: Theme): string {
       return renderNormal(node, theme);
     case 'json':
       return renderJson(node, theme);
+    case 'note':
+      return renderStateNote(node, theme);
     // #lizard forgives -- faithful one-branch-per-StateKind dispatch; each
     // case is a single delegating return, not real decision complexity.
   }
@@ -128,6 +131,7 @@ function wrapClassFor(node: StateNodeGeo): 'entity' | 'start_entity' | 'end_enti
     case 'choice':
     case 'normal':
     case 'json':
+    case 'note':
       return 'entity';
     // #lizard forgives -- faithful one-branch-per-StateKind dispatch.
   }

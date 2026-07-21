@@ -38,6 +38,41 @@ export function resolveStateFill(node: Pick<StateNodeGeo, 'color'>, fallback: st
   return override !== undefined ? resolveColorToSvgHex(override) : fallback;
 }
 
+/** mission G4 S10: `theme.colors.elements['state'].background` -- the SAME
+ *  generic `ELEMENT_BUCKET_SNAMES` bucket `object`/`map`/`json`/`note`
+ *  already reuse for FREE (`core/skinparam.ts`'s own `'state'` entry doc
+ *  comment) for the PLAIN `skinparam stateBackgroundColor` form -- a plain
+ *  color NAME still needs HColorSet resolution (mirrors `renderer-classifier-
+ *  box.ts#resolveElementBackground`'s identical string-only branch; a
+ *  Gradient `Paint` bucket value is unsupported here for the SAME reason
+ *  that sibling function documents -- no fixture in this corpus's own
+ *  `state`-bucket family exercises one, out of scope). */
+function resolveStateBucketBackground(theme: Theme): string | undefined {
+  const bucket = theme.colors.elements?.['state']?.background;
+  return typeof bucket === 'string' ? resolveColorToSvgHex(bucket) : undefined;
+}
+
+/**
+ * `resolveStateFill` PLUS the `state`-element bucket tier, for the call
+ * sites that share jar's `EntityImageStateCommon` StyleSignature (plain
+ * leaf box, composite box, choice/history/deepHistory pseudostates) -- NOT
+ * initial/final/fork/join/syncBar, which keep their OWN distinct default
+ * colors and stay on the plain {@link resolveStateFill} (module doc
+ * comment's own scoping note; `core/skinparam.ts`'s `'state'` bucket entry
+ * doc comment). Precedence: `#color`/`#back:color` inline override (highest)
+ * -> `skinparam stateBackgroundColor` bucket -> `fallback` (the per-kind
+ * hardcoded default, e.g. {@link STATE_DEFAULT_BACKGROUND}).
+ */
+export function resolveStateFillBucketed(
+  node: Pick<StateNodeGeo, 'color'>,
+  theme: Theme,
+  fallback: string,
+): string {
+  const override = resolveBareOrBackColor(node.color);
+  if (override !== undefined) return resolveColorToSvgHex(override);
+  return resolveStateBucketBackground(theme) ?? fallback;
+}
+
 /**
  * `skinparam StateBorderColor<<X>> #color` -- `SkinParam#getColor(ColorParam,
  * Stereotype)`, a direct stereotype-qualified VALUE lookup (mission G4 S9,

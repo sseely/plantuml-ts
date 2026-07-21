@@ -9,7 +9,7 @@
  * comment for the full derivation.
  */
 import { describe, it, expect } from 'vitest';
-import { resolveStateBorder } from '../../../src/diagrams/state/state-render-colors.js';
+import { resolveStateBorder, resolveStateFillBucketed } from '../../../src/diagrams/state/state-render-colors.js';
 import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 
 describe('resolveStateBorder', () => {
@@ -44,5 +44,31 @@ describe('resolveStateBorder', () => {
       colors: { graph: { stateBorderColorByStereo: { meblue: 'blue' } } },
     });
     expect(resolveStateBorder({ stereotype: 'other' }, theme)).toBe(defaultTheme.colors.border);
+  });
+});
+
+// mission G4 S10: `theme.colors.elements['state'].background` -- the
+// generic ELEMENT_BUCKET_SNAMES bucket (core/skinparam.ts's own 'state'
+// entry doc comment), plain-`skinparam stateBackgroundColor` form.
+describe('resolveStateFillBucketed', () => {
+  it('falls back to the hardcoded default when no override/bucket applies', () => {
+    expect(resolveStateFillBucketed({}, defaultTheme, '#F1F1F1')).toBe('#F1F1F1');
+  });
+
+  it('an inline #color override wins over the bucket', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { state: { background: 'yellow' } } } });
+    expect(resolveStateFillBucketed({ color: '#red' }, theme, '#F1F1F1')).toBe('#FF0000');
+  });
+
+  it('the state-element bucket wins over the hardcoded default', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { state: { background: 'yellow' } } } });
+    expect(resolveStateFillBucketed({}, theme, '#F1F1F1')).toBe('#FFFF00');
+  });
+
+  it('a non-string bucket value (unsupported gradient) falls through to the default', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { elements: { state: { background: { color1: '#FF0000', color2: '#FFFF00', policy: '/' } } } },
+    });
+    expect(resolveStateFillBucketed({}, theme, '#F1F1F1')).toBe('#F1F1F1');
   });
 });

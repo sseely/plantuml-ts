@@ -42,24 +42,54 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { DotInputNode } from '../../core/graph-layout.js';
 
-const NOTE_HPAD = 8;
-const NOTE_VPAD = 6;
-const NOTE_FOLD = 10; // folded-corner allowance — mirrors class/note-layout.ts
+/**
+ * mission G4 S10: `Opale.java`'s real `EntityImageNote`/`Opale` margin
+ * constants (`marginX1=6`/`marginX2=15`/`marginY=5`, `Opale.java:53`'s own
+ * `cornersize=10` doubles as the SAME allowance the pre-S10 `NOTE_HPAD*2 +
+ * NOTE_FOLD` approximation was reaching for, imprecisely) — jar-verified
+ * against `labono-83-nega255` (single line, `textLength=108.4688` ->
+ * `width=129.4688 === 108.4688 + 6 + 15` exactly) and `gedude-95-subi666`
+ * (2 lines, `height=36 === 2*13 + 2*5` exactly, confirming NO `*1.4`
+ * line-height multiplier — a note's own `BodyFactory`/`Sea` line stack uses
+ * the PLAIN font size per line, unlike this port's other multi-line body
+ * conventions elsewhere). The note's own font is a FIXED 13pt
+ * (`plantuml.skin`'s `note { FontSize 13 }` default), NOT `theme.fontSize`
+ * (the diagram's general 14pt body font) — the pre-S10 formula measured at
+ * the WRONG size entirely, jar-verified via `labono`'s own `font-size="13"`.
+ * `<style>`/`skinparam noteFontSize` overrides are a separate, unimplemented
+ * cascade (mirrors class engine's `NOTE_FONT_SIZE` default-only precedent
+ * before its own G2 N39) — not modeled here, `plans/g4-state-svg/ledger.md`
+ * S10 queue.
+ */
+const NOTE_FONT_SIZE = 13;
+const NOTE_MARGIN_X1 = 6;
+const NOTE_MARGIN_X2 = 15;
+const NOTE_MARGIN_Y = 5;
 
+/** One measured line's own text + advance width — parallel data the S10
+ *  note renderer (`renderer-note.ts`) needs for per-line `textLength`;
+ *  the DOT-sizing consumer (`buildScopeParts`) only reads the aggregate
+ *  `width`/`height` below. */
 interface NoteMeasurement {
-  width: number;
-  height: number;
+  readonly lines: readonly { readonly text: string; readonly width: number }[];
+  readonly width: number;
+  readonly height: number;
 }
 
-function measureNote(text: string, theme: Theme, measurer: StringMeasurer): NoteMeasurement {
-  const lines = text.split('\n');
-  const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
-  const lineHeight = theme.fontSize * 1.4;
-  let maxW = 0;
-  for (const ln of lines) maxW = Math.max(maxW, measurer.measure(ln, fontSpec).width);
+/** `EntityImageNote#getTextWidth`/`getTextHeight` (see this module's own
+ *  doc comment above for the jar-verified derivation). Exported: mission G4
+ *  S10's `renderer-note.ts#buildFlatNoteGeos` re-measures each note
+ *  individually (post-layout) to recover its own per-line `lines` array —
+ *  cheap, deterministic, avoids threading this function's own Map result
+ *  through an extra layer. */
+export function measureNote(text: string, theme: Theme, measurer: StringMeasurer): NoteMeasurement {
+  const fontSpec = { family: theme.fontFamily, size: NOTE_FONT_SIZE };
+  const lines = text.split('\n').map((t) => ({ text: t, width: measurer.measure(t, fontSpec).width }));
+  const maxW = lines.reduce((m, l) => Math.max(m, l.width), 0);
   return {
-    width: maxW + NOTE_HPAD * 2 + NOTE_FOLD,
-    height: lines.length * lineHeight + NOTE_VPAD * 2,
+    lines,
+    width: maxW + NOTE_MARGIN_X1 + NOTE_MARGIN_X2,
+    height: lines.length * NOTE_FONT_SIZE + NOTE_MARGIN_Y * 2,
   };
 }
 

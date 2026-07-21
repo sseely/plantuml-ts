@@ -79,7 +79,7 @@
 import type { StateNodeGeo, StateTextLine } from './state-geo-types.js';
 import type { Theme } from '../../core/theme.js';
 import { rect, line, text, path } from '../../core/svg.js';
-import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFill, resolveStateBorder, textAscent } from './state-render-colors.js';
+import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFillBucketed, resolveStateBorder, textAscent } from './state-render-colors.js';
 import { javaRound4 } from '../../core/number-format.js';
 
 /** `URectangle.halfRounded`'s own `roundCorner/2` — SAME `rx`/`ry` value as
@@ -154,7 +154,8 @@ function buildCoreLayers(node: StateNodeGeo, theme: Theme): {
   header: string; outline: string; divider1: string; title: string; dividerY1: number; ascent: number; fill: string;
 } {
   const headerLines = node.headerLines!;
-  const fill = resolveStateFill(node, STATE_DEFAULT_BACKGROUND);
+  // mission G4 S10: `state`-element bucket tier -- see `resolveStateFillBucketed`'s own doc comment.
+  const fill = resolveStateFillBucketed(node, theme, STATE_DEFAULT_BACKGROUND);
   // G4 S9: `StateBorderColor<<X>>` cascade -- see `resolveStateBorder`'s own
   // doc comment. Jar-verified `semala-31-joji042`'s own composite `a`.
   const border = resolveStateBorder(node, theme);

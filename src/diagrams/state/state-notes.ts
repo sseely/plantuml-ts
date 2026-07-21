@@ -83,7 +83,7 @@ export function addNote(
   position: NotePosition,
   target: string,
   text: string,
-  opts: { implicitTarget: boolean; scopeId: string },
+  opts: { implicitTarget: boolean; scopeId: string; creationIndex?: number },
 ): string {
   const notes = (ast.notes ??= []);
   const id = `__note_${notes.length}`;
@@ -94,13 +94,20 @@ export function addNote(
     position,
     text,
     scopeId: opts.scopeId,
+    ...(opts.creationIndex !== undefined ? { creationIndex: opts.creationIndex } : {}),
   });
   return id;
 }
 
-export function addFreestandingNote(ast: StateDiagramAST, alias: string, text: string, scopeId: string): string {
+export function addFreestandingNote(
+  ast: StateDiagramAST,
+  alias: string,
+  text: string,
+  scopeId: string,
+  creationIndex?: number,
+): string {
   const id = stripQuotes(alias);
-  (ast.notes ??= []).push({ id, text, scopeId });
+  (ast.notes ??= []).push({ id, text, scopeId, ...(creationIndex !== undefined ? { creationIndex } : {}) });
   return id;
 }
 
@@ -114,22 +121,39 @@ export function addFreestandingNote(ast: StateDiagramAST, alias: string, text: s
  * attaches to a transition, not a leaf) and never updates `lastEntity` —
  * mirrors `CommandFactoryNoteOnLink#executeInternal`, which only calls
  * `link.addNote(...)`, never `diagram.setLastEntity(...)`.
+ *
+ * mission G4 S10: `nextTick` is a caller-supplied `ps.creationCounter`
+ * consumer (`() => nextCreationIndex(ps)`) rather than a raw number — an
+ * ATTACHED note burns ONE extra tick (`StateNote.creationIndex`'s own doc
+ * comment) before its own, so this needs two SEQUENTIAL calls, not one
+ * value; `undefined` for a `'link'` note (never ticked, see
+ * `applyNoteOnLink`'s own doc comment) or when the caller passes none (test
+ * literals predating this mission).
  * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:298-301
  */
-export function finalizePendingNote(ast: StateDiagramAST, note: PendingNote, scopeId: string): string | undefined {
+export function finalizePendingNote(
+  ast: StateDiagramAST,
+  note: PendingNote,
+  scopeId: string,
+  nextTick?: () => number,
+): string | undefined {
   const text = note.textLines.join('\n');
   if (note.kind === 'attached') {
     if (note.target === undefined) return undefined;
+    nextTick?.(); // burned GMN quark-name tick -- see StateNote.creationIndex's doc
+    const creationIndex = nextTick?.();
     return addNote(ast, note.position, note.target, text, {
       implicitTarget: note.implicitTarget,
       scopeId,
+      ...(creationIndex !== undefined ? { creationIndex } : {}),
     });
   }
   if (note.kind === 'link') {
     applyNoteOnLink(note.transitions, text, note.position);
     return undefined;
   }
-  return addFreestandingNote(ast, note.alias, text, scopeId);
+  const creationIndex = nextTick?.();
+  return addFreestandingNote(ast, note.alias, text, scopeId, creationIndex);
 }
 
 

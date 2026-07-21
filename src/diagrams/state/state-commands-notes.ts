@@ -11,7 +11,7 @@
 
 import type { NotePosition } from './ast.js';
 import type { Command } from './state-commands.js';
-import { currentScope, noteScopeId } from './state-parse-state.js';
+import { currentScope, noteScopeId, nextCreationIndex } from './state-parse-state.js';
 import {
   NOTE_COLOR,
   NOTE_STEREO,
@@ -91,9 +91,13 @@ export const NOTE_COMMANDS: readonly Command[] = [
     execute(ps, match) {
       const target = match[2] ?? ps.lastEntity ?? undefined;
       if (target === undefined) return; // "Nothing to note to" — silent no-op
+      // mission G4 S10: burned GMN quark-name tick -- see
+      // `StateNote.creationIndex`'s own doc comment.
+      nextCreationIndex(ps);
       const id = addNote(ps.ast, match[1]!.toLowerCase() as NotePosition, target, match[3]!.trim(), {
         implicitTarget: match[2] === undefined,
         scopeId: noteScopeId(ps),
+        creationIndex: nextCreationIndex(ps),
       });
       ps.lastEntity = id;
     },
@@ -166,7 +170,7 @@ export const NOTE_COMMANDS: readonly Command[] = [
     ),
     passes: ['one'],
     execute(ps, match) {
-      const id = addFreestandingNote(ps.ast, match[2]!, match[1]!, noteScopeId(ps));
+      const id = addFreestandingNote(ps.ast, match[2]!, match[1]!, noteScopeId(ps), nextCreationIndex(ps));
       ps.lastEntity = id;
     },
   },

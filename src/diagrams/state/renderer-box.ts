@@ -36,7 +36,7 @@
 import type { StateNodeGeo, StateTextLine } from './state-geo-types.js';
 import type { Theme } from '../../core/theme.js';
 import { rect, line, text } from '../../core/svg.js';
-import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFill, resolveStateBorder, textAscent } from './state-render-colors.js';
+import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFillBucketed, resolveStateBorder, textAscent } from './state-render-colors.js';
 import { javaRound4 } from '../../core/number-format.js';
 
 const STATE_BOX_RX = 12.5;
@@ -109,7 +109,8 @@ function renderEmptyDescription(node: StateNodeGeo, theme: Theme, box: string): 
 }
 
 export function renderNormal(node: StateNodeGeo, theme: Theme): string {
-  const fill = resolveStateFill(node, STATE_DEFAULT_BACKGROUND);
+  // mission G4 S10: `state`-element bucket tier -- see `resolveStateFillBucketed`'s own doc comment.
+  const fill = resolveStateFillBucketed(node, theme, STATE_DEFAULT_BACKGROUND);
   // G4 S9: `StateBorderColor<<X>>` cascade -- see `resolveStateBorder`'s own
   // doc comment.
   const border = resolveStateBorder(node, theme);

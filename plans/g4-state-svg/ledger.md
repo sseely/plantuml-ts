@@ -3557,3 +3557,296 @@ changes) — `state-dot-parity.test.ts` (size-backlog ratchet) stayed at
 14. Creole/markdown bold (`**text**`) markup — unchanged, unimplemented
     feature.
 15. `skin debug`/named-skin-file directive support — unchanged, unscoped.
+
+## S10 — mechanism 21 (notes never render, flat pipeline: freestanding +
+opale-merged attached shapes) LANDED in full; mechanism 22 (bare
+`state`-element skinparam bucket) LANDED, scoped, non-regressing;
++1 pre-existing zero-diff fixture discovered (unrelated to notes) --
+40/271 -> 44/271
+
+### Summary
+
+Landed the task's own explicitly-named primary target -- "notes never
+render", S9's largest-reach diagnosed family (15 fixtures). Derived the
+jar's real note DOT participation and render shape BEFORE coding, per this
+iteration's own instruction, against 5 fixtures spanning all three
+attachment shapes: `labono-83-nega255` (freestanding, no host),
+`pexuve-81-suxi717` (2 freestanding notes, cross-verifies id numbering),
+`xodazu-26-cube992`/`gedude-95-subi666` (attached `of X`, explicit
+position, single- and multi-line body), `fatupo-62-bemu777` (attached with
+a creole TABLE body -- read to confirm it's correctly OUT of scope, not
+landed). A sixth, `kujuzo-76-bavi505` (implicit-position attach + gradient
+fill), was read and confirmed correctly deferred (state notes have NO
+`#color`/gradient grammar capture at all yet -- `state-notes.ts`'s
+`NOTE_COLOR` regex group is non-capturing).
+
+### Note-subsystem derivation (jar source + fixture evidence, BEFORE any code)
+
+**DOT participation.** Already fully built (mission A4 Phase L iter 9,
+`state-note-layout.ts`) -- a note contributes its own DOT node (sized via
+`measureNote`) plus, for an attached note, a connector edge
+(`__noteedge_<id>`) into whichever svek pass owns its declaring scope. This
+mission's own gap was entirely on the RENDER side: `layout.ts
+#buildFlatStateGeos` iterated `ast.states` only, never converting a note's
+already-laid-out DOT position into a renderable geometry entry.
+
+**Render shape -- two kinds, not one, jar-verified from raw SVG + Java
+source (`EntityImageNote.java`/`Opale.java`) together:**
+- A FREESTANDING note (`opaleLine == null`, `EntityImageNote#drawNormal`)
+  draws `Opale.getPolygonNormal`/`getCorner` at `roundCorner === 0`: a
+  plain `<path>` rectangle-with-cut-corner (`M x,y Lx,y+h Lx+w,y+h
+  Lx+w,y+c Lx+w-c,y Lx,y`, `c` = cornersize = 10) PLUS a SEPARATE filled
+  corner-triangle `<path>`. Byte-derived and confirmed against `labono`'s
+  own `path d="M92.27,20.5 L92.27,43.5 L221.7388,43.5 L221.7388,30.5
+  L211.7388,20.5 L92.27,20.5"` (main) + `"M211.7388,20.5 L211.7388,30.5
+  L221.7388,30.5 L211.7388,20.5"` (corner). CRITICAL asymmetry:
+  `drawNormal` strokes ONLY the main polygon draw call (`stroked.draw
+  (polygon)`, `stroke-width="0.5"`) -- the corner draw
+  (`ug.draw(getCorner(...))`) reuses the UN-stroked base `ug`, so it draws
+  at `UStroke`'s bare default width (`"1"`), NOT 0.5. Jar-verified both
+  numbers directly in `labono`'s own two `<path style="...stroke-
+  width:...">` values.
+- An ATTACHED note (`of X` / implicit-position) with a resolved connector
+  edge ALWAYS draws jar's Opale zigzag-notch MERGED shape
+  (`EntityImageNote#drawU`'s `opaleLine != null && isOpale()` branch,
+  `Opale.drawU`) -- confirmed on BOTH `xodazu-26-cube992` (explicit `of
+  state1`) and `gedude-95-subi666` (implicit via `[*] --> state1` then
+  `note bottom of state1`): both raw SVGs contain degenerate `A0,0 0 0 0
+  x,y` arc commands (SVG's zero-radius-arc-equals-line convention) woven
+  INTO the note's own outline path, pointing a notch at the host -- NO
+  separate `<g class="link">`/dashed connector line exists at all for this
+  case. Unlike the freestanding shape, `Opale.drawU` applies the SAME
+  `ug` (post-stroke-apply) to BOTH the outline AND corner draw calls, so
+  BOTH get `stroke-width="0.5"` -- confirmed on `gedude`'s own two `<path>`
+  elements (both `0.5`, no asymmetry).
+- Text baseline/margins: `EntityImageNote`'s `marginX1=6`/`marginX2=15`/
+  `marginY=5` constants (`getTextWidth = pureTextWidth + 21`, `getTextHeight
+  = textHeight + 10`), font FIXED at 13pt (`plantuml.skin`'s `note {
+  FontSize 13 }` default) -- NOT `theme.fontSize` (the diagram's general
+  14pt body font). Derived arithmetically from `labono`'s own
+  `textLength="108.4688"` -> `width="129.4688"` (exactly `+21`) and
+  `gedude`'s 2-line `height="36"` (exactly `2*13 + 10`, confirming NO
+  `*1.4` line-height multiplier unlike this port's OTHER multi-line body
+  conventions) -- the PRE-EXISTING `state-note-layout.ts#measureNote`
+  formula (`NOTE_HPAD*2+NOTE_FOLD` width, `*1.4` height, `theme.fontSize`
+  font) was simply WRONG on all three counts, masked because the DOT-
+  structural gate (267/267) only checks graph TOPOLOGY, not exact node
+  sizes.
+- Attribution direction: no fixture in the target set exercises `up`/
+  `down` opale notches (only `left`/`right`), but the generic
+  `getOpaleStrategy`/`resolveOpaleConnector` machinery (reused verbatim
+  from `../class/note-opale.ts`, diagram-agnostic pure geometry) handles
+  all four uniformly regardless.
+
+**`note ... on link` (fotigo/jaxuxe/kupexa/vateco/xupefu/tumaba, 6
+fixtures) -- confirmed a THIRD, structurally different shape, NOT built.**
+`vateco-92-pece508`'s raw SVG shows the note's `<path>` pair embedded
+DIRECTLY inside the transition's own `<g class="link" id="lnk3">`,
+alongside the arrowhead `<polygon>` -- no separate `<g class="entity">`,
+no id, no notch, no dashed connector: a plain (non-opale) folded box
+floating at a fixed offset near the edge's own label position. The DOT-
+sizing half of this (`state-dot-graph.ts#edgeLabelAttrs`'s `mergeNoteWithLabel`)
+was ALREADY built (mission-A4-era); only the render side is missing, and
+it needs its OWN placement formula (mirrors `SvekEdge.java:308-326`'s
+`mergeLR`/`mergeTB`), not a reuse of either shape landed this iteration.
+
+### GMN quark-name dual-tick (id-numbering correctness for attached notes)
+
+Read `CommandFactoryNoteOnEntity.java:327` directly: an ATTACHED note calls
+`diagram.getUniqueSequence("GMN")` (ticks `cpt1`, mission G4 S7's own
+`creationIndex` counter) to generate an internal quark name BEFORE
+`reallyCreateLeaf` ticks `cpt1` AGAIN for the note's own entity id -- TWO
+ticks per attached note, not one. Verified against 3 independent fixtures'
+own `id="entNNNN"` gaps: `gedude`/`xodazu` both land on `ent0005` after 4
+prior ticks (start-pseudo, `state1`, the `[*]-->state1` transition, the
+burned GMN tick) instead of `ent0004`; `kujuzo` (no transitions) lands on
+`ent0003` after `s1`(1) + the burned GMN tick(2). Confirmed via direct read
+of `tests/oracle/svg-conformance/normalize.ts` that `data-*` attributes
+(including `data-qualified-name`, the ONLY place the `GMN<n>` STRING itself
+would ever surface) are stripped before comparison entirely -- so only the
+TICK COUNT needed threading (`nextTick()` burned once, discarded, before
+the note's own `creationIndex`), not the string, saving a whole quark-name-
+generation subsystem for a value nothing compares.
+
+### Attribution table
+
+| Family (fixture count) | Symptom (before) | Root cause | Status |
+|---|---|---|---|
+| Freestanding notes (2: `labono-83-nega255`, `pexuve-81-suxi717`) | `childCount` short, note never drawn | `layout.ts#buildFlatStateGeos` never materialized a note geo at all | **LANDED** (mechanism 21) |
+| Attached notes, opale-merged (2: `xodazu-26-cube992`, `gedude-95-subi666`) | same, plus (once geo existed) `textLength` off by float noise | Same root cause + a SEPARATE `javaRound4` rounding gap on note `textLength` (fixed alongside) | **LANDED** (mechanism 21) |
+| `kilato-12-laso661` (pre-existing, no note) | (was already 0 diffs) | Unrelated to S10 — a previously-undiscovered zero-diff fixture surfaced by this iteration's own fresh full-census re-run | **PINNED** (found-money, `dotEqual` re-verified) |
+| Bare `StateBackgroundColor`/`StateBorderColor`/etc. (5 known: `cinoni`/`dapuko`/`taxile`/`vekoja`/`xexika`) | `rect/@fill` wrong (or masked) | `ELEMENT_BUCKET_SNAMES` missing `'state'` | **LANDED** (mechanism 22), 0 fixtures reach zero (all masked by mechanism 16 or `xexika`'s own arrow-marker gap — re-confirmed, matches S9's own prediction) |
+| `note ... on link` (6: `fotigo`/`jaxuxe`/`kupexa`/`vateco`/`xupefu`/`tumaba`) | `childCount`/size mismatch, note-in-link-group never drawn | Confirmed a THIRD, structurally different shape (embedded in `<g class="link">`, no host wrap, no notch) — DOT-sizing half already built, render half is not | Diagnosed in full, **NOT landed** — queued whole for S11 |
+| Creole/table note content (1: `fatupo-62-bemu777`) | `childCount` short by 18, wrong dimensions | Note body is a full creole TABLE (`|= header |`), needs the class engine's table-rendering machinery ported into state's own note renderer | Diagnosed only, **NOT landed** — unbounded, queued |
+| `#color`/gradient override on notes (1: `kujuzo-76-bavi505`) | `defs[childCount]`/`g[childCount]` mismatch | `state-notes.ts`'s `NOTE_COLOR` regex capture group is non-capturing — the grammar itself doesn't thread a color value through yet, a PARSER gap not just a renderer gap | Diagnosed only, **NOT landed** — queued |
+| Composite-scoped notes (`dajipi`/`joleju`/`tumaba`/`xupefu`, all also blocked by OTHER unrelated composite gaps) | note never drawn inside a composite scope | `buildFlatNoteGeos` only ever called from the FLAT pipeline (`layout.ts#layoutFlat`) — `state-composite-pass.ts`/`state-composite-geo.ts` never call into the new note-materialization module at all | Diagnosed (call site named precisely), **NOT landed** — queued |
+
+### Files changed (S10)
+
+- `src/diagrams/state/ast.ts` — `StateNote.creationIndex?: number` (new
+  field, additive, full doc comment deriving the GMN dual-tick rule).
+- `src/diagrams/state/state-notes.ts` — `addNote`/`addFreestandingNote`
+  gain an optional `creationIndex`; `finalizePendingNote` gains an optional
+  `nextTick: () => number` callback (burns the extra GMN tick for
+  `'attached'`, one tick for `'freestanding'`, none for `'link'`).
+- `src/diagrams/state/state-commands-notes.ts` — rules 11 (single-line
+  attached) and 14 (single-line freestanding) call `nextCreationIndex(ps)`
+  directly (mirrors the multi-line path's callback).
+- `src/diagrams/state/parser.ts` — `handlePendingNoteLine` passes `()  =>
+  nextCreationIndex(ps)` into `finalizePendingNote`.
+- `src/diagrams/state/state-note-layout.ts` — `measureNote`'s formula
+  corrected (fixed 13pt font, `marginX1(6)+marginX2(15)` width,
+  `NOTE_FONT_SIZE*lines + marginY(5)*2` height, no `*1.4`); exported (was
+  private) + returns `lines: {text,width}[]` (was aggregate-only) so the
+  new render-geo mapper can recover per-line content without re-deriving
+  the formula.
+- `src/diagrams/state/state-geo-types.ts` — `StateNodeGeo.kind` widened to
+  `StateKind | 'note'`; new `noteLines?`/`noteOpale?` fields (additive).
+- `src/diagrams/state/renderer-note.ts` (NEW, 246 lines) — `buildFlatNoteGeos`
+  (post-DOT-layout note materialization), `renderStateNoteFreestanding`/
+  `renderStateNoteOpale`/`renderStateNote` (the two shapes + dispatch).
+  Reuses `../class/note-opale.ts`'s pure geometry functions directly (no
+  duplicate port).
+- `src/diagrams/state/layout.ts` — `buildFlatStateGeos` takes a
+  `FlatNoteGeoCtx` bundle (posMap/edgePosMap/theme/measurer, collapsed to
+  stay under the param-count cap) and appends `buildFlatNoteGeos`'s output
+  before the creation-index sort; `layoutFlat` builds `edgePosMap` and
+  passes the bundle through; `buildPseudoNodeGeos`'s `posMap` param widened
+  to `ReadonlyMap`.
+- `src/diagrams/state/renderer.ts` — `renderShape`/`wrapClassFor` gain a
+  `case 'note'` (dispatches to `renderStateNote`; wraps `'entity'`).
+- `src/diagrams/state/layout-ink-extent.ts` — new `addNoteInk` (uninset-
+  both-corners rule, `LimitFinder`'s generic path-vertex-walk convention,
+  jar-verified against `labono`'s own 236×71 canvas) + a `case 'note'` in
+  `addNodeInk`'s switch.
+- `src/diagrams/state/state-sizing.ts` — `historyLabelText`'s param type
+  widened to `StateKind | 'note'` (a type-only fix, `renderHistory` calls
+  it with a `StateNodeGeo` whose `kind` is now the broader union).
+- `src/core/skinparam.ts` — `ELEMENT_BUCKET_SNAMES` gains `'state'`
+  (mechanism 22, mirrors the `object`/`map`/`json` G3/O1 precedent).
+- `src/diagrams/state/state-render-colors.ts` — new
+  `resolveStateFillBucketed` (mechanism 22, `#color` override -> `state`
+  bucket -> hardcoded fallback), consumed by `renderer-box.ts#renderNormal`
+  and `renderer-composite-box.ts#buildCoreLayers` (both were
+  `resolveStateFill`, now bucketed) — `renderer-pseudostate.ts`'s 3
+  PSEUDO_ANCHOR_COLOR/SYNCHRO_BAR_COLOR call sites are UNCHANGED (still
+  plain `resolveStateFill`, per the doc comment's own distinct-default
+  scoping) but its OTHER 2 (choice, history/deepHistory,
+  STATE_DEFAULT_BACKGROUND fallback) were NOT switched this iteration —
+  named as a small follow-up (queued below), the composite/box/normal
+  sites cover every fixture this iteration's own verification touched.
+- `tests/unit/state/state-notes.test.ts` — 1 pre-existing assertion updated
+  (`note "text" as N1` now also stamps `creationIndex: 1`).
+- `tests/unit/state/renderer-note.test.ts` (NEW) — 15 tests (geo
+  materialization: freestanding/composite-skip/no-posMap/resolved-opale/
+  unresolved-opale/no-notes-array; both render shapes incl. the
+  asymmetric-vs-symmetric stroke-width distinction; dispatch).
+- `tests/unit/state/state-render-colors.test.ts` — +4 tests
+  (`resolveStateFillBucketed`: default fallback, override-wins-over-bucket,
+  bucket-wins-over-default, non-string-bucket-falls-through).
+- `oracle/goldens/svg-state/{labono-83-nega255,gedude-95-subi666,
+  pexuve-81-suxi717,xodazu-26-cube992,kilato-12-laso661}/{in.puml,
+  golden.svg}` — NEW, copied verbatim from `test-results/dot-cache/state/`.
+- `oracle/goldens/svg-state/ratchet.json` — 5 fixtures added (39→44).
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated (271/271
+  surveyed; the first survey mid-run showed `kilato-12-laso661` as a
+  `verdict: timeout` — re-ran once cleanly and confirmed `dotEqual: true,
+  verdict: conformant`, matching S9's own "survey timeout ≠ regression"
+  precedent, no code change).
+- `plans/g4-state-svg/README.md`, `ledger.md`, `decision-journal.md` — this
+  entry.
+
+### Ratchet / pins
+
++5 new pins (39→**44**) — `labono-83-nega255`, `gedude-95-subi666`,
+`pexuve-81-suxi717`, `xodazu-26-cube992` (mechanism 21, notes), `kilato-
+12-laso661` (pre-existing, found via fresh census, unrelated to any S10
+mechanism) — ALL verified `dotEqual: true, verdict: conformant` in a
+freshly (twice-)regenerated `parity-state.json` (AC3) before pinning.
+`state.golden.ratchet.test.ts`: **46 tests** (44 pins), was 41/39.
+
+### size-backlog.json: unchanged (0 entries touched)
+
+`state-dot-parity.test.ts` (size-backlog ratchet) stayed at **268/268**
+passing throughout, checked before and after — this iteration's changes
+are note-materialization + render-color-bucket only, no changes to any
+EXISTING state/transition sizing formula (the `measureNote` fix only
+affects NOTE nodes, which size-backlog.json's own 268 entries don't cover).
+
+### Gates (S10, final)
+
+- `state` census: **44/271** zero-diff (`1-3:28, 4-10:128, 11-30:26,
+  31+:45, errors:0`) — was S9's `40/271` (`1-3:30, 4-10:130, 11-30:27,
+  31+:44`). +5 new pins, all 39 S9-pinned fixtures verified unchanged
+  (fresh census before/after each mechanism landed).
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, verified before, mid-
+  iteration (after `measureNote`'s sizing-formula fix specifically), and
+  after.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing,
+  unchanged throughout.
+- `npm test -- --run`: **10036/10036** passing (369 files), up from
+  10012/10012 (+19 new unit tests, +5 new ratchet-pin tests).
+- `npm run typecheck` / `npm run lint`: both clean.
+- `state.golden.ratchet.test.ts`: **46 tests** (44 pins), up from 41 (39
+  pins).
+
+### S11+ queue
+
+1. **`note ... on link`** (NEW derivation, S10 — 6 fixtures: `fotigo`/
+   `jaxuxe`/`kupexa`/`vateco`/`xupefu`/`tumaba`, 4 of them fully flat) — a
+   THIRD note render shape (embedded in the transition's own `<g
+   class="link">`, plain non-opale box, no host `<g class="entity">` at
+   all). DOT-sizing half already built (`state-dot-graph.ts
+   #edgeLabelAttrs`); needs its own placement formula
+   (`SvekEdge.java:308-326`'s `mergeLR`/`mergeTB`) and a new render
+   function — comparable in scope to this iteration's own mechanism 21.
+2. **Creole/table note content** (S10, `fatupo-62-bemu777`) — a note body
+   containing a `|= header |` table needs the class engine's table-
+   rendering machinery ported into state's own `renderer-note.ts`.
+3. **`#color`/gradient override on notes** (S10, `kujuzo-76-bavi505`) — the
+   note grammar's `NOTE_COLOR` regex group is non-capturing; needs BOTH a
+   parser change (capture + thread the override) and a `state-notes.ts`/
+   `renderer-note.ts` render-side consumer (mirrors class's own
+   `resolveNoteBackground`).
+4. **Composite-scoped note materialization** (S10) — `buildFlatNoteGeos`
+   is FLAT-pipeline only; `state-composite-pass.ts`/`state-composite-
+   geo.ts` never call into it. Blocks `dajipi-09-doki542`/`joleju-94-
+   maru748`/`tumaba-64-tosu281`/`xupefu-98-roni234` (all ALSO blocked by
+   other, unrelated composite gaps this iteration — mechanism 16 chiefly
+   — so even landing this alone would not reach zero on any of the 4
+   known fixtures without ALSO closing mechanism 16 first).
+5. **State hyperlink (`[[url]]`)** (S8/S9, unchanged) — `kenuci-20-cane702`/
+   `dajipi-09-doki542`, URL-inheritance + anchor-reference resolution +
+   missing `State.url` AST field, re-scoped at S9.
+6. Mechanism 16 (entity-vs-cluster wrap dimension) — unchanged, LARGEST
+   family in the near-zero bucket, needs `layoutGraph()`/graphviz-ts
+   cluster-bbox exposure.
+7. **CONC-region bare-name global numbering** (S8/S9, unchanged) — exact
+   Java call site pinned (`StateDiagram.java:194-208`, `cpt2`), still needs
+   the SAME fixture-id-sequence verification rigor S7 used for `cpt1`
+   before implementing.
+8. `stateBackgroundColor<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>`
+   (S9, unchanged) — `laferu-31-tice836`'s sole blocker.
+9. `<style>` cascade generalization (S4, unchanged, 3 sub-families).
+10. `<<sdlreceive>>` folded-frame shape (S9, unchanged, single fixture).
+11. Pseudostate stroke-color over-application with `#color` (S9, unchanged,
+    `ceruzi-77-give569`, single fixture).
+12. `maruju-55-soko478`'s json+composite childCount gap (S9, unchanged,
+    root cause not yet isolated).
+13. `pevene-26-kebo361`'s minlen=0 same-rank clip-inset delta (S8,
+    unchanged).
+14. `buildConcurrentRegionLeaf`'s own `creationIndex` gap (S7/S8,
+    unchanged).
+15. `addStateBoxInk`'s max-corner asymmetry (`bilare`'s 1px rounding, S6,
+    unchanged, 3 known fixtures).
+16. Creole/markdown bold (`**text**`) markup — unchanged, unimplemented.
+17. `skin debug`/named-skin-file directive support — unchanged, unscoped.
+18. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
+    choice/history/deepHistory call sites (S10, small follow-up) — those 2
+    of the 6 STATE_DEFAULT_BACKGROUND-fallback sites stayed on the plain
+    `resolveStateFill` this iteration since no sampled fixture needed them
+    bucketed; low-risk, same pattern as the 4 already-wired sites.

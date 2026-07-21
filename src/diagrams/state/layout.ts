@@ -36,6 +36,7 @@ import type { StateNodeGeo, TransitionGeo, StateGeometry, StateRegionGeo } from 
 export type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
 import { computeStateDocumentDims, computeStateInkShift } from './layout-ink-extent.js';
 import { buildStateGeoTextFields } from './state-sizing.js';
+import { buildFlatNoteGeos, type FlatNoteGeoCtx } from './renderer-note.js';
 
 /** A state (or top-level ast) is composite-free iff no state anywhere has
  *  local content (`hasLocalContent`, state-composite-detect.ts) OR its OWN
@@ -71,7 +72,7 @@ function hasAnyComposite(states: readonly State[]): boolean {
  *  (top-level, `scopeId=''`) scope, matching `state-composite-pass.ts
  *  #buildTopLevelPass`'s own `addLocalPseudoNodes('', ...)` call. */
 function buildPseudoNodeGeos(
-  posMap: Map<string, DotLayoutResult['nodes'][number]>,
+  posMap: ReadonlyMap<string, DotLayoutResult['nodes'][number]>,
   pseudoCreationIndex: ReadonlyMap<string, number>,
 ): StateNodeGeo[] {
   const geos: StateNodeGeo[] = [];
@@ -88,12 +89,8 @@ function buildPseudoNodeGeos(
   return geos;
 }
 
-function buildFlatStateGeos(
-  ast: StateDiagramAST,
-  posMap: Map<string, DotLayoutResult['nodes'][number]>,
-  theme: Theme,
-  measurer: StringMeasurer,
-): StateNodeGeo[] {
+function buildFlatStateGeos(ast: StateDiagramAST, ctx: FlatNoteGeoCtx): StateNodeGeo[] {
+  const { posMap, theme, measurer } = ctx;
   const geos: StateNodeGeo[] = [];
   const hideEmptyDescription = ast.hideEmptyDescription ?? false;
   for (const s of ast.states) {
@@ -106,6 +103,12 @@ function buildFlatStateGeos(
     });
   }
   geos.push(...buildPseudoNodeGeos(posMap, ast.pseudoCreationIndex ?? new Map()));
+  // mission G4 S10: notes materialize into the SAME StateNodeGeo array (see
+  // `renderer-note.ts`'s own module doc comment for why folding notes into
+  // this array, rather than a parallel `StateGeometry.notes` field like
+  // class engine's own `NoteGeo[]`, is a deliberate reuse of state's own
+  // (more precise) creation-index machinery).
+  geos.push(...buildFlatNoteGeos(ast, ctx));
   // mission G4 S7: sort into true creation order -- see
   // `state-composite-pass.ts#sortSpecsByCreationIndex`'s own doc comment
   // for why "declared states first, pseudo last" is only a special case of
@@ -144,10 +147,11 @@ function layoutFlat(ast: StateDiagramAST, theme: Theme, measurer: StringMeasurer
   }
   const result = layout(dotGraph);
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
+  const edgePosMap = new Map(result.edges.map((e) => [e.id, e]));
   return {
     totalWidth: result.width,
     totalHeight: result.height,
-    states: buildFlatStateGeos(ast, posMap, theme, measurer),
+    states: buildFlatStateGeos(ast, { posMap, edgePosMap, theme, measurer }),
     transitions: buildFlatTransitionGeos(ast, result),
   };
 }

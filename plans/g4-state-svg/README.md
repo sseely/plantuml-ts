@@ -67,6 +67,7 @@ dot-sync-report (frozen) · class census (294 set intact) · object census
 | S7 | Landed mechanism 10 in full (id-numbering creation-index gap): derived jar's real `net.atmp.CucaDiagram#cpt1` shared-counter algorithm from Java source + 5 jar-verified fixture id-sequences BEFORE writing code, then threaded true parse-time `creationIndex` through the ENTIRE state pipeline (parser -> AST -> layout -> composite-pass `GeoSpec` tree -> `renderer-uid.ts`, all 3 S6-refined sub-patterns: CONC-region phantom ticks, transition/auto-created-endpoint interleaving, `remove`d-entity gaps). Landing the id-VALUE fix surfaced (jar-verified, `nelupe-49-xova546`) two further bugs in the SAME area, fixed alongside: sibling DOCUMENT ORDER (the S5-era "real before pseudo" heuristic was only a special case of true creation-order sorting, NEW `sortSpecsByCreationIndex`) and a composite-pipeline `<path id>` bug (`buildLevelTransitionGeos` leaked the raw `'[*]'` AST token instead of the scope-resolved pseudo-anchor name, `renderer.ts#svgEndpointId` extended). Census: `14/271` -> `16/271` zero-diff (`1-3:27->26, 4-10:134->133, 11-30:41->47, 31+:55->49`), +2 new pins (`nivanu-50-zajo916`, `xoravu-40-gebe122`), 0 regressed. Verified EVERY ONE of the mission's own 5 required sample categories (plain, nested composite, concurrent regions, removed entities, `[*]` in multiple scopes) is now either TRUE ZERO or blocked SOLELY by an already-named, UNRELATED mechanism -- `semala-31-joji042` down to the already-named `<<meblue>>` stereotype-border-color gap alone; `pevene-26-kebo361`/`nelupe-49-xova546` down to PURE `path/@d`/`polygon` geometry (mechanism 19) alone, the strongest evidence yet gathered for that item. Mechanism 19 itself NOT started this iteration (budget fully consumed by mechanism 10's own scope + its 2-bug unmasking cascade; a preliminary look suggests a graphviz-ts/dot-layout spline-simplification gap, not a state-diagram-specific bug). See `plans/g4-state-svg/ledger.md` S7 for the full derivation, mechanism writeups, attribution table, and the S8+ queue. | done |
 | S8 | Landed mechanism 19 (transition `path/@d` routing) in full: root cause was a missing `manualArrowheads: true` seam flag on state's 3 `DotInputGraph` construction sites (mirrors class's own G2 N29 fix -- state switched to inline-`<polygon>` arrowheads in S1 mechanism 3, the SAME switch that made class need this flag, but state's own construction sites never carried it over), confirmed by reproducing `nelupe-49-xova546`'s exact pinned svek DOT through BOTH real `dot -Tplain` and a minimal `layoutGraph()` probe BEFORE writing any fix -- real dot reached the target node's boundary, `layoutGraph()` without the flag stopped ~11.5px short. S7's own "looks like a graphviz-ts spline-simplification gap" framing was explicitly UNVERIFIED and, once reproduced, WRONG -- a seam invocation gap, not a library bug. Landing the flag surfaced a SECOND bug: `renderer.ts#buildPathD` was discarding the ALREADY-correct `1+3n` bezier-spline structure `layoutState()` produces and re-deriving a Catmull-Rom smoothing curve instead (2-3x too many segments) -- rewritten to mirror `class/renderer.ts#buildPathData` exactly. A THIRD, independent bug found and landed the same iteration: `kilato-12-laso661`'s choice-diamond `<polygon>` was missing its jar-required closing point (`renderer-pseudostate.ts#closeDiamondPoints`, a state-local patch -- `core/svg.ts#diamond` is shared with activity/chronology and outside this mission's write-set). Census: `16/271` -> `39/271` zero-diff (`1-3:26->31, 4-10:133->130, 11-30:47->27, 31+:49->44`), +23 new pins (the largest single-iteration jump this mission has seen), 0 regressed, ratchet now 40 tests (38 pins). Two further mechanisms diagnosed but NOT landed (write-set/verification-blocked): CONC-region bare-name global numbering (2 fixtures, `renderer.ts#localScopeName`'s per-composite-local numbering vs jar's diagram-global counter) and a small (<0.5px) genuine graphviz-ts vs real-dot clip-inset delta on `pevene-26-kebo361`'s own minlen=0 same-rank edges (reproduced, not yet filed -- needs a second independent sample). Re-confirmed `<<meblue>>`/`StateBorderColor<<X>>` (blocked by write-set: needs `core/skinparam.ts`/`core/theme.ts`) and `buildConcurrentRegionLeaf`'s creationIndex gap (both known fixtures dominated by unrelated larger bugs, still unverifiable). See `plans/g4-state-svg/ledger.md` S8 for the full derivation, attribution table, and the S9+ queue. | done |
 | S9 | Landed mechanism 20 (`StateBorderColor<<X>>` stereotype-qualified skinparam cascade) in full: mirrors G2 N51's `classBorderThicknessByStereo` precedent exactly (`core/skinparam.ts`/`core/theme.ts`, additive-only, both class/object/description censuses proven unchanged), closing `semala-31-joji042` -- the task's own explicitly-named priority-2 target. Required threading a NEW `StateNodeGeo.stereotype` field through both the flat and composite pipelines, mirroring the pre-existing `color` field's identical two-pipeline threading shape (S2/S3). Sampled ALL 31 of S8's near-zero fixtures plus 25 from the 4-10 bucket BEFORE choosing a fix target, surfacing a much richer attribution table than S8's queue implied: notes-never-render is a 15-fixture family (the LARGEST single reach found this mission, root-caused to `layout.ts#buildFlatStateGeos` never converting a note's DOT-computed position into a renderable `StateNodeGeo`, jar's OWN note shape is `<path>`-based, byte-different from class's `<polygon>`-based `renderer-note.ts`); the `<style>` cascade gap widened to 3 independent sub-families (state-box, title, arrow properties); `addStateBoxInk`'s 1px asymmetry re-confirmed with 2 new same-shape samples; `<<sdlreceive>>`'s folded-frame shape and a pseudostate stroke-color over-application bug were newly root-caused (both single-fixture, not landed); CONC-region global numbering was traced to its EXACT Java call site (`StateDiagram.java:194-208`, `cpt2` counter) but left unimplemented pending the same fixture-id-sequence verification rigor S7 used for `cpt1`/`creationIndex`; the state hyperlink mechanism was investigated and found substantially more complex than the task's own framing suggested (URL inheritance from nearest ancestor, a separate anchor-reference `[[{alias}]]` resolution path, `State.url` missing from the AST entirely) -- re-scoped, not landed. A mid-iteration bash-tooling race (two overlapping `svg-parity-survey.ts` background invocations produced a stale-file false alarm) was diagnosed and resolved with no code change -- see ledger for the full incident writeup. Census: `39/271` -> `40/271` zero-diff (`1-3:31->30, 4-10:130->130, 11-30:27->27, 31+:44->44`), +1 new pin (`semala-31-joji042`), 0 regressed, ratchet now 41 tests (39 pins). See `plans/g4-state-svg/ledger.md` S9 for the full attribution table and the S10+ queue. | done |
+| S10 | Landed mechanism 21 (notes never render, the task's own explicitly-named primary scope) in full for the FLAT pipeline: two shapes derived from `EntityImageNote.java`/`Opale.java` BEFORE coding (freestanding `drawNormal` folded box, asymmetric stroke-width; attached `of X`/implicit-position opale-merged zigzag-notch, symmetric stroke-width, reusing `../class/note-opale.ts`'s diagram-agnostic geometry verbatim), a corrected `state-note-layout.ts#measureNote` sizing formula (fixed 13pt font, real `marginX1(6)+marginX2(15)`/`marginY(5)*2` margins, no incorrect `*1.4` line-height), and a new GMN-quark-name dual-tick mechanism for attached-note id numbering (derived from `CommandFactoryNoteOnEntity.java:327` + verified against 3 fixtures' own `id=` gaps) -- notes fold into the SAME `StateNodeGeo` array (`kind:'note'`) rather than a parallel array, reusing state's own (more precise than class's) creation-index sort/uid machinery for free. Jar-verified byte-exact against `labono-83-nega255`/`pexuve-81-suxi717` (freestanding) and `xodazu-26-cube992`/`gedude-95-subi666` (attached). Also landed mechanism 22 (bare `state`-element skinparam bucket, `ELEMENT_BUCKET_SNAMES` + a new `resolveStateFillBucketed`, scoped to 4 of 7 `resolveStateFill` call sites per the distinct-pseudostate-default exclusion S9 already named) -- proven safe/additive but 0 fixtures reach zero from it alone (all 5 known bare-skinparam fixtures remain masked by unrelated bugs, exactly as S9's own queue entry predicted). `note ... on link` (6 fixtures) was investigated and confirmed a THIRD, structurally different shape (embedded in the transition's own `<g class="link">`, no host wrap, no notch) -- diagnosed in full, explicitly NOT landed this iteration, queued for S11 alongside creole/table note content, `#color`/gradient note overrides, and composite-pipeline note materialization. Census: `40/271` -> `44/271` zero-diff (`1-3:30->28, 4-10:130->128, 11-30:27->26, 31+:44->45`), +5 new pins (`labono-83-nega255`, `gedude-95-subi666`, `pexuve-81-suxi717`, `xodazu-26-cube992` -- mechanism 21; `kilato-12-laso661` -- a pre-existing zero-diff fixture unrelated to any S10 mechanism, surfaced by this iteration's own fresh full-census re-run), 0 regressed, ratchet now 46 tests (44 pins). Added 19 new unit tests (`renderer-note.test.ts`, `state-render-colors.test.ts`) covering branches the golden fixtures alone don't reach. See `plans/g4-state-svg/ledger.md` S10 for the full note-subsystem derivation, attribution table, and the S11+ queue. | done |
 
 ## Standing rules
 
@@ -83,86 +84,94 @@ parallel implementation. graphviz-ts findings go in
 `getLayout()`) applies. Complexity playbook, TDD, ledger:
 `plans/g4-state-svg/ledger.md`.
 
-## Gates (S9, final)
+## Gates (S10, final)
 
-- `state` census: **40/271** zero-diff (`1-3:30, 4-10:130, 11-30:27, 31+:44,
-  errors:0`) — was S8's `39/271` (`1-3:31, 4-10:130, 11-30:27, 31+:44`);
-  +1 new pin (`semala-31-joji042`), all 39 S8-pinned fixtures verified
-  unchanged.
+- `state` census: **44/271** zero-diff (`1-3:28, 4-10:128, 11-30:26, 31+:45,
+  errors:0`) — was S9's `40/271` (`1-3:30, 4-10:130, 11-30:27, 31+:44`);
+  +5 new pins (`labono-83-nega255`, `gedude-95-subi666`, `pexuve-81-suxi717`,
+  `xodazu-26-cube992` — mechanism 21; `kilato-12-laso661` — pre-existing,
+  unrelated to any S10 mechanism, surfaced by this iteration's own fresh
+  full-census re-run), all 39 S9-pinned fixtures verified unchanged.
 - Class census: **303/718**, intact, unchanged.
 - Object census: **22/80**, intact, unchanged.
 - Description census: **48/355**, intact, unchanged.
 - DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
-  78/80 - state 267/267` — EXACTLY unchanged (verified BOTH before and
-  after the mechanism landed this iteration).
+  78/80 - state 267/267` — EXACTLY unchanged (verified before, mid-
+  iteration after the `measureNote` sizing-formula fix specifically, and
+  after).
 - `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing
-  (0 failures), unchanged throughout — this iteration's mechanism is
-  render-color-only, no raw DOT node-size changes.
-- `npm test -- --run`: 10012/10012 passing (368 files), `npm run
-  typecheck` / `npm run lint` / `npm run build`: all clean.
-- `state.golden.ratchet.test.ts`: 41 tests (39 pins), up from 40 (38 pins).
+  (0 failures), unchanged throughout — this iteration's mechanisms are
+  note-materialization + render-color-bucket only, no changes to any
+  existing state/transition sizing formula.
+- `npm test -- --run`: 10036/10036 passing (369 files), `npm run
+  typecheck` / `npm run lint`: all clean.
+- `state.golden.ratchet.test.ts`: 46 tests (44 pins), up from 41 (39 pins).
 
-## Mission status (S9, 2026-07-20)
+## Mission status (S10, 2026-07-20)
 
-**OPEN.** Landed mechanism 20 (`StateBorderColor<<stereotype>>` cascade —
-the task's own explicitly-named priority-2 target) in full: mirrors G2
-N51's `classBorderThicknessByStereo` precedent (`core/skinparam.ts`/
-`core/theme.ts`, additive-only per the write-set's own boundary, both
-class/object/description censuses proven unchanged before and after).
-Closed `semala-31-joji042` (S6/S7/S8's own re-confirmed sole blocker).
-Required threading a NEW `StateNodeGeo.stereotype` field through BOTH the
-flat and composite pipelines — mirrors the pre-existing `color` field's
-identical two-pipeline threading shape (S2/S3), not a new mechanism shape.
-Deliberately scoped to `StateBorderColor<<X>>` only, not the sibling
-`stateBackgroundColor<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>` keys
-(`laferu-31-tice836`'s own blocker) — `FontSize<<X>>` needs LAYOUT-time
-threading through `state-sizing.ts` (affects box width/height), a
-materially larger, unverified blast radius; queued for S10.
+**OPEN.** Landed mechanism 21 (notes never render — the task's own
+explicitly-named primary target, S9's largest-reach diagnosed family, 15
+fixtures) in full for the FLAT pipeline. Derived the jar's real note
+render shape from `EntityImageNote.java`/`Opale.java` BEFORE coding,
+against 5+ fixtures: a FREESTANDING note (`labono-83-nega255`,
+`pexuve-81-suxi717`) draws jar's `drawNormal` shape — a plain folded-corner
+`<path>` box with an ASYMMETRIC stroke-width (0.5 main outline, 1 —
+`UStroke`'s bare default — on the separately-drawn corner triangle); an
+ATTACHED note (`xodazu-26-cube992`, `gedude-95-subi666`) ALWAYS resolves to
+jar's Opale zigzag-notch MERGED shape (symmetric 0.5 stroke-width on both
+paths, no separate connector line at all) — reused `../class/note-opale.ts`'s
+diagram-agnostic pure geometry functions directly rather than re-porting
+them. Notes materialize as `StateNodeGeo` entries (`kind:'note'`) folded
+into the SAME array every other state node uses, reusing state's own
+(more precise than class's) creation-index sort/uid machinery for free
+instead of building a parallel `notes[]` array + a separate document-order
+mechanism. Also corrected `state-note-layout.ts#measureNote`'s sizing
+formula (fixed 13pt note font, real `marginX1(6)+marginX2(15)`/
+`marginY(5)*2` margins, no incorrect `*1.4` line-height — algebraically
+derived from `labono`/`gedude`'s own pixel values) and derived + implemented
+a GMN-quark-name dual-tick mechanism for attached-note id numbering
+(`CommandFactoryNoteOnEntity.java:327`, verified against 3 fixtures' own
+`id=` gaps) — confirmed via direct read of `normalize.ts` that the
+`data-qualified-name` STRING itself is stripped before comparison, so only
+the tick-COUNT needed threading, not a full quark-name generator.
 
-Per this iteration's own instruction, sampled ALL 31 of S8's near-zero
-(1-3 diff) fixtures individually plus 25 from the 4-10 bucket BEFORE
-choosing a fix target — surfacing a much richer attribution table than
-S8's queue implied. The single largest finding: **notes never render**,
-a 15-fixture corpus-wide family (the largest single reach found by this
-mission to date), root-caused to `layout.ts#buildFlatStateGeos` never
-converting a note's already-computed DOT-graph position into a renderable
-`StateNodeGeo` — and jar's OWN state-note shape is `<path>`-based
-(folded-corner, byte-verified against `labono-83-nega255`'s raw SVG),
-distinct from the class engine's `<polygon>`-based `renderer-note.ts`, so
-this is not a cheap cross-diagram reuse. Diagnosed in full, explicitly NOT
-forced this iteration (comparable in scope to mechanism 5/6's own
-multi-iteration box-shape work) — queued whole for S10. Six further
-mechanisms were newly diagnosed this iteration and also NOT landed: the
-`<style>`-tag cascade gap (S4-named) widened from one to THREE independent
-sub-families (state-box, title, arrow properties); `addStateBoxInk`'s 1px
-asymmetry was re-confirmed with 2 new same-shape samples (now 3 known
-fixtures); `<<sdlreceive>>`'s folded-frame shape and a pseudostate
-stroke-color-over-application bug were newly root-caused (both single-
-fixture); CONC-region bare-name global numbering (S8-named) was traced to
-its EXACT Java call site (`StateDiagram.java:194-208`'s `concurrentState()`,
-`CucaDiagram.java:733`'s `cpt2` counter) but left unimplemented pending the
-SAME fixture-id-sequence verification rigor S7 used to derive `cpt1`'s own
-pass-gating behavior; the state hyperlink (`[[url]]`) mechanism (S8-named)
-was investigated and found substantially more complex than the task's own
-"mirror class's URL subsystem" framing suggested — jar wraps each entity's
-WHOLE box in `<a>` with URL INHERITANCE from the nearest ancestor entity
-that has one, plus a separate `[[{alias}]]` anchor-reference resolution
-path, and `State.url` does not exist on the AST at all yet (a parser gap,
-not just a renderer gap) — re-scoped, not landed.
+Also landed mechanism 22 (bare `state`-element skinparam bucket,
+`core/skinparam.ts#ELEMENT_BUCKET_SNAMES` + a new `resolveStateFillBucketed`
+in `state-render-colors.ts`, S9's own named "cheap, may not unlock any
+fixture" item) — scoped to 4 of `resolveStateFill`'s 7 call sites (plain
+leaf box, composite box, choice, history/deepHistory), leaving
+initial/final/fork/join/syncBar on the unchanged plain `resolveStateFill`
+per their own distinct-default-color doc comment. Proven safe/additive
+(class/object/description censuses unchanged) but 0 fixtures reach zero
+from it alone this iteration — all 5 known bare-skinparam fixtures remain
+masked by unrelated bugs (mechanism 16's cluster-wrap gap, or `xexika`'s
+own arrow-marker gap), exactly as S9's own queue entry predicted.
 
-A mid-iteration bash-tooling incident was diagnosed and resolved with NO
-code change: regenerating `parity-state.json` initially reported
-`semala-31-joji042` as `verdict: diverged` despite a byte-exact
-`DeterministicMeasurer` census pass, traced to a race between two
-overlapping background `svg-parity-survey.ts` invocations (a stale prior
-survey file was read before the real, still-running survey finished
-writing it) — re-ran once cleanly and confirmed `dotEqual: true, verdict:
-conformant`. Logged so a future iteration recognizes this exact symptom
-shape as a tooling race, not a rendering regression, before re-diagnosing
-from scratch.
+`note ... on link` (6 fixtures: `fotigo`/`jaxuxe`/`kupexa`/`vateco`/
+`xupefu`/`tumaba`) was investigated and confirmed a THIRD, structurally
+different note shape — embedded directly in the transition's own `<g
+class="link">`, no host `<g class="entity">` wrap at all, no notch, a plain
+box floating at a fixed offset near the edge's own label position. The
+DOT-sizing half was already built (mission-A4-era `edgeLabelAttrs`); the
+render half is not — diagnosed in full, explicitly NOT landed this
+iteration (a genuinely separate shape, comparable in scope to mechanism
+21 itself), queued for S11 alongside creole/table note content
+(`fatupo-62-bemu777`), `#color`/gradient overrides on notes (the grammar's
+own `NOTE_COLOR` capture group is non-capturing — a parser gap, not just a
+renderer gap), and composite-pipeline note materialization
+(`buildFlatNoteGeos` is FLAT-pipeline only this iteration).
 
-Census: 39/271 → **40/271** zero-diff, +1 new pin (`semala-31-joji042`),
-0 regressed — verified `dotEqual: true` in a freshly (twice-)regenerated
-`parity-state.json` before pinning (AC3). See `plans/g4-state-svg/
-ledger.md` S9 for the full attribution table, the CONC-numbering Java
-derivation, and the S10+ queue.
+Added 19 new unit tests this iteration (`tests/unit/state/
+renderer-note.test.ts`, 15 tests covering geo materialization + both
+render shapes + dispatch; `tests/unit/state/state-render-colors.test.ts`,
++4 tests for `resolveStateFillBucketed`) — golden-fixture coverage alone
+left `renderer-note.ts`'s opale branch and several defensive-fallback
+branches unexercised by `npm test`.
+
+Census: 40/271 → **44/271** zero-diff, +5 new pins, 0 regressed — verified
+`dotEqual: true` in a freshly (twice-)regenerated `parity-state.json`
+before pinning (AC3; the first regen showed `kilato-12-laso661` as
+`verdict: timeout`, a survey-load artifact matching S9's own "survey
+timeout ≠ regression" precedent, resolved by a single clean re-run with no
+code change). See `plans/g4-state-svg/ledger.md` S10 for the full
+note-subsystem derivation, attribution table, and the S11+ queue.

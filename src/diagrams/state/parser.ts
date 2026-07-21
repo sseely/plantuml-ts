@@ -56,6 +56,7 @@ import {
   type Pass,
   makeScope,
   noteScopeId,
+  nextCreationIndex,
   popScope,
   syncAutoScopes,
   DEFAULT_SEPARATOR,
@@ -88,7 +89,7 @@ function handlePendingNoteLine(ps: ParseState, line: string, pass: Pass): boolea
   if (isNoteCloser(ps.pendingNote, line)) {
     if (pass === noteFinalizePass(ps.pendingNote.kind)) {
       const scopeId = noteScopeId(ps);
-      const id = finalizePendingNote(ps.ast, ps.pendingNote, scopeId);
+      const id = finalizePendingNote(ps.ast, ps.pendingNote, scopeId, () => nextCreationIndex(ps));
       if (id !== undefined) ps.lastEntity = id;
     }
     ps.pendingNote = null;
