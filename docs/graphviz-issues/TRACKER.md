@@ -10,3 +10,4 @@ object ratchets and census re-run instantly against an updated `.tgz`).
 - [x] 03-splines-attr-unsupported.md
 - [x] 04-anchor-point-rank-assignment.md
 - [x] 05-cluster-label-dimensions-ignored.md
+- [ ] 06-cluster-bbox-not-in-getlayout.md
