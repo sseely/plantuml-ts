@@ -82,3 +82,18 @@ unbounded", the 16-vs-24 margin data), §S15 (the
 `hasBorderPointDescendant` gate over the entrypoint/exitpoint family),
 §S16 accounting (92 + 20 fixture attribution). Example fixtures:
 decede-10-buvu414, gojuja-90-pune699, bajelo-54-dixe684.
+
+---
+
+**RESOLVED — graphviz-ts 0.1.26072115 (verified 2026-07-21).** The
+`getLayout()` snapshot now includes a `clusters` array (`name`, `x`,
+`y`, `width`, `height`). Verified against real `dot -Tsvg` on both
+filed repros: the flat case returns cluster6 at 8,8 66×66 matching the
+polygon exactly, and the triple-nested case exposes all three clusters
+with dims byte-matching real dot's polygons (64×105 / 48×89 / 32×56),
+correct in both `yAxis` frames. Float noise is ≤3.2e-5px — far inside
+the ±0.01 conformance tolerance. Consumer-side adoption (layoutGraph
+exposing cluster geometry + the state composite pipeline consuming it
+— G4's mechanism 16, 92+20 fixtures) is mission work, tracked in the
+G4 follow-up order. Repo bump to 0.1.26072115 lands at the next
+iteration boundary of the in-flight G5 mission.
