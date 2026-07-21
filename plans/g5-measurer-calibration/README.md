@@ -432,3 +432,42 @@ iteration" below.
    ITSELF (which DOES drive sizing) was independently verified correct on
    `nasreq_auth` (pesita's own top-level composite, `kind='cluster'`,
    matching jar exactly).
+
+---
+
+## Mission status — CLOSED (C8, 2026-07-21)
+
+**Founding objective achieved at C0/C1 and inverted:** there is no
+StringMeasurer calibration gap. The corpus-wide harness
+(`scripts/measurer-calibration-report.ts`, 13,943 textLength samples)
+proved WidthTableMeasurer jar-exact (0.000% mean / ≤0.001% max); G4
+§S13's "~7%" was five call sites passing fontSize 14 where upstream's
+FontParam.ARROW default is 13 — three landed (state flat, class,
+description layout), two (state composite) remain coupled to the ink
+complex below.
+
+**Landed across C0-C8:** the calibration harness + mechanism-locking
+pins; ARROW_LABEL_FONT_SIZE at 3/5 sites (+ the description
+layout.ts 500-cap split); DotLayoutResult.clusters seam;
+setHtmlAttr cluster title-table adoption (19px header constant,
+132/134 corpus-verified) + renderClusterMeasured + document-nesting
+fix; sibling document order (printGroups-before-printEntities + the
+creationIndex edge-order bug) + conditional body-fill
+(RoundedSouth); jar-exact cluster wrapper margins (p1 / i+p1
+CL_OFFSET nesting, 84/84). graphviz-ts issues 06 and 07 filed,
+fixed upstream (0.1.26072115 / 0.1.26072117), verified, adopted.
+size-backlog 103 → 92 entries over the mission, zero widenings.
+
+**Ink attempts 4-6 (maintainer-authorized): all reverted per their
+one-attempt terms, each converting uncertainty into mechanism.**
+Net knowledge: the injection+readback stack works (10/15 control
+improvements); the Math.max floor is proven dead code corpus-wide;
+and the residual is EXACTLY six fixtures across three named
+mechanisms — the insideAutonomPass titleTable gate
+(bajelo/rovese/fotuje), the entrypoint WithLabel sizing (pesita),
+and jar's real SvekEdge label placement (nimana/beguxu). Follow-up
+order and full evidence: ledger §C8.
+
+Censuses at close (all floors held throughout, no shrink ever):
+description 48/355 · class 303/718 · object 22/80 · state 52/271;
+DOT gate frozen exact at every commit; tests 10,150.
