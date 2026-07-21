@@ -287,7 +287,31 @@ function renderClusterMeasured(node: StateNodeGeo, theme: Theme): string {
   const dividerY = node.y + headerHeight;
 
   const header = compositeHeaderPath(node.x, node.y, node.width, headerHeight, fill);
-  const body = compositeBodyPath(node.x, node.y, node.width, node.height, headerHeight, fill);
+  // G5 C5 (ledger \u00a7C3's item 2, "conditional body-fill"): jar's real
+  // `RoundedSouth#drawU` (`~/git/plantuml/.../svek/RoundedSouth.java`)
+  // returns WITHOUT drawing anything when its OWN `backColor.isTransparent
+  // ()` -- the body-zone `body` style selector's DEFAULT (un-overridden)
+  // resolution is transparent, unlike the header/description selectors'
+  // own visible default -- so a cluster styled with the plain, untouched
+  // theme default draws ONLY the header path (jar-verified `gojuja-90-
+  // pune699`'s `A`: 1 `<path>`, `childCount` 4, no body fill at all) while
+  // one with ANY resolved background override (a per-node `#color`, a
+  // stereotype-qualified `stateBackgroundColor<<X>>`, or a bare `state`-
+  // element `<style>`/`skinparam stateBackgroundColor` bucket -- every tier
+  // `resolveStateFillBucketed` already implements) draws BOTH (jar-verified
+  // `rufosi-58-kegi649`'s `#red`-overridden `Inner1`, `vekoja-22-made430`'s
+  // `skinparam StateBackgroundColor green`). This port has no per-zone
+  // (header/description/body) style bucket of its own -- `fill !==
+  // STATE_DEFAULT_BACKGROUND` is the closest available signal for "some
+  // override tier actually fired" without building that whole 3-zone
+  // system; a diagram-level `<style> stateDiagram { BackgroundColor .. } }`
+  // cascade (`decede-10-buvu414`'s own, jar-verified 2-path) is NOT covered
+  // by this signal -- that selector tier is a separate, already-named,
+  // pre-existing gap (this port does not apply diagram-level `<style>`
+  // cascades to state diagrams at all yet), not a defect in this rule.
+  const body = fill !== STATE_DEFAULT_BACKGROUND
+    ? compositeBodyPath(node.x, node.y, node.width, node.height, headerHeight, fill)
+    : '';
   const outline = rect(node.x, node.y, node.width, node.height, {
     fill: 'none', stroke: border, strokeWidth: STATE_BORDER_STROKE_WIDTH, rx: STATE_BOX_RX, ry: STATE_BOX_RX,
   });

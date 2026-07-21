@@ -60,6 +60,61 @@ export function sortSpecsByCreationIndex<T extends { creationIndex?: number }>(s
   return [...specs].sort((a, b) => (a.creationIndex ?? Infinity) - (b.creationIndex ?? Infinity));
 }
 
+/**
+ * G5 C5 (ledger §C3's item 1, "document order"): jar's real TOP-LEVEL
+ * document order hoists EVERY `'cluster'`-classified composite AHEAD of
+ * every other sibling (autonom composites, leaf states, top-level pseudo
+ * start/end) -- regardless of the cluster's own `creationIndex` relative to
+ * those siblings. Derived from source, not guessed:
+ * `~/git/plantuml/.../svek/GraphvizImageBuilder.java:226-227` --
+ * `printGroups(dotData.getRootGroup())` (draws every GROUP, i.e. every
+ * composite state, cluster-classified or not) runs UNCONDITIONALLY BEFORE
+ * `printEntities(getUnpackagedEntities())` (the top container's own direct
+ * LEAF children -- plain states, `.start.`/`.end.` pseudo) -- and
+ * `~/git/plantuml/.../svek/SvekResult.java#drawU` walks
+ * `clusterManager.getBibliotekon().allCluster()` (every registered
+ * `Cluster`, in `Bibliotekon`'s own `ArrayList` REGISTRATION order) in full
+ * BEFORE `allNodes()` (a `LinkedHashMap`, same registration-order
+ * guarantee) -- an autonom composite is "packed" at draw time (`cluster
+ * .getGroup().isPacked()`) and therefore represented as ONE opaque
+ * `SvekNode` in `allNodes()`, not a drawn `Cluster`, so it sorts with the
+ * OTHER nodes, never hoisted.
+ *
+ * Corpus-wide re-confirmed (35+ samples, exhaustive over every cached
+ * `test-results/dot-cache/state/<fixture>/in.svg` carrying exactly one
+ * `class="cluster"` element -- no corpus fixture has more than one, so
+ * cluster-vs-cluster relative order is UNVERIFIED): the cluster is FIRST in
+ * the top-level document EVERY time, including `decede-10-buvu414` (`E`,
+ * `creationIndex` 5, hoists strictly ahead of `A`, `creationIndex` 1 -- the
+ * counter-example this mission's own C3-C5 iterations needed to derive this
+ * rule from) and `gojuja-90-pune699` (`A`, cluster, ahead of `Configuring`,
+ * autonom, ahead of `.start.`, pseudo).
+ *
+ * Within EACH of the two partitions (cluster-classified vs. everything
+ * else), {@link sortSpecsByCreationIndex}'s own stable creation-order rule
+ * is UNCHANGED -- this function only moves the BOUNDARY between the two
+ * groups, never reorders within either one.
+ *
+ * Scoped to `state-composite-pass.ts#buildTopLevelPass`'s own top-level
+ * `specs` array ONLY -- mirrors this mission's own C3 eligibility gate for
+ * the cluster render SHAPE itself (`!ctx.insideAutonomPass`, top-level pass
+ * only): no corpus fixture carries a cluster nested inside another
+ * cluster's own children (or inside an autonom pass, which C3 already
+ * excludes from the real cluster shape entirely), so applying this rule
+ * RECURSIVELY to `state-composite-cluster.ts#resolveClusterComposite`'s own
+ * `children` list, `state-composite-autonom.ts`'s `localStates`, or
+ * `state-composite-concurrent.ts`'s per-region specs remains UNVERIFIED --
+ * left on the plain {@link sortSpecsByCreationIndex}, unchanged, until a
+ * fixture surfaces jar evidence either way.
+ */
+export function sortSpecsByDocumentOrder<T extends { creationIndex?: number; kind?: string }>(
+  specs: readonly T[],
+): T[] {
+  const clusters = specs.filter((s) => s.kind === 'cluster');
+  const rest = specs.filter((s) => s.kind !== 'cluster');
+  return [...sortSpecsByCreationIndex(clusters), ...sortSpecsByCreationIndex(rest)];
+}
+
 export function addLocalPseudoNodes(
   scopeId: string,
   transitions: readonly Transition[],

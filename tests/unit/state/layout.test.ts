@@ -351,6 +351,56 @@ describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G5 C5, ledger \u00a7C3's item 1: top-level document order hoists
+// 'cluster'-classified composites ahead of everything else, regardless of
+// creationIndex (state-composite-pseudo.ts#sortSpecsByDocumentOrder's own
+// doc comment has the full jar-verified derivation --
+// GraphvizImageBuilder.java#printGroups/printEntities,
+// SvekResult.java#drawU's cluster-loop-before-node-loop; corpus-anchored to
+// decede-10-buvu414 (E, creationIndex 5, hoists ahead of A, creationIndex
+// 1) and gojuja-90-pune699 (A, cluster, ahead of Configuring, autonom,
+// ahead of .start., pseudo)).
+// ---------------------------------------------------------------------------
+
+describe('layoutState -- top-level document order hoists cluster composites (G5 C5)', () => {
+  it('a cluster composite with a HIGHER creationIndex than its siblings still renders FIRST', () => {
+    // Mirrors decede-10-buvu414's own shape: A (autonom, creationIndex 1)
+    // declared/created BEFORE E (cluster, creationIndex 5) in jar's real
+    // two-pass parse, yet E renders first in the real oracle document --
+    // this test forces the SAME inversion synthetically (Composite's own
+    // creationIndex is the LARGEST of the three top-level siblings) so a
+    // plain ascending creationIndex sort (pre-C5) would place it LAST, not
+    // first.
+    const early = makeState('Early', { creationIndex: 1 });
+    const b = makeState('B', { creationIndex: 2 });
+    const a = makeState('A', { creationIndex: 11 });
+    // A --> B crosses Composite's own boundary (B is declared elsewhere),
+    // forcing the non-autonom/cluster classification (state-composite-
+    // classify.ts) -- same trick the mechanism-6 test above uses.
+    const composite = makeState('Composite', { children: [a], creationIndex: 10 });
+    const ast: StateDiagramAST = {
+      states: [early, composite, b],
+      transitions: [{ from: 'A', to: 'B' }],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.states.map((s) => s.id)).toEqual(['Composite', 'Early', 'B']);
+  });
+
+  it('with NO cluster present, top-level order stays pure ascending creationIndex (regression guard -- sortSpecsByDocumentOrder is a no-op vs. sortSpecsByCreationIndex when zero specs are cluster-kind)', () => {
+    const child = makeState('Child');
+    const autonom = makeState('Autonom', { children: [child], creationIndex: 5 });
+    const leaf1 = makeState('Leaf1', { creationIndex: 1 });
+    const leaf2 = makeState('Leaf2', { creationIndex: 8 });
+    const ast: StateDiagramAST = {
+      states: [autonom, leaf2, leaf1],
+      transitions: [],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.states.map((s) => s.id)).toEqual(['Leaf1', 'Autonom', 'Leaf2']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Mission G4 S6, mechanisms 13/14: concurrent-region separator lines +
 // per-region pseudo-node scope-id collision
 // ---------------------------------------------------------------------------

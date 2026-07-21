@@ -41,18 +41,20 @@ aren't in any other task's write-set either"), C0 did NOT modify any
 `src/` file — there is no in-scope measurer bug to fix. See "Next
 iteration" below.
 
-## Gates table (re-verified fresh at C3 end — DOT gate/censuses/golden
-## ratchets byte-identical to C2's baseline; `size-backlog.json` tightened
-## (a real, independent, jar-verified size-accuracy win); `npm test -- --run`
-## count grew only by C3's own new, currently-passing test cases)
+## Gates table (re-verified fresh at C5 end — DOT gate/censuses/golden
+## ratchets/size-backlog ALL byte-identical to C4's baseline; C4's own
+## revert left `size-backlog.json` at 93 entries, not 92 -- see C4's own
+## ledger entry, unrelated to this iteration which touched none of it;
+## `npm test -- --run` count grew only by C5's own new, currently-passing
+## test cases)
 
 | Gate | Value |
 | --- | --- |
 | `npm run typecheck` | clean (both configs) |
 | `npm run lint` | clean |
-| `npm test -- --run` | 10142 passed \| 5 skipped (381 files) — C3's own 4 new `graph-layout.test.ts` cases; the 5 skipped are UNCHANGED, still C1's reverted sites 2/3 evidence |
+| `npm test -- --run` | 10144 passed \| 5 skipped (381 files) — C5's own 2 new `layout.test.ts` cases; the 5 skipped are UNCHANGED, still C1's reverted sites 2/3 evidence |
 | DOT gate | component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267 (unchanged) |
-| `state-dot-parity.test.ts` (size-backlog ratchet) | 268/268 (unchanged pass count; the ratchet's OWN tolerance file tightened, see below) |
+| `state-dot-parity.test.ts` (size-backlog ratchet) | 268/268 (unchanged) |
 | `description.golden.ratchet.test.ts` | 51 tests (unchanged) |
 | `class.golden.ratchet.test.ts` | 305 tests (unchanged) |
 | `object.golden.ratchet.test.ts` | 24 tests (unchanged) |
@@ -61,7 +63,7 @@ iteration" below.
 | class census | 303/718 (unchanged) |
 | object census | 22/80 (unchanged) |
 | state census | 52/271 (unchanged) |
-| `oracle/goldens/state/size-backlog.json` | 92 entries (was 103 — 10 removed at 0, 13 tightened) |
+| `oracle/goldens/state/size-backlog.json` | 93 entries (unchanged from C4; C5 touched no `node.width`/`node.height`-affecting code) |
 
 ## Protected sets (movement rules, per mission brief)
 
@@ -166,54 +168,81 @@ iteration" below.
   derivation, the 15-fixture control-set table, the jar-verified mechanism
   of the 6 regressions, and the C5+ queue.
 
-## Next iteration (C5) — recommended scope
+- **C5** (this iteration's own scope: C3's two authorized, not-blocked
+  cluster items -- sibling document order + conditional body-fill -- plus
+  the entrypoint/exitpoint family if they cleared it): landed BOTH items,
+  each jar-verified from source (`GraphvizImageBuilder.java`/
+  `Bibliotekon.java`/`RoundedContainer.java`/`RoundedSouth.java`) and
+  corpus-anchored (35+ samples for document order, 82 for body-fill).
+  Document order also needed a discovered, not-pre-named sibling fix for
+  TRANSITIONS/edges (the SAME jar mechanism, `Bibliotekon.allLines()`),
+  since a cluster's own internal edges share its container pass. Despite
+  all three sub-fixes being independently correct and non-regressing (DOT
+  gate, four censuses, four golden ratchets, size-backlog ratchet all
+  byte-identical to C4's baseline), **0 new zero-diff pins** -- landing
+  items 1/2 UNMASKED a THIRD, newly-confirmed, pre-existing gap (graphviz's
+  own 8pt default cluster margin vs jar's real ~16px side margin,
+  confirmed on 5/5 samples checked, not just the two named fixtures) that
+  is now the SOLE blocker for every eligible cluster fixture. Entrypoint/
+  exitpoint family correctly NOT attempted -- blocked by this SAME newly-
+  found gap (not by items 1/2, which are themselves fully resolved) plus
+  its own still-undeived WithLabel-branch width formula. See `ledger.md`
+  §C5 for the full derivation, the corpus evidence, and the C6+ queue.
 
-0. **PRIORITY, now the confirmed sole blocker for THREE independent
-   mechanisms** (this iteration's own edge-label-ink derivation, mechanism
-   16's nested-cluster adoption from C3, and sites 2/3): `state-composite-
-   autonom.ts#buildPlainAutonomSpec`'s `Math.max(geometry.width,
-   result.width)` floor. C4 proved `result.width` is now jar-accurate for
-   the label-reservation component (9/15 control-set fixtures improved) —
-   the remaining gap is `geometry.width`'s own `computeSvekResultGeometry`
-   ink walk never folding label ink in at all. A fifth attempt at this
-   floor (S4 + S13's 3 variants = 4 prior attempts) needs its own explicit
-   orchestrator/maintainer sign-off — C4's own sign-off covered the
-   injection/readback mechanism only. See `ledger.md` §C4's C5+ queue item
-   2 for the specific next-derivation candidate (fold `TransitionGeo
-   .label`'s now-jar-verified real box into `addNodeInk` directly, rather
-   than re-deriving an approximation).
-1. **Document order** (largest remaining lever toward the first true
-   byte-exact cluster-shape pin): jar's real top-level document order does
-   NOT match `.puml` declaration order once a `'cluster'`-classified
-   composite is present (`gojuja-90-pune699`/`decede-10-buvu414`
-   jar-verified: cluster-classified entities render in a DIFFERENT relative
-   position than autonom/leaf ones). Needs jar's `GraphvizImageBuilder`/
-   `SvekResult`'s own document-assembly order read directly from source.
-2. **Conditional body-fill path** for a content-less cluster (anchor-only
-   children, no real drawn content) — `renderClusterMeasured` currently
-   ALWAYS draws both header + body fill paths; jar's real `gojuja-90-
-   pune699`'s `A` draws header-only. Likely tied to whether the cluster's
-   own `nodeIds`/portRanks are non-empty vs. only-pseudo — not derived yet.
-3. **Entrypoint/exitpoint family** (20 fixtures): reachable once (1) and
-   (2) close. C3 already derived and corpus-verified its own baseline-
-   margin constant (`5`, matching the autonom shape's `MARGIN`).
-4. **Multi-line/action-text/stereotype cluster titles**: still excluded by
+## Next iteration (C6) — recommended scope
+
+0. **PRIORITY, newly characterized this iteration**: the cluster WIDTH/
+   side-margin gap (graphviz's own 8pt default cluster margin vs jar's
+   real ~16px) — confirmed the SOLE blocker on 5/5 eligible-cluster
+   samples checked (`gojuja-90-pune699`, `decede-10-buvu414`,
+   `cakaxu-97-nexe753`, `fevida-60-kope208`, `bujuta-44-rovo666` — the
+   last separately excluded, entrypoint-family). Needs a jar-source
+   derivation of how jar's real DOT emission forces the extra ~16px
+   (plausibly an explicit `margin=` cluster attribute `ClusterDotString
+   .java` emits that `graph-layout-build.ts#addClusters` does not yet
+   set) — a DIFFERENT mechanism from `CLUSTER_HEADER_HEIGHT`'s own
+   jar-calibrated constant (unaffected, still correct). See `ledger.md`
+   §C5's "Residual" section for the full evidence trail.
+1. **After (0) closes**: re-verify `gojuja-90-pune699`/`decede-10-buvu414`
+   reach true zero-diff — items 1a/1b/2 (document order for states AND
+   edges, conditional body-fill), all landed in C5, should need NO further
+   changes once (0) closes, modulo `decede`'s own separate, already-named
+   `<style>stateDiagram{}</style>` cascade gap (item 4 below) and the
+   pre-existing `class="entity"` vs `class="cluster"` divergence (both
+   already confirmed unrelated to mechanism 16 by C3).
+2. **Entrypoint/exitpoint family** (20 fixtures): reachable once (0)
+   closes AND the family's own `portRanksLabelOnEe`/WithLabel-branch
+   WIDTH/rank-chain shape is derived (C3's own unresolved item, unchanged;
+   C3 already derived and corpus-verified the baseline-margin constant,
+   `5`, matching the autonom shape's `MARGIN`).
+3. **Multi-line/action-text/stereotype cluster titles**: still excluded by
    the eligibility gate; C3's corpus probe found only 2 multi-line samples
    (`gap=47`, a starting data point, not a derived formula).
-5. **Nested-cluster (inside-autonom-pass) title-table adoption**: blocked
-   on the SAME parked `buildPlainAutonomSpec#Math.max` floor that already
-   blocks sites 2/3 (C1/C2) — this iteration's `insideAutonomPass` finding
-   independently re-confirms the floor is load-bearing for TWO unrelated
-   mechanisms now. Still requires orchestrator/maintainer sign-off (3-strike
-   rule) before any attempt to fix the floor itself.
-6. **Sites 2/3 remain blocked** — unchanged from C1/C2, same G4 S11-S13
+4. **The diagram-level `<style>stateDiagram{}</style>` cascade tier**
+   (`decede-10-buvu414`/`tofezi-64-koda860`/`xojudi-20-keco020`'s shared
+   root cause, surfaced again by C5's own body-fill investigation) — a
+   separate, pre-existing, larger feature (no diagram-level `<style>`
+   cascade support for state diagrams at all yet), confirmed unrelated to
+   mechanism 16.
+5. **Nested-cluster (inside-another-cluster, or inside-autonom-pass)
+   document order**: `sortSpecsByDocumentOrder`'s own scoping note (C5) —
+   no corpus fixture currently exercises this case, left unverified at the
+   nested call sites (`state-composite-cluster.ts`/`state-composite-
+   autonom.ts`/`state-composite-concurrent.ts`'s own `sortSpecsByCreation
+   Index` calls, unchanged).
+6. **The `buildPlainAutonomSpec#Math.max(geometry.width, result.width)`
+   floor** — now the confirmed sole blocker for THREE independent
+   mechanisms (C4's own edge-label-ink derivation, mechanism 16's
+   nested-cluster adoption from C3, and sites 2/3). A fifth attempt (S4 +
+   S13's 3 variants + C4 = 4 prior attempts) needs its own explicit
+   orchestrator/maintainer sign-off. See `ledger.md` §C4's own C5+ queue
+   item 2 for the specific next-derivation candidate.
+7. **Sites 2/3 remain blocked** — unchanged from C1/C2/C4, same G4 S11-S13
    edge-label-ink mechanism, same sign-off requirement.
-7. **Two confirmed-unrelated, pre-existing gaps** (NOT mechanism 16, not
-   this mission's scope, logged for a future iteration): `class="entity"`
-   vs jar's `class="cluster"` (this port's renderer-wide convention); the
-   `<style stateDiagram>` cascade (`RoundCorner`/`BackgroundColor`/
-   `LineColor`/`FontColor`) not yet applied to state diagrams at all.
-8. **Secondary, unrelated finding, unchanged from C0** (component
+8. **`class="entity"` vs jar's `class="cluster"`** — a confirmed-unrelated,
+   pre-existing, renderer-wide convention gap (NOT mechanism 16, not this
+   mission's scope), logged for a future iteration.
+9. **Secondary, unrelated finding, unchanged from C0** (component
    diagrams only, low corpus impact — 1 of 265 fixtures dominates):
    `component/gutute-00-gaki684` (a `!pragma svek_trace on` stress-test
    fixture) shows a real, small, growing-with-string-length divergence

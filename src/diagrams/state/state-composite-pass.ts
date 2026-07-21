@@ -54,8 +54,8 @@ import { buildNoteGraphPartsByScope, sweepOrphanNoteEdges } from './state-note-l
 // compliance) -- imported for THIS file's own internal use
 // (`addLevelEdges`/`buildTopLevelPass` below) AND re-exported so every
 // pre-existing EXTERNAL importer of THIS module keeps working unchanged.
-import { scopedPseudoIds, sortSpecsByCreationIndex, addLocalPseudoNodes, levelEndpointId } from './state-composite-pseudo.js';
-export { scopedPseudoIds, sortSpecsByCreationIndex, addLocalPseudoNodes, levelEndpointId };
+import { scopedPseudoIds, sortSpecsByCreationIndex, sortSpecsByDocumentOrder, addLocalPseudoNodes, levelEndpointId } from './state-composite-pseudo.js';
+export { scopedPseudoIds, sortSpecsByCreationIndex, sortSpecsByDocumentOrder, addLocalPseudoNodes, levelEndpointId };
 
 import type { DiagramCtx, GeoSpec } from './state-composite-pass-types.js';
 // Re-exported so every pre-existing EXTERNAL importer of THIS module
@@ -275,7 +275,32 @@ export function runPass(acc: PassAccumulator, ctx: DiagramCtx): DotLayoutResult 
 /** Fully-labeled TransitionGeo for one pass's own edges — in that pass's OWN
  *  (possibly locally-rooted, pre-shift) coordinate space. Exported for reuse
  *  by ./state-composite-geo.ts's top-level assembly (same helper, no need
- *  for a second copy at the geometry layer). */
+ *  for a second copy at the geometry layer).
+ *
+ *  G5 C5 (edge/link document order, a sub-finding of ledger \u00a7C3's item 1
+ *  "document order" -- same Java read, same fixture): `acc.edgeSources`'
+ *  own push order is NOT jar's real edge-draw order once a `'cluster'`-
+ *  classified composite's OWN internal transitions get swept into THIS
+ *  SAME pass (mechanism 16's own "a cluster shares its container pass's
+ *  edges" rule, `state-composite-geo.ts#materializeCluster`'s doc comment)
+ *  -- `resolveMember`'s recursive walk resolves a cluster's OWN scope
+ *  (pushing ITS internal edges) BEFORE `buildTopLevelPass`'s own explicit
+ *  `addLevelEdges('', ast.transitions, ...)` call for the CONTAINING
+ *  scope's edges, so a cluster's internal edge lands in `acc.edges` BEFORE
+ *  an OUTER edge that was declared (and jar-created) EARLIER. Jar's real
+ *  rule (`~/git/plantuml/.../svek/GraphvizImageBuilder.java:229`, `for
+ *  (Link link : dotData.getLinks()) { ...; addLine(line); }`, run AFTER
+ *  `printGroups`/`printEntities` -- `Bibliotekon.java`'s own `allLines`
+ *  `ArrayList` is a pure registration-order list, mirroring `allCluster`/
+ *  `allNodes`) draws EVERY edge in ONE pass, in `dotData.getLinks()`'s own
+ *  parse-time creation order -- jar-verified `gojuja-90-pune699`: `*start*-
+ *  to-A` (`[*] --> A`, declared/created line 3) draws BEFORE `*start*A-to-
+ *  Configuring` (`A`'s own internal `[*] --> Configuring`, declared line 6,
+ *  inside `A`), even though `A`'s internal edge is resolved FIRST by this
+ *  port's own `resolveMember` walk. `sortSpecsByCreationIndex` (this SAME
+ *  file's own top-level sibling function) applies unchanged -- edges
+ *  without a `creationIndex` sort to the end, preserving their pre-existing
+ *  relative order (mirrors that function's own doc comment). */
 export function buildLevelTransitionGeos(acc: PassAccumulator, result: DotLayoutResult): TransitionGeo[] {
   const edgePosMap = new Map(result.edges.map((e) => [e.id, e]));
   // mission G4 S7 (discovered while jar-verifying mechanism 10's own fix,
@@ -303,7 +328,7 @@ export function buildLevelTransitionGeos(acc: PassAccumulator, result: DotLayout
       ...(t.circleEnd !== undefined ? { circleEnd: t.circleEnd } : {}),
     });
   }
-  return geos;
+  return sortSpecsByCreationIndex(geos);
 }
 
 /** Top-level entry point: resolve the whole diagram's top scope into ONE
@@ -358,5 +383,15 @@ export function buildTopLevelPass(
   // `[...pseudoSpecs, ...specs]` order was backward -- previously masked
   // by the flat-transitions childCount short-circuit (S1), only visible
   // once that mismatch was fixed (S5's own transition-nesting mechanism).
-  return { acc, result, ctx, specs: sortSpecsByCreationIndex([...specs, ...pseudoSpecs]) };
+  //
+  // G5 C5 (ledger §C3's item 1, "document order"): `sortSpecsByCreationIndex`
+  // alone is NOT jar's real top-level rule once a `'cluster'`-classified
+  // composite is present -- see `sortSpecsByDocumentOrder`'s own doc comment
+  // (state-composite-pseudo.ts) for the full jar-verified derivation
+  // (`GraphvizImageBuilder.java#printGroups`/`printEntities`,
+  // `SvekResult.java#drawU`'s cluster-loop-before-node-loop). Scoped to THIS
+  // top-level `specs` array only -- see that function's own doc comment for
+  // why the nested/nested-cluster case is left on the plain
+  // `sortSpecsByCreationIndex`.
+  return { acc, result, ctx, specs: sortSpecsByDocumentOrder([...specs, ...pseudoSpecs]) };
 }

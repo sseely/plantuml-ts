@@ -1539,3 +1539,333 @@ decision-journal.md}` (this entry) remain changed.
    stereotype cluster titles. See README's "Next iteration" section.
 4. **Unchanged from C0-C3**: the secondary `gutute-00-gaki684` (component
    port-label divergence) finding remains unresolved, low priority.
+
+## C5 — derived and landed BOTH authorized cluster items (sibling document
+## order for states + a discovered sibling sub-mechanism for edges;
+## conditional body-fill), both jar-verified from `GraphvizImageBuilder
+## .java`/`Bibliotekon.java`/`RoundedSouth.java` + 35-84 corpus samples per
+## item -- 0 census/ratchet/DOT-gate movement: a THIRD, newly-confirmed,
+## pre-existing width/side-margin gap (graphviz's own 8pt default cluster
+## margin vs jar's real ~16px) blocks EVERY eligible cluster fixture from
+## true zero-diff, unmasked (not caused) by items 1-2 landing; entrypoint/
+## exitpoint family correctly NOT attempted (blocked by the SAME newly-
+## found gap, not by items 1/2, which are themselves fully resolved)
+
+### Item 1a — sibling document order for cluster/autonom/leaf STATE nodes
+### (LANDED, jar-verified)
+
+Read `~/git/plantuml/.../svek/GraphvizImageBuilder.java:226-227`
+(`buildImage`): `printGroups(dotData.getRootGroup());
+printEntities(getUnpackagedEntities());` — EVERY group/composite (cluster-
+classified or autonom/"packed") draws via `printGroups`'s recursive walk
+BEFORE the container's own direct LEAF children (plain states, `.start.`/
+`.end.` pseudo) via `printEntities`. `~/git/plantuml/.../svek/SvekResult
+.java#drawU` confirms the SAME split at DRAW time: `for (Cluster cluster :
+clusterManager.getBibliotekon().allCluster()) if
+(cluster.getGroup().isPacked() == false) cluster.drawU(ug);` runs
+UNCONDITIONALLY BEFORE `for (SvekNode node :
+clusterManager.getBibliotekon().allNodes()) ...`; `Bibliotekon.java`'s
+`allCluster`/`allNodes` are plain `ArrayList`/`LinkedHashMap.values()` —
+pure REGISTRATION order, not sorted by any key. An autonom ("packed")
+composite is registered via `printEntity`/`createNode` (appears in
+`allNodes`, sorts with plain leaves/pseudo in creation order); ONLY an
+unpacked (`'cluster'`-classified) composite is registered via
+`clusterManager.openCluster`/`addCluster` (`allCluster`, hoisted).
+
+Corpus-anchored (35+ samples, exhaustive over every cached
+`test-results/dot-cache/state/*/in.svg` carrying exactly one
+`class="cluster"` element — this port's corpus never has two): the cluster
+is FIRST in the top-level document EVERY single time, independent of its
+own `creationIndex` relative to its siblings. The discriminating
+counter-example (the ONE fixture whose cluster is NOT also its lowest-
+creationIndex top-level sibling, so a plain ascending sort would have
+gotten it right BY ACCIDENT): `decede-10-buvu414`'s `E` (`creationIndex`
+5, from `~/git/plantuml/`'s own two-pass-parse tick numbering this port's
+`nextCreationIndex`/two-pass `runPass(ps, block, 'one'|'two')` already
+mirrors) hoists strictly AHEAD of `A` (`creationIndex` 1) in jar's real
+document — matching the fix, not the pre-fix creationIndex-only sort.
+
+**Fix**: `sortSpecsByDocumentOrder` (NEW, `state-composite-pseudo.ts`) —
+partitions a `GeoSpec[]` into `kind==='cluster'` vs everything else, sorts
+EACH partition independently via the pre-existing
+`sortSpecsByCreationIndex` (unchanged), concatenates cluster-partition
+first. Wired ONLY into `state-composite-pass.ts#buildTopLevelPass`'s own
+top-level `specs` (replacing that one call site's `sortSpecsByCreationIndex`
+call) — scoped to the top-level pass ONLY, mirroring C3's own
+`insideAutonomPass`/eligibility-gate scoping precedent: no corpus fixture
+carries a cluster nested inside another cluster's own children or inside an
+autonom pass (C3 already excludes the latter from the real shape entirely),
+so a recursive application to `state-composite-cluster.ts`'s/`state-
+composite-autonom.ts`'s/`state-composite-concurrent.ts`'s own
+`sortSpecsByCreationIndex` call sites stays UNVERIFIED, left unchanged.
+
+TDD: `tests/unit/state/layout.test.ts` — 2 new tests (`layoutState --
+top-level document order hoists cluster composites (G5 C5)`): a cluster
+with a DELIBERATELY-higher `creationIndex` than its siblings still renders
+first (mirrors decede's own inversion, synthetically); a no-cluster
+regression guard proving the new function is a no-op vs. the old one when
+zero specs are cluster-kind.
+
+### Item 1b (NEW, discovered mid-iteration, not pre-named in the task) —
+### sibling document order for TRANSITIONS/edges, the SAME jar mechanism
+### applied to `Bibliotekon.allLines()` (LANDED, jar-verified)
+
+Reading the SAME Java source further:
+`~/git/plantuml/.../svek/GraphvizImageBuilder.java:229`, `for (Link link :
+dotData.getLinks()) { ...; dotStringFactory.getBibliotekon().addLine(line);
+}` — runs as a THIRD loop, AFTER `printGroups`/`printEntities`, in
+`dotData.getLinks()`'s own parse-time creation order (mirrors this port's
+`Transition.creationIndex`). `Bibliotekon.allLines` is a plain `ArrayList`
+(pure registration order, matching `allCluster`/`allNodes`'s own
+convention).
+
+**Why this matters even though the task named only "nodes":** a
+`'cluster'`-classified composite shares its CONTAINER pass's own edges
+(`state-composite-geo.ts#materializeCluster`'s own pre-existing doc
+comment) — so a cluster's OWN internal transition (e.g. `state A { [*] -->
+Configuring }`'s `[*] --> Configuring`) gets swept into the SAME top-level
+`acc.edges`/`geo.transitions` array as the container's own edges. This
+port's `resolveMember`'s recursive walk resolves `A`'s own scope (pushing
+`A`'s internal edge into `acc.edges`) BEFORE `buildTopLevelPass`'s own
+explicit `addLevelEdges('', ast.transitions, ...)` call for the OUTER
+scope's edges — so `acc.edgeSources`' raw push order put `A`'s internal
+edge BEFORE the outer `[*] --> A` edge, even though jar creates/draws the
+outer edge FIRST (declared/created earlier, line 3 vs `A`'s internal edge
+at line 6). Jar-verified `gojuja-90-pune699`: `id="*start*-to-A"` draws
+BEFORE `id="*start*A-to-Configuring"`; this port's pre-fix output had them
+reversed (`svg/g[1]/g[5]/@id`/`g[1]/g[6]/@id` swapped against the oracle,
+confirmed via a disposable `compareSvg`-based probe, `scripts/_tmp-c5-
+fulldiff.ts`, deleted before finishing).
+
+**Fix**: `buildLevelTransitionGeos` (`state-composite-pass.ts`) sorts its
+own return value via `sortSpecsByCreationIndex` (the SAME, unmodified,
+already-exported function) before returning — applied UNIFORMLY (not
+top-level-scoped) since the underlying jar mechanism (`SvekResult#drawU`'s
+edge loop) is identical at every pass level, and `TransitionGeo.creationIndex`
+is already threaded correctly at every one of this function's 6 existing
+call sites (state-composite-cluster.ts, state-composite-autonom.ts x2,
+state-composite-concurrent.ts x2, state-composite-geo.ts). Re-verified
+non-regressing via the FULL battery (below), not assumed safe from the
+mechanism alone.
+
+### Item 2 — conditional body-fill for content-less clusters (LANDED,
+### jar-verified)
+
+Read `~/git/plantuml/.../svek/Cluster.java#drawUState` ->
+`RoundedContainer#drawU` (`~/git/plantuml/.../svek/RoundedContainer.java`)
+-> `RoundedSouth#drawU` (`~/git/plantuml/.../svek/RoundedSouth.java`):
+`if (backColor.isTransparent()) return;` — the BODY/south fill is skipped
+entirely (no `<path>` at all) whenever its own resolved background color is
+transparent. `drawUState`'s own color derivation:
+`southBackcolor = group.getColors().getColor(BACK)` (a per-entity `#color`
+override) if set; OTHERWISE resolved from a `body`-specific style selector
+(`EntityImageStateCommon.STYLE.addSName(SName.body)...value(BackGroundColor)`)
+whose OWN un-overridden theme default is transparent (distinct from the
+`name`/`description` selectors' visible default) — i.e. an UN-styled
+cluster's body is transparent by construction; ANY override tier
+(`#color`, a stereotype-qualified `stateBackgroundColor<<X>>`, a bare
+`state`-element `<style>`/`skinparam stateBackgroundColor` bucket) makes it
+opaque.
+
+Corpus-anchored: a disposable probe (`scripts/_tmp-c5-*`, deleted before
+finishing) counted direct `<path>` children of every corpus fixture's
+lone `class="cluster"` element: **68/82 fixtures draw exactly 1 path
+(header only), 13/82 draw 2 (header + body), 1/82 draws 0** (a degenerate
+case, not investigated). Cross-referencing the 13 two-path fixtures'
+`.puml` against the 68 one-path fixtures' own: every two-path sample has
+SOME background override this port's own `resolveStateFillBucketed`
+ALREADY implements (`rufosi-58-kegi649`'s per-node `state Inner1 #red {`;
+`vekoja-22-made430`'s `skinparam StateBackgroundColor green`;
+`zumeri-82-julo078`'s `<style>state{BackgroundColor green}</style>`;
+`lojeju-04-fadu517`/`nuvura-69-mafe604`'s `<style>state{BackGroundColor
+yellow;...}</style>`), OR a `<style>stateDiagram{BackgroundColor cyan}
+</style>` diagram-level cascade (`decede-10-buvu414`/`tofezi-64-koda860`/
+`xojudi-20-keco020` — NOT covered by this fix, see "Residual" below), OR
+the entrypoint/exitpoint family's own excluded `<<entryPoint>>`/
+`<<exitPoint>>`/`<<inputPin>>`/`<<outputPin>>`/`<<expansionInput>>` cases
+(`cinoni-00-sere847`/`jufevo-34-taxu911`/`nijugi-19-jazi166`, already
+ineligible for `renderClusterMeasured` at all via the `hasBorderPointChildren`
+gate — irrelevant to this fix). Every 1-path (default-styled) sample,
+including `gojuja-90-pune699`'s own `A` (the mission's own named fixture,
+zero override, zero body-fill in the real oracle) and `bujuta-44-rovo666`'s
+excluded `Somp`, has NO override at all.
+
+**Fix**: `renderClusterMeasured` (`renderer-composite-box.ts`) gates the
+existing `compositeBodyPath` call on `fill !== STATE_DEFAULT_BACKGROUND`
+(`fill` is `resolveStateFillBucketed(node, theme, STATE_DEFAULT_BACKGROUND)`,
+the SAME pre-existing resolution the header path already used) — this
+port has no per-zone (header/description/body) style bucket of its own, so
+"any override tier fired at all" is the closest available signal without
+building that whole 3-zone system; explicitly does NOT cover the
+diagram-level `<style>stateDiagram{}</style>` cascade tier (a SEPARATE,
+already-named, pre-existing gap — C3's own "known, unrelated divergences"
+note: this port does not apply diagram-level `<style>` cascades to state
+diagrams at all yet).
+
+Re-verified `gojuja-90-pune699`'s own `childCount` diff (`g[1]/g[1]
+[childCount] actual=5 expected=4`, present before this fix) is GONE after
+landing it (direct `compareSvg` probe, not assumed).
+
+### Residual (NOT closed this iteration) — a THIRD, newly-confirmed
+### pre-existing gap blocks every eligible cluster from true zero-diff
+
+After landing items 1a/1b/2, re-measured `gojuja-90-pune699` and
+`decede-10-buvu414` (the mission's own two named target fixtures) plus 3
+additional 1-path samples (`bujuta-44-rovo666` — EXCLUDED, entrypoint-family,
+diffCount 5, ALL attributable to the `hasBorderPointChildren` eligibility
+exclusion, unrelated; `cakaxu-97-nexe753`; `fevida-60-kope208`) via a
+disposable `compareSvg`-based probe (`scripts/_tmp-c5-fulldiff.ts`,
+deleted before finishing) — NONE reach zero. `gojuja`'s `A` and
+`fevida`'s cluster BOTH show the SAME consistent pattern: this port's own
+cluster WIDTH is a constant ~16px (occasionally ~14-17px, fixture-
+dependent) NARROWER than jar's real cluster, on both left and right edges
+symmetrically (jar-verified `fevida-60-kope208`: `path/@d` x-coordinates
+off by exactly 14-16 on every vertex; `gojuja-90-pune699`'s `A`: off by
+16.0013/17 similarly) — this is EXACTLY the gap C3's own "NOT closed"
+list already named but marked "wasn't independently re-verified":
+"the SIDE/BOTTOM margin formula (already named non-constant by S1/S3/S6 —
+16px vs 24px...)".
+
+**Mechanism (per diagnosis.md, characterized not fully root-caused —
+severe time budget, correctly deferred rather than forced).** C3's own
+chunk 3 wires `materializeCluster` to read the pass's REAL
+`DotLayoutResult.clusters` bbox (graphviz's OWN computed cluster polygon)
+when eligible. That bbox IS real graphviz output — but graphviz's own
+DEFAULT cluster margin (C2's own jar-verified finding, `docs/graphviz-
+issues/06`: 8pt) is NOT jar's real ~16px side margin. `DotInputCluster
+.titleTableWidth` (fed to `setHtmlAttr`, `measureClusterTitle(s.display,
+ctx).width`) is the TITLE's own narrow text width (e.g. 9.36px for `"E"`)
+— far smaller than the member content's own footprint, so it does NOT
+force graphviz to reserve any extra width; the FIXEDSIZE table only
+constrains HEIGHT-driving reservation (the `CLUSTER_HEADER_HEIGHT=19`
+mechanism, unaffected, still jar-exact). Jar's own real ~16px side margin
+must come from a DIFFERENT DOT-emission mechanism (plausibly an explicit
+`margin=` cluster attribute jar's own DOT string emits, per
+`ClusterDotString.java`, that this port's `graph-layout-build.ts
+#addClusters` does not yet set) — NOT derived further this iteration (a
+genuinely new sub-investigation, not a continuation of items 1/2's own
+evidence trail).
+
+**Scope, precisely**: affects EVERY eligible (`renderClusterMeasured`-
+routed) cluster fixture, not just the two named ones — confirmed on 3/3
+additional non-entrypoint-family samples checked. This is why items 1a/1b/2
+— all three independently jar-verified CORRECT — produce ZERO new
+zero-diff pins this iteration: the width/margin gap is now the SOLE
+remaining blocker for every plain-case cluster fixture, exactly as items
+1/2 were before this iteration, but for a DIFFERENT, previously-
+uncharacterized-as-still-broken mechanism.
+
+### Entrypoint/exitpoint family (mission item 3) — correctly NOT attempted
+
+Per the task's own framing ("land if they clear it"): items 1a/1b/2 do NOT
+clear the path to a true zero-diff pin (see "Residual" above) — the width/
+margin gap blocks the entrypoint family's own eligible-shape rendering
+exactly as it blocks the plain case (both routes share `renderClusterMeasured`/
+`materializeCluster`), on top of the family's OWN still-undereived
+`portRanksLabelOnEe`/WithLabel-branch WIDTH/rank-chain shape (C3's own
+"NOT closed" item, unchanged). Landing item 3's eligibility-gate widening
+this iteration would produce a wrong-width shape for all 20 fixtures with
+zero new pins — the SAME "fix that doesn't fix" failure mode C2 explicitly
+declined to ship. Not attempted; C3's own baseline-margin constant (`5`)
+remains the only re-usable output from that investigation.
+
+### Fixture impact
+
+**0 oracle fixtures changed** (`oracle/goldens/**` untouched). All four
+censuses re-verified byte-identical to the C4 baseline: description
+(no-arg) **48/355**, class **303/718**, object **22/80**, state **52/271**
+— confirmed via TWO independent census runs (immediately after items 1a/1b
+landed, alone, before item 2; and again after item 2 landed) — no fixture
+crossed zero-diff at EITHER checkpoint. `oracle/goldens/state/size-
+backlog.json`: **93 entries, byte-for-byte untouched** (`git status
+--short` confirms) — none of this iteration's three changes affect
+`node.width`/`node.height` (document/edge order is a pure array-order
+change; conditional body-fill is a pure SVG-element-presence change), so
+there was nothing to tighten.
+
+### Gates (C5, final)
+
+- `npm run typecheck`: clean (both configs).
+- `npm run lint`: clean.
+- `npm test -- --run`: **10144 passed | 5 skipped** (381 files) — up from
+  C4's 10142/5 (+2: this iteration's own 2 new `layout.test.ts` cases; the
+  5 skipped are UNCHANGED, still C1's reverted sites-2/3 evidence,
+  untouched this iteration per the write-set's own forbidden list).
+- DOT gate (verbatim `structurally EQUAL` lines, both invocations):
+  `structurally EQUAL (DOT in sync): 262 (100%)` (component)
+  `structurally EQUAL (DOT in sync): 90 (100%)` (usecase)
+  `structurally EQUAL (DOT in sync): 708 (100%)` (class)
+  `structurally EQUAL (DOT in sync): 78 (98%)` (object)
+  `structurally EQUAL (DOT in sync): 267 (100%)` (state)
+  — EXACTLY unchanged from the frozen baseline (component 262/262 · usecase
+  90/90 · class 708/708 · object 78/80 · state 267/267), re-verified fresh
+  after every item landed.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268**, unchanged.
+- `description.golden.ratchet.test.ts`: **51 tests** (unchanged).
+- `class.golden.ratchet.test.ts`: **305 tests** (unchanged).
+- `object.golden.ratchet.test.ts`: **24 tests** (unchanged).
+- `state.golden.ratchet.test.ts`: **54 tests** (unchanged).
+- Censuses: description (no-arg) **48/355**, class **303/718**, object
+  **22/80**, state **52/271** — all byte-identical to the C4 baseline.
+
+### Ratchet / pins
+
+**0 new pins.** No fixture reached full byte-exact zero-diff this
+iteration for any of the four `golden.ratchet.test.ts` suites (all four
+counts unchanged from baseline) — see "Residual" above for the precise,
+jar-verified reason (a third, newly-confirmed width/margin gap, not a
+defect in items 1a/1b/2 themselves).
+
+### Files changed (C5)
+
+- `src/diagrams/state/state-composite-pseudo.ts` — `sortSpecsByDocumentOrder`
+  (NEW, exported).
+- `src/diagrams/state/state-composite-pass.ts` — `buildTopLevelPass` uses
+  `sortSpecsByDocumentOrder` for its own top-level `specs`;
+  `buildLevelTransitionGeos` sorts its own return value via the
+  pre-existing `sortSpecsByCreationIndex`; both re-exported/imported
+  accordingly.
+- `src/diagrams/state/renderer-composite-box.ts` — `renderClusterMeasured`
+  gates `compositeBodyPath` on `fill !== STATE_DEFAULT_BACKGROUND`.
+- `tests/unit/state/layout.test.ts` — 2 new tests (document-order hoisting
+  + regression guard).
+- `plans/g5-measurer-calibration/{README.md,ledger.md,decision-journal.md}`
+  — this entry.
+
+### C6+ queue
+
+1. **PRIORITY, newly characterized this iteration**: the cluster WIDTH/
+   side-margin gap (graphviz's own 8pt default cluster margin vs jar's
+   real ~16px) — blocks EVERY eligible cluster fixture (confirmed on 5/5
+   samples checked: `gojuja-90-pune699`, `decede-10-buvu414`,
+   `cakaxu-97-nexe753`, `fevida-60-kope208`, plus `bujuta-44-rovo666`
+   which is separately excluded). Needs its own jar-source derivation of
+   HOW jar's real DOT emission forces the extra ~16px (plausibly an
+   explicit `margin=` cluster attribute `ClusterDotString.java` emits that
+   `graph-layout-build.ts#addClusters` does not yet set) — NOT the same
+   mechanism as `CLUSTER_HEADER_HEIGHT`'s own jar-calibrated constant
+   (which remains correct, unaffected).
+2. **After (1) closes**: re-verify `gojuja-90-pune699`/`decede-10-buvu414`
+   reach true zero-diff (items 1a/1b/2, already landed here, should need
+   NO further changes — re-verified as the ENTIRE remaining blocker for
+   both fixtures once (1) closes, modulo `decede`'s own SEPARATE, already-
+   named `<style>stateDiagram{}</style>` cascade gap and the pre-existing
+   `class="entity"` vs `class="cluster"` divergence, both confirmed
+   unrelated to mechanism 16 by C3).
+3. **Entrypoint/exitpoint family (20 fixtures)**: reachable once (1)
+   closes AND the family's own `portRanksLabelOnEe`/WithLabel-branch
+   WIDTH/rank-chain shape is derived (C3's own unresolved item, unchanged).
+4. **The diagram-level `<style>stateDiagram{}</style>` cascade tier**
+   (item 2's own residual, `decede-10-buvu414`/`tofezi-64-koda860`/
+   `xojudi-20-keco020`'s shared root cause) — a separate, pre-existing,
+   larger feature (this port applies NO diagram-level `<style>` cascade to
+   state diagrams at all), confirmed unrelated to mechanism 16.
+5. **Nested-cluster (inside another cluster, or inside an autonom pass)
+   document order** — `sortSpecsByDocumentOrder`'s own scoping note: no
+   corpus fixture currently exercises this case, left unverified/
+   unapplied at the nested call sites.
+6. **Sites 2/3, edge-label-ink mechanism, the `buildPlainAutonomSpec`
+   floor**: unchanged from C1-C4, still parked, still needs its own
+   orchestrator/maintainer sign-off (3-strike rule, now 4 prior attempts).
+7. **Unchanged from C0-C4**: the secondary `gutute-00-gaki684` (component
+   port-label divergence) finding remains unresolved, low priority.
