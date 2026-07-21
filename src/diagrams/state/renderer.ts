@@ -188,7 +188,7 @@ function renderNodeWrapped(
     const separators = node.separators ?? [];
     const blocks = node.concurrentRegions.map((region, i) => {
       const stateMarkup = region.children
-        .map((c) => renderNodeWrapped(c, theme, uidPlan, concurrentGlobalIds))
+        .map((c) => renderChildNode(c, theme, uidPlan, concurrentGlobalIds))
         .join('');
       const transitionMarkup = region.transitions
         .map((t) => renderTransitionWrapped(t, theme, uidPlan, concurrentGlobalIds))
@@ -199,7 +199,7 @@ function renderNodeWrapped(
     inner = ownShape + blocks.join('');
   } else {
     const childrenMarkup = node.children
-      .map((c) => renderNodeWrapped(c, theme, uidPlan, concurrentGlobalIds))
+      .map((c) => renderChildNode(c, theme, uidPlan, concurrentGlobalIds))
       .join('');
     const ownTransitionsMarkup = node.transitions
       .map((t) => renderTransitionWrapped(t, theme, uidPlan, concurrentGlobalIds))
@@ -212,6 +212,55 @@ function renderNodeWrapped(
   if (wrapClass === 'start_entity') return wrapStartEntity(node.id, uid, inner);
   if (wrapClass === 'end_entity') return wrapEndEntity(node.id, uid, inner);
   return wrapEntity(node.id, uid, inner);
+}
+
+/**
+ * G5 C3, mechanism 16 shape half: jar's real document structure for a
+ * `'cluster'`-classified composite's children does NOT nest them inside the
+ * composite's own `<g>` wrap (unlike every OTHER composite kind, which
+ * nests via `renderNodeWrapped`'s own `childrenMarkup` above) -- they render
+ * as FLAT SIBLINGS at the SAME level, immediately after it. jar-verified
+ * `decede-10-buvu414`: `<g class="cluster" id="ent0005">`(E's own shape
+ * only)`</g><g class="entity" data-qualified-name="E.F">`(F, a SIBLING, NOT
+ * nested)`</g>` — the DOT-native cluster/subgraph model has no coordinate-
+ * space CONTAINMENT the way `InnerStateAutonom`'s own wrapper does; the
+ * cluster's rendered rect/paths (`renderClusterMeasured`, renderer-
+ * composite-box.ts) are purely a background decoration UNDER already-
+ * absolutely-positioned siblings.
+ *
+ * Dispatches a node's own child list uniformly (used by both `renderState`'s
+ * top-level loop and `renderNodeWrapped`'s own recursion) — a cluster child
+ * flattens via `renderClusterSiblingMarkup` (which recurses the SAME way for
+ * a nested cluster reachable through its OWN children); every other kind
+ * still nests via the normal `renderNodeWrapped`, unaffected.
+ */
+function renderChildNode(
+  node: StateNodeGeo,
+  theme: Theme,
+  uidPlan: StateUidPlan,
+  concurrentGlobalIds: ReadonlyMap<string, number>,
+): string {
+  return node.clusterHeaderHeight !== undefined
+    ? renderClusterSiblingMarkup(node, theme, uidPlan, concurrentGlobalIds)
+    : renderNodeWrapped(node, theme, uidPlan, concurrentGlobalIds);
+}
+
+function renderClusterSiblingMarkup(
+  node: StateNodeGeo,
+  theme: Theme,
+  uidPlan: StateUidPlan,
+  concurrentGlobalIds: ReadonlyMap<string, number>,
+): string {
+  const ownShape = renderShape(node, theme);
+  const uid = uidPlan.nodeUid.get(node.id) ?? '';
+  const ownWrap = wrapEntity(node.id, uid, ownShape);
+  const childrenMarkup = node.children
+    .map((c) => renderChildNode(c, theme, uidPlan, concurrentGlobalIds))
+    .join('');
+  const ownTransitionsMarkup = node.transitions
+    .map((t) => renderTransitionWrapped(t, theme, uidPlan, concurrentGlobalIds))
+    .join('');
+  return ownWrap + childrenMarkup + ownTransitionsMarkup;
 }
 
 // ---------------------------------------------------------------------------
@@ -419,7 +468,7 @@ export function renderState(geo: StateGeometry, theme: Theme): RenderFragment {
 
   const children: string[] = [];
   for (const node of geo.states) {
-    children.push(renderNodeWrapped(node, theme, uidPlan, concurrentGlobalIds));
+    children.push(renderChildNode(node, theme, uidPlan, concurrentGlobalIds));
   }
   geo.transitions.forEach((transition) => {
     children.push(renderTransitionWrapped(transition, theme, uidPlan, concurrentGlobalIds));

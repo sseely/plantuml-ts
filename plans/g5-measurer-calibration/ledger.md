@@ -828,3 +828,371 @@ change.
    maintainer sign-off for a 4th attempt per the mission's 3-strike rule.
 4. **Unchanged from C0/C1**: the secondary `gutute-00-gaki684` (component
    port-label divergence) finding remains unresolved, low priority.
+
+## C3 — landed mechanism 16's SHAPE half (DOT-side `setHtmlAttr` seam, real
+## cluster-bbox sizing, a NEW jar-verified `renderClusterMeasured` shape,
+## sibling-flattened document nesting) for the eligibility-gated majority
+## case (single-line title, default font-size, no border points, top-level
+## pass only); size-backlog tightened 103->92 (13 shrunk, 10 removed at 0);
+## discovered TWO new, precisely-scoped open items (document order,
+## conditional body-fill) that block true byte-exact ratchet pins;
+## entrypoint/exitpoint family deferred (needs the same two items closed
+## first); DOT gate frozen exactly, 0 census movement, all protected sets
+## re-verified
+
+### Chunk 1 — DOT-side seam: `setHtmlAttr` wired opt-in (LANDED)
+
+`docs/graphviz-issues/07`'s RESOLVED note (graphviz-ts 0.1.26072117, this
+iteration's HEAD commit) confirmed `setHtmlAttr(k,v)` is public on
+`GvGraphBuilder` (subgraphs included). Landed:
+
+- `DotInputCluster.titleTableWidth`/`titleTableHeight` (NEW, optional,
+  `graph-layout.types.ts`) — distinct from the pre-existing `labelWidth`/
+  `labelHeight` (the Svek-DOT TEXT emitter's own convention, structural-only
+  per the oracle comparator's own doc comment — confirmed by reading
+  `tests/oracle/svek-dot.ts#parseClusters`: label dims are captured but
+  NEVER asserted, only `memberCount` is).
+- `graph-layout-build.ts#addClusters` — when BOTH new fields are present,
+  builds the subgraph then calls `sg.setHtmlAttr('label', '<TABLE
+  FIXEDSIZE="TRUE" WIDTH=".." HEIGHT="..">...')` (the exact repro shape
+  issue 07 and C2's own probe verified) instead of the plain-text `label`
+  attr. Every other caller (class namespaces, description packages, and any
+  state cluster this iteration's eligibility gate excludes) is byte-
+  identical, unchanged.
+- TDD (4 new tests, `tests/unit/core/graph-layout.test.ts`, jar-anchored to
+  C2's own `gap = HEIGHT + 16` finding): HEIGHT=3 reserves exactly 19px
+  above the first content rank; a narrow title doesn't force extra width
+  when content already dominates; a wide title DOES force extra width; the
+  plain-label fallback (no title-table fields) is unaffected (regression
+  guard).
+- DOT gate re-verified BEFORE touching any `src/diagrams/**` file — clean at
+  every step (this seam has zero production consumers until chunk 3).
+
+### Chunk 2 — state adoption: real bbox + eligibility gate (LANDED, scoped)
+
+`state-composite-cluster.ts#resolveClusterComposite`: two new jar-verified
+constants (`CLUSTER_TITLE_TABLE_HEIGHT = 3` fed to `setHtmlAttr`;
+`CLUSTER_HEADER_HEIGHT = 19`, the real header-to-divider gap the renderer
+draws at) plus `CLUSTER_TITLE_BASELINE_MARGIN = 4` (the title's own vertical
+offset, jar-verified DISTINCT from the autonom shape's `MARGIN = 5`).
+
+**Re-confirmed on the FULL corpus, not just the 18/19-fixture sample C2
+hand-picked** — a disposable probe (`scripts/_tmp-c3-cluster-probe.ts`,
+walked every cached `test-results/dot-cache/state/*/in.svg`'s `<g
+class="cluster">` element, deleted before finishing):
+
+- **134 real single-line-title, font-size-14 cluster samples**: 132 at
+  EXACTLY `gap = 19.0000px` (header-to-divider); the 2 exceptions
+  (`sosoxe-55-demi451`/`teseci-80-sivi292`, `gap=47`) are BOTH multi-line
+  titles (`state A as "line1\nline2"`), correctly excluded by this
+  iteration's `lineCount === 1` gate, not a counterexample.
+- **Baseline offset is BIMODAL**: 98 samples at `14.8889px` (the plain
+  case, `MARGIN=4`), 36 at `15.8889px` (`MARGIN=5`, matching the AUTONOM
+  shape's own constant) — the split traces EXACTLY to
+  `DotInputCluster.portRanksLabelOnEe` (the `<<entrypoint>>`/`<<exitpoint>>`
+  family's own `ee`-subgraph title-placement branch): every 15.8889 sample
+  belongs to a fixture in the mission's own 20-fixture entrypoint/exitpoint
+  list (`bitaxo-18-tamo974`, `fukexa-85-cuvi894`, `jucori-40-cevo136`,
+  `kotagu-43-miza629`, `lulozu-10-bopu547`, ...).
+
+**Sub-item 3 ("title-height-convention discrepancy") resolved**: DECOUPLED
+this port's own text-height convention from the graphviz reservation
+entirely — `CLUSTER_TITLE_TABLE_HEIGHT` is jar-CALIBRATED (verified
+end-to-end through this port's own `setHtmlAttr` seam), not derived from
+reproducing `ClusterHeader.java`'s Java-internal `getTitleAndAttributeHeight
+() - 5` bit-for-bit (which would require reverse-engineering
+`TextBlockUtils`/`Display.create()`'s own height math for zero behavioral
+benefit — the FIXEDSIZE table's sole role is a graphviz layout-space
+RESERVATION signal, the visible text is drawn separately by this port's own,
+already-jar-exact, `measureClusterTitle`).
+
+**Eligibility gate** (single-line title, default font-size (14), NOT a
+`portRanksLabelOnEe` border-point composite, NOT nested inside a
+separately-fired autonom/concurrent-region pass — see "size-backlog
+regression" finding below): first written using `ctx.classify.needsAnchor`
+directly, then CORRECTED after direct SVG diff inspection on
+`gojuja-90-pune699` showed it wrongly excluded `state A { [*] -->
+Configuring }` (Configuring declared OUTSIDE `A`) — `needsAnchor` fires
+whenever an EXTERNAL edge needs ANY boundary anchor, a broader condition
+than "has direct border-point children" (`portRanksLabelOnEe`'s own,
+narrower trigger — `applyBorderPointRanks` no-ops on an empty
+`directMembers`). Replaced with the precise test
+(`directMembers.some(isInputPosition || isOutputPosition)`), re-verified:
+`A` now renders the real cluster shape (jar-verified: matches oracle's
+`class="cluster"` structure exactly, modulo the pre-existing, unrelated
+`class="entity"` convention this port uses universally — see "known,
+unrelated divergences" below).
+
+### Chunk 3 — geo threading + a NEW render shape (LANDED)
+
+- `state-composite-geo.ts`: `ClusterPosMap` (NEW type) threaded alongside
+  `PosMap` through `materializeSpecs`/`materializeCluster`/
+  `materializeAutonom` — `materializeCluster` now reads the pass's REAL
+  `DotLayoutResult.clusters` bbox (keyed by `GeoSpec.clusterId`, a NEW
+  field distinct from `GeoSpec.id` since `nextClusterId()` and the business
+  entity id are different id spaces) when eligible, falling back to the
+  pre-C3 `boundingBox(children)` approximation otherwise (unchanged for
+  every ineligible case).
+- `renderer-composite-box.ts`: `renderClusterMeasured` (NEW function) — the
+  REAL `ClusterDotString`/`ClusterHeader` shape: half-rounded HEADER path
+  (reuses `compositeHeaderPath`, the SAME primitive the autonom shape
+  already uses — "mirror, don't duplicate" per the mission's own
+  instruction), a NEW `compositeBodyPath` (half-rounded BOTTOM path, jar-
+  verified byte-exact against `decede-10-buvu414`'s cluster `E`: `M223.82,
+  42.5 L305.82,42.5 L305.82,121.5 A1,1 0 0 1 304.82,122.5 L224.82,122.5
+  A1,1 0 0 1 223.82,121.5 L223.82,42.5` reproduced exactly), a solid
+  outline, ONE divider, centered title. The jar-verified DIFFERENCE from
+  the autonom shape: the ENTIRE body (not just the header) is filled with
+  the resolved background color — confirmed this is the correct jar
+  behavior (children draw AFTER as document-order siblings, covering their
+  own area; the MARGIN gaps around them show the cluster's own fill, not a
+  transparent canvas).
+- `renderer.ts`: **document-structure fix, discovered mid-iteration, NOT
+  pre-planned** — jar's real DOM does NOT nest a cluster's children inside
+  its own `<g>` wrap (unlike every other composite kind); they render as
+  FLAT SIBLINGS immediately after it (jar-verified `decede-10-buvu414`:
+  `<g class="cluster">`(E's shape only)`</g><g class="entity">`(F, a
+  SIBLING)`</g>`). `renderClusterSiblingMarkup` (NEW, recursive — a nested
+  cluster reachable through a cluster's own children flattens the SAME way)
+  + `renderChildNode` (NEW dispatch helper, used by both `renderState`'s
+  top-level loop and `renderNodeWrapped`'s own recursion) implement this.
+  Found by direct SVG diff inspection (`svg/g[1][childCount]` mismatch,
+  7 vs 6) on `decede-10-buvu414`, NOT assumed from the task's own framing.
+
+### Finding: nested-cluster title-table adoption regresses the size-backlog
+### ratchet — root cause identified, scoping fix landed (per diagnosis.md)
+
+**Symptom.** After landing chunks 1-3 with NO `insideAutonomPass` gate,
+`fotuje-06-fifa085`/`rovese-43-tadu368` regressed `state-dot-parity.test.ts`
+past their pinned `size-backlog.json` tolerance (`fotuje`:
+2.825311 > allowed 2.8249180000000003; `rovese`: 0.826389 > allowed
+0.638889...).
+
+**Mechanism.** `fotuje-06-fifa085`'s composite `XA5` (a `state XA5 { state
+XA6 }`, classified `'cluster'`) is nested INSIDE `XA4`'s own separately-
+fired autonom child pass (`state-composite-autonom.ts
+#buildPlainAutonomSpec`). Making `XA5` title-table-eligible changes that
+CHILD PASS's own `layoutGraph()`-computed `result.width`/`height` (not just
+`XA5`'s own bbox — the WHOLE pass's graphviz canvas size), which feeds the
+ALREADY-PARKED `Math.max(geometry.width, result.width)` floor (C1's own
+"Queued for S5" finding, `buildPlainAutonomSpec`'s doc comment) — since
+`geometry.width` (ink-extent) does NOT read the new real cluster bbox (this
+iteration deliberately did not thread it there, to avoid touching the
+PARKED site directly), the `Math.max` outcome flips for these two specific
+fixtures' geometry.
+
+**Fix.** New `DiagramCtx.insideAutonomPass` field (`state-composite-
+pass-types.ts`), set `true` inside `buildPlainAutonomSpec`/
+`buildConcurrentBranchAcc`'s own child-pass construction (a shallow-copied
+`childCtx`, the OUTER `ctx` unaffected). `resolveClusterComposite` gates
+title-table eligibility on this being falsy. Re-verified: `state-dot-
+parity.test.ts` back to 268/268; re-confirmed the mission's own three named
+fixtures (`bajelo-54-dixe684`'s `Run`, `decede-10-buvu414`'s `E`,
+`gojuja-90-pune699`'s `A`) — `bajelo-54-dixe684`'s `Run`, ALSO nested inside
+an autonom pass (`Track_FSM`'s own child pass), happens NOT to flip the
+`Math.max` outcome on its specific geometry, so this scoping is a real
+behavior change on only a minority of nested-cluster fixtures, verified by
+direct measurement (not assumed).
+
+**Ruled out.** (1) A defect in the DOT-side seam itself — ruled out: chunk
+1's own TDD tests assert the exact `gap = HEIGHT + 16` relationship and
+pass; the seam does exactly what it's asked. (2) A NEW defect in the
+eligibility gate correction (decision journal #5) — ruled out: the
+regression was ALREADY present before that correction (traced independently
+via the `insideAutonomPass` A/B toggle). (3) Fixing `buildPlainAutonomSpec`'s
+floor formula directly to unblock nested clusters too — explicitly out of
+scope (PARKED, 3-strike rule, needs orchestrator/maintainer sign-off before
+a 4th attempt at the related G4 S11-S13 edge-label-ink mechanism this SAME
+floor formula also blocks).
+
+### NOT closed this iteration — two new, precisely-scoped open items
+
+Named here, not chased further (severe time budget; per the mission's own
+"if a sub-item is unbounded, journal precisely and defer — do not force"):
+
+1. **Document ORDER for cluster-vs-autonom-vs-leaf top-level siblings.**
+   `gojuja-90-pune699`'s real oracle SVG places composite `A` (a
+   `'cluster'`-classified, no-real-children composite) FIRST in document
+   order, ahead of leaf/pseudo-anchor nodes that source-precede it —
+   `decede-10-buvu414`'s oracle likewise places cluster `E` (and its
+   flattened child `F`) BEFORE autonom composite `A`, even though `A` is
+   declared FIRST in the `.puml` source. This port's current top-level
+   render loop iterates `geo.states` in AST/creation-index order
+   unconditionally — matches jar for EVERY fixture already at zero-diff,
+   but is NOT jar's real rule once a `'cluster'`-classified composite is
+   present. The real ordering rule (cluster-classified entities/members
+   drawn in a DIFFERENT relative position than autonom/leaf ones,
+   independent of declaration order) was not derived this iteration —
+   requires reading jar's `GraphvizImageBuilder`/`SvekResult`'s own
+   document-assembly order, a nontrivial side investigation.
+2. **Conditional body-fill path for a content-less cluster.**
+   `gojuja-90-pune699`'s `A` (a cluster with only a boundary-anchor pseudo
+   child, no REAL drawn content inside its own box) renders with a SINGLE
+   fill path (header only) in the real oracle — NOT the two-path (header +
+   body) shape `renderClusterMeasured` always draws, which is correct for
+   `decede-10-buvu414`'s `E` (a cluster with a REAL child `F` drawn
+   "inside" it). The rule distinguishing these two cases (real content vs.
+   anchor-only) was not derived this iteration.
+
+Both items are ORTHOGONAL to (and block closing) EVERY 'cluster'-classified
+composite fixture's true byte-exact ratchet pin, including the mission's own
+three named fixtures — confirmed via direct `compareSvg` diffs (not
+assumed): `gojuja-90-pune699` is down to 3 diffs (height ±5, top-level
+`childCount` off by 1 — both traced to item 1/2 above), `decede-10-buvu414`
+is down to 3 diffs from a DIFFERENT, unrelated cause (a `<style
+stateDiagram>` custom-styling block — `RoundCorner`/`BackgroundColor`/
+`LineColor`/`FontColor` — this port does not yet apply to state diagrams at
+all; a separate, pre-existing, unrelated gap, not mechanism 16).
+
+### Entrypoint/exitpoint family (mission item 3) — deferred, not attempted
+
+The corpus-wide probe derived the family's own baseline-margin constant
+(`5`, matching the AUTONOM shape's own `MARGIN`) alongside the plain case's
+`4` — but landing the family requires ALSO closing items 1/2 above (they
+apply to every cluster shape, entrypoint family included) plus the
+`portRanksLabelOnEe`-specific WIDTH/rank-chain shape (unverified this
+iteration). Not attempted, per the mission's own "land the seam adoption +
+whatever is jar-verified, journal the remainder precisely" instruction.
+
+### Known, unrelated divergences (NOT mechanism 16, confirmed by direct
+### inspection, not fixed this iteration)
+
+- `class="entity"` vs jar's `class="cluster"` — this port's renderer
+  emits `class="entity"` for EVERY composite kind uniformly (leaf, autonom,
+  cluster); jar distinguishes `class="cluster"` specifically for the
+  DOT-native cluster shape. `compareSvg`'s comparator DOES flag this as a
+  diff (confirmed on `decede-10-buvu414`'s own diff output) but it is a
+  renderer-wide, pre-existing convention unrelated to mechanism 16's own
+  scope (sizing/shape/nesting) — not touched this iteration.
+- `decede-10-buvu414`'s custom `<style stateDiagram>` block
+  (`RoundCorner`/`BackgroundColor`/`LineColor`/`FontColor`) — this port's
+  state-diagram engine does not yet apply diagram-level `<style>`
+  cascades at all (confirmed: our render uses the theme defaults
+  `#F1F1F1`/`#181818`/`rx=12.5` throughout, ignoring the fixture's own
+  `cyan`/`green`/`red`/`RoundCorner 2` overrides) — a separate, pre-
+  existing, unrelated gap, NOT mechanism 16.
+
+### Fixture impact
+
+**0 oracle SVG fixtures reached full byte-exact zero-diff** this iteration
+(both `gojuja-90-pune699` and `decede-10-buvu414` are down to 3 residual
+diffs each, from the two precisely-named open items above — see "NOT
+closed" section). All four censuses re-verified byte-identical to the C2
+baseline: description (no-arg) **48/355**, class **303/718**, object
+**22/80**, state **52/271** — no growth, no shrink.
+
+`oracle/goldens/state/size-backlog.json`: **103 → 92 entries** (a REAL,
+measurable, jar-verified size-accuracy improvement, independent of the
+byte-exact ratchet metric — per the mission's "treat the two protected sets
+as INDEPENDENT checks" rule). 10 fixtures removed at exactly 0
+(`cekolo-21-gini183`, `dajipi-09-doki542`, `fakali-52-zuje420`,
+`gedude-95-subi666`, `kujuzo-76-bavi505`, `labono-83-nega255`,
+`laferu-31-tice836`, `livuni-63-fira764`, `pexuve-81-suxi717`,
+`xodazu-26-cube992`); 13 fixtures tightened to a strictly smaller
+`maxSizeDeltaIn` (`bemena-23-zebu249`, `fadupe-90-koti079`,
+`fatupo-62-bemu777`, `fotuje-06-fifa085`, `gifasa-23-zile558`,
+`joleju-94-maru748`, `jorere-75-peja265`, `ketibo-84-juzo029`,
+`nimise-04-jove070`, `pajefo-95-neri955`, `xepafa-33-lazi826`,
+`xeziki-47-zomo866`, `zitifa-97-bizo337`) — measured via a disposable probe
+(`scripts/_tmp-c3-tighten.ts`, deleted before finishing) re-running every
+currently-listed fixture's actual `maxSizeDeltaIn` against its pin;
+re-verified `state-dot-parity.test.ts` 268/268 with the tightened values.
+
+### Gates (C3, final)
+
+- `npm run typecheck`: clean (both configs).
+- `npm run lint`: clean.
+- `npm test -- --run` (`npx vitest run`): **10142 passed | 5 skipped** (381
+  files) — up from C2's 10138/5 (+4: this iteration's own new
+  `graph-layout.test.ts` cases; the 5 skipped are UNCHANGED, still C1's
+  reverted sites-2/3 evidence, untouched this iteration).
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, re-verified fresh via
+  `dot-sync-report.ts` after every chunk landed, and again after the
+  500-line-cap split.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** (after
+  landing the `insideAutonomPass` scoping fix; regressed to 266/268 with
+  chunks 1-3 alone, before that fix — see "Finding" above).
+- `description.golden.ratchet.test.ts`: **51 tests** (unchanged).
+- `class.golden.ratchet.test.ts`: **305 tests** (unchanged).
+- `object.golden.ratchet.test.ts`: **24 tests** (unchanged).
+- `state.golden.ratchet.test.ts`: **54 tests** (unchanged).
+- Censuses: description (no-arg) **48/355**, class **303/718**, object
+  **22/80**, state **52/271** — all byte-identical to the C2 baseline,
+  re-verified fresh (not assumed) after every chunk.
+
+### Ratchet / pins
+
+**0 new pins.** No fixture reached full byte-exact zero-diff this
+iteration for any of the four `golden.ratchet.test.ts` suites (all four
+counts unchanged from baseline — see Gates above), for the reasons named in
+"NOT closed" above (document order, conditional body-fill — both apply to
+every 'cluster' fixture, not just the two hand-sampled this iteration).
+`size-backlog.json`'s own tighten-only ratchet DID move (see "Fixture
+impact" above) — a real, independently-verified improvement on the size
+metric specifically.
+
+### Files changed (C3)
+
+- `src/core/graph-layout.types.ts` — `DotInputCluster.titleTableWidth`/
+  `titleTableHeight` (NEW, optional).
+- `src/core/graph-layout-build.ts` — `addClusters` calls `setHtmlAttr` when
+  both new fields are present.
+- `src/diagrams/state/state-composite-pass-types.ts` — NEW (500-line-cap
+  split of `state-composite-pass.ts`; pure move, `DiagramCtx`/`GeoSpec`/
+  `ExtractAutonomSpec`, plus `DiagramCtx.insideAutonomPass` and `GeoSpec`
+  'cluster' variant's new `clusterId`/`titleWidth`/`clusterHeaderHeight`/
+  `titleBaselineMargin` fields).
+- `src/diagrams/state/state-composite-pass.ts` — re-exports `DiagramCtx`/
+  `GeoSpec` from the new types file; unused imports removed post-split.
+- `src/diagrams/state/state-composite-cluster.ts` — jar-calibrated
+  constants, eligibility gate, `DotInputCluster`/`GeoSpec` field wiring.
+- `src/diagrams/state/state-composite-autonom.ts` — `insideAutonomPass`
+  scoping (`childCtx`).
+- `src/diagrams/state/state-composite-concurrent.ts` — `insideAutonomPass`
+  scoping (`childCtx`), same mechanism.
+- `src/diagrams/state/state-composite-geo.ts` — `ClusterPosMap` threading,
+  `materializeCluster`'s real-bbox/real-shape branch.
+- `src/diagrams/state/state-geo-types.ts` — `StateNodeGeo.clusterHeaderHeight`/
+  `clusterTitleBaselineMargin` (NEW, optional).
+- `src/diagrams/state/renderer-composite-box.ts` — `compositeBodyPath`,
+  `renderClusterMeasured` (NEW), dispatch update.
+- `src/diagrams/state/renderer.ts` — `renderChildNode`,
+  `renderClusterSiblingMarkup` (NEW), document-nesting fix.
+- `tests/unit/core/graph-layout.test.ts` — 4 new tests (title-table label).
+- `tests/unit/state/layout.test.ts` — 1 test updated (pre-existing "cluster
+  does NOT carry headerLines" assertion is now the OPPOSITE, intended
+  behavior for the eligible case; docstring + assertion updated together).
+- `oracle/goldens/state/size-backlog.json` — 103 → 92 entries (tighten-only).
+- `plans/g5-measurer-calibration/{README.md,ledger.md,decision-journal.md}`
+  — this entry.
+
+### C4+ queue
+
+1. **Document order** (item 1 above) — the largest remaining unlock: read
+   jar's `GraphvizImageBuilder`/`SvekResult`'s own document-assembly order
+   (cluster-vs-autonom-vs-leaf relative sibling position, independent of
+   `.puml` declaration order) directly from source; likely the single
+   biggest lever toward the FIRST true byte-exact cluster-shape pin.
+2. **Conditional body-fill** (item 2 above) — derive the rule distinguishing
+   a content-bearing cluster (two fill paths) from an anchor-only one (one
+   fill path); likely tied to whether the cluster's OWN `nodeIds`/portRanks
+   are non-empty vs. only-pseudo.
+3. **Entrypoint/exitpoint family** (20 fixtures) — reachable once (1) and
+   (2) close; this iteration already derived its own baseline-margin
+   constant (`5`) and confirmed it corpus-wide.
+4. **Multi-line/action-text/stereotype cluster titles** — still unverified
+   (gate excludes them; the 2 multi-line samples found this iteration,
+   `sosoxe-55-demi451`/`teseci-80-sivi292`, give a `gap=47` starting data
+   point but not a derived formula).
+5. **`class="entity"` vs `class="cluster"`** and the `<style
+   stateDiagram>` cascade gap — both confirmed pre-existing, NOT mechanism
+   16, logged for a dedicated future iteration (not this mission's own
+   scope).
+6. **Sites 2/3, edge-label-ink mechanism** — unchanged from C1/C2, still
+   blocked on the SAME parked `buildPlainAutonomSpec#Math.max` floor this
+   iteration's own `insideAutonomPass` finding independently re-confirms is
+   load-bearing (now blocking TWO unrelated mechanisms: sites 2/3's own
+   edge-label sizing AND mechanism 16's nested-cluster adoption). Still
+   requires orchestrator/maintainer sign-off for a 4th attempt (3-strike
+   rule).

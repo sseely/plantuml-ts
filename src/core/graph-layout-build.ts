@@ -158,8 +158,23 @@ export function addClusters(b: GvGraphBuilder, input: DotInputGraph): ClusterInd
       c.parentId !== undefined && byId.has(c.parentId)
         ? builderFor(byId.get(c.parentId)!)
         : b;
-    const attrs = c.label !== undefined ? { label: c.label } : {};
+    const hasTitleTable = c.titleTableWidth !== undefined && c.titleTableHeight !== undefined;
+    const attrs = !hasTitleTable && c.label !== undefined ? { label: c.label } : {};
     const sg = parent.addSubgraph(nameFor(c), attrs);
+    // G5 C3, mechanism 16 shape half: a jar-real HTML `<TABLE FIXEDSIZE=
+    // "TRUE" ...>` label, via graphviz-ts 0.1.26072117's public `setHtmlAttr`
+    // (docs/graphviz-issues/07's RESOLVED note) -- ONLY for callers that
+    // supply BOTH dims (`titleTableWidth`/`Height`'s own doc comment,
+    // graph-layout.types.ts, has the full jar-calibration derivation).
+    // Callers that don't (every pre-C3 cluster, and every C3-ineligible
+    // one) keep the prior plain-text `label` attr above, unchanged.
+    if (hasTitleTable) {
+      sg.setHtmlAttr(
+        'label',
+        `<TABLE FIXEDSIZE="TRUE" WIDTH="${Math.round(c.titleTableWidth!)}" ` +
+          `HEIGHT="${Math.round(c.titleTableHeight!)}"><TR><TD></TD></TR></TABLE>`,
+      );
+    }
     builderById.set(c.id, sg);
     return sg;
   };

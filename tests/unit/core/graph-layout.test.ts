@@ -241,3 +241,70 @@ describe('layoutGraph — cluster geometry (G5 C2, mechanism 16)', () => {
     expect(c.height).toBeCloseTo(124, 5);
   });
 });
+
+// G5 C3, mechanism 16 shape half: `titleTableWidth`/`titleTableHeight` feed
+// graphviz-ts's `setHtmlAttr` (docs/graphviz-issues/07's RESOLVED note) via
+// `addClusters`, so a cluster's own graphviz-reported bbox reflects jar's
+// real HTML `<TABLE FIXEDSIZE="TRUE" ...>` title reservation instead of the
+// prior plain-text `label` attr. Jar-calibrated numbers per the mission's own
+// derivation (`graph-layout.types.ts`'s `titleTableHeight` doc comment): a
+// FIXEDSIZE table HEIGHT=3 reserves exactly `nodeTop - clusterTop = 19` above
+// the first content rank -- the CONTENT-WIDTH-INDEPENDENT single-line-title
+// header gap G5 C3 confirmed on 132/134 real corpus cluster samples.
+describe('layoutGraph — cluster title-table label (G5 C3, mechanism 16 shape half)', () => {
+  it('reserves exactly HEIGHT+16 above the first content rank', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], titleTableWidth: 10, titleTableHeight: 3 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(a.y - c.y).toBeCloseTo(19, 5);
+  });
+
+  it('does not affect cluster width when content is already wider than the title', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], titleTableWidth: 5, titleTableHeight: 3 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    // Same as the no-label default-margin case (72 + 8*2) -- the narrow
+    // title does not force any extra width.
+    expect(c.width).toBeCloseTo(88, 5);
+  });
+
+  it('forces cluster width wider when the title table is wider than content+margin', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], titleTableWidth: 200, titleTableHeight: 3 }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    expect(c.width).toBeGreaterThan(200);
+  });
+
+  it('a cluster with no titleTableWidth/Height falls back to the plain label attr (unchanged)', () => {
+    const g: DotInputGraph = {
+      nodes: [box('a')],
+      edges: [],
+      clusters: [{ id: 'grp1', nodeIds: ['a'], label: 'plain text title' }],
+      rankDir: 'TB',
+    };
+    const r = layoutGraph(g);
+    const a = r.nodes.find((n) => n.id === 'a')!;
+    const c = r.clusters!.find((cl) => cl.id === 'grp1')!;
+    // Plain-text label reservation is whatever graphviz's default label
+    // sizing computes for that string -- distinctly NOT the jar-calibrated
+    // 19px gap (regression guard: a future change must not silently start
+    // treating every cluster as title-table-eligible).
+    expect(a.y - c.y).not.toBeCloseTo(19, 5);
+  });
+});

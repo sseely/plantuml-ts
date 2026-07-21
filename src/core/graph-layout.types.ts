@@ -163,6 +163,43 @@ export interface DotInputCluster {
    *  shape instead of the NoLabel/chained one; additive — absent (the
    *  class/component/description PORTIN/PORTOUT precedent) is unaffected. */
   portRanksLabelOnEe?: true;
+  /** G5 C3, mechanism 16 shape half (docs/graphviz-issues/07's RESOLVED
+   *  note, graphviz-ts 0.1.26072117's `setHtmlAttr`): the real HTML
+   *  `<TABLE FIXEDSIZE="TRUE" WIDTH=".." HEIGHT="..">` title-label
+   *  reservation `graph-layout-build.ts#addClusters` feeds graphviz-ts's
+   *  builder for THIS cluster's own subgraph, mirroring jar's real
+   *  `ClusterDotString`/`ClusterHeader` mechanism (`SvekEdge.appendTable`,
+   *  `label=<TABLE FIXEDSIZE="TRUE" WIDTH="cluster.getTitleAndAttribute
+   *  Width()" HEIGHT="cluster.getTitleAndAttributeHeight()-5">`).
+   *  Deliberately DISTINCT from `labelWidth`/`labelHeight` (the Svek-DOT
+   *  TEXT emitter's own convention, `height=font.size` per line — used
+   *  ONLY for the oracle DOT-parity comparator, which is STRUCTURAL-only
+   *  and tolerant of the numeric label value, `tests/oracle/svek-dot.ts`'s
+   *  own doc comment: "`width`/`height` are tolerant metrics... reported,
+   *  not asserted"). `titleTableHeight` in particular is NOT derived from
+   *  this port's own text-height convention at all — the FIXEDSIZE table's
+   *  sole role is a graphviz layout-space RESERVATION signal (the visible
+   *  title text is drawn separately, by this port's own renderer,
+   *  `renderer-composite-box.ts`), so its value is jar-CALIBRATED, not
+   *  jar-Java-internal-derived: G5 C2's marker sweep found graphviz-ts
+   *  reserves `gap = HEIGHT + 16` above the first content rank (15-point
+   *  linear sweep through this exact `setHtmlAttr` seam); G5 C3 confirmed
+   *  jar's real single-line-title header gap is a CONTENT-WIDTH-
+   *  INDEPENDENT constant 19px on 132/134 real corpus cluster samples (the
+   *  2 exceptions both multi-line titles, `sosoxe-55-demi451`/`teseci-80-
+   *  sivi292`, out of this iteration's scope — see `state-composite-
+   *  cluster.ts`'s own doc comment), so `titleTableHeight=3` (19-16) is the
+   *  jar-verified constant for that case — NOT `cluster.getTitleAndAttribute
+   *  Height()-5`'s Java-internal value, which this port does not reproduce
+   *  bit-for-bit (a deliberately decoupled, resolved discrepancy — G5 C2's
+   *  own "C3+ queue" sub-item 3). Additive: absent (every pre-C3 caller,
+   *  and every C3-ineligible cluster — multi-line title, non-default
+   *  font-size, or a `portRanksLabelOnEe` border-point cluster, which
+   *  jar-verified needs a DIFFERENT title vertical offset, `state-
+   *  composite-cluster.ts`'s own doc comment) falls back to the pre-
+   *  existing plain-text `label` attr, unchanged. */
+  titleTableWidth?: number;
+  titleTableHeight?: number;
 }
 
 export interface DotInputGraph {

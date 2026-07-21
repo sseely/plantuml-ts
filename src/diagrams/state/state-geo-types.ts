@@ -164,6 +164,28 @@ export interface StateNodeGeo {
     readonly pp1: { readonly x: number; readonly y: number };
     readonly pp2: { readonly x: number; readonly y: number };
   };
+  /**
+   * G5 C3, mechanism 16 shape half: present ONLY on a genuine
+   * `'cluster'`-classified composite this iteration's eligibility gate
+   * covered (single-line title, default font-size, no border-point
+   * children -- `state-composite-cluster.ts#resolveClusterComposite`'s own
+   * doc comment) -- the jar-verified header-to-divider height
+   * (`CLUSTER_HEADER_HEIGHT`, that same module). `renderer-composite-
+   * box.ts#renderComposite` dispatches to `renderClusterMeasured` (the
+   * REAL `ClusterDotString`/`ClusterHeader` shape -- filled top+bottom
+   * half-rounded body, ONE divider, no action zone) whenever this is set,
+   * instead of `renderCompositeMeasured` (the `InnerStateAutonom` shape,
+   * transparent body below the header) or the pre-mechanism-16 dashed-rect
+   * fallback. `undefined` for every other node kind, and for a 'cluster'
+   * composite this iteration's gate excluded (falls back to the
+   * pre-existing dashed-rect shape unchanged).
+   */
+  clusterHeaderHeight?: number;
+  /** G5 C3: title baseline vertical margin for the cluster shape above --
+   *  see `CLUSTER_TITLE_BASELINE_MARGIN`'s own doc comment
+   *  (state-composite-cluster.ts) for why this differs from the autonom
+   *  shape's own `MARGIN`. Always set together with `clusterHeaderHeight`. */
+  clusterTitleBaselineMargin?: number;
 }
 
 /** One stacked concurrent region's own materialized content -- see

@@ -152,14 +152,20 @@ export function shiftDotLayoutResult(result: DotLayoutResult, dx: number, dy: nu
  *      EVERY diagram link; a missing SvekNode drops it at THIS pass only) */
 export function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
   const acc = newAccumulator();
-  const memberSpecs = s.children.map((c) => resolveMember(c, acc, ctx, undefined));
+  // G5 C3, mechanism 16 shape half: `insideAutonomPass` -- see that field's
+  // own doc comment (state-composite-pass.ts) for why a nested cluster
+  // inside THIS pass must stay title-table-ineligible this iteration
+  // (jar-verified `fotuje-06-fifa085`/`rovese-43-tadu368` size-backlog
+  // regression, traced to the ALREADY-PARKED `Math.max` floor below).
+  const childCtx: DiagramCtx = { ...ctx, insideAutonomPass: true };
+  const memberSpecs = s.children.map((c) => resolveMember(c, acc, childCtx, undefined));
   const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc, ctx.pseudoCreationIndex);
-  addScopeNotes(s.id, ctx, acc);
+  addScopeNotes(s.id, childCtx, acc);
   const localTransitions = s.transitions.filter((t) => t.from !== s.id && t.to !== s.id);
-  addLevelEdges(s.id, localTransitions, acc, ctx);
-  sweepOrphanEdges(acc, ctx);
+  addLevelEdges(s.id, localTransitions, acc, childCtx);
+  sweepOrphanEdges(acc, childCtx);
   sweepOrphanNoteEdges(acc, ctx.notePool, ctx.consumedNotes, (id) => resolveEndpoint(id, ctx.classify));
-  const result = runPass(acc, ctx);
+  const result = runPass(acc, childCtx);
 
   const localSpecs = sortSpecsByCreationIndex([...pseudoSpecs, ...memberSpecs]);
   const rawPosMap: PosMap = new Map(result.nodes.map((n) => [n.id, n]));

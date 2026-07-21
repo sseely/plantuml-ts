@@ -327,12 +327,15 @@ describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
     expect(comp?.headerLines).toEqual([{ text: 'Composite', width: measurer.measure('Composite', { family: theme.fontFamily, size: theme.fontSize }).width }]);
   });
 
-  it('a NON-autonom (cluster) composite does NOT carry headerLines -- the boundary a link crossing forces', () => {
+  it('a NON-autonom (cluster) composite with a single-line title DOES carry headerLines (G5 C3, mechanism 16 shape half)', () => {
     // A --> B crosses Composite's own boundary (B is declared elsewhere),
     // forcing the non-autonom/cluster classification (state-composite-
-    // classify.ts) -- this port does not yet thread headerLines through
-    // the cluster path (renderer-composite-box.ts's own doc comment names
-    // this as a deliberate, non-regressing deferral).
+    // classify.ts). G5 C3 threaded headerLines/clusterHeaderHeight through
+    // this path for the eligibility-gated majority case (single-line
+    // title, default font-size, no border points) -- see
+    // state-composite-cluster.ts#resolveClusterComposite's own doc comment
+    // for the full derivation. clusterHeaderHeight=19 is the jar-verified
+    // constant (CLUSTER_HEADER_HEIGHT, same module).
     const a = makeState('A');
     const composite = makeState('Composite', { children: [a] });
     const b = makeState('B');
@@ -342,7 +345,8 @@ describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
     };
     const result = layoutState(ast, theme, measurer);
     const comp = result.states.find((s) => s.id === 'Composite');
-    expect(comp?.headerLines).toBeUndefined();
+    expect(comp?.headerLines).toEqual([{ text: 'Composite', width: measurer.measure('Composite', { family: theme.fontFamily, size: theme.fontSize }).width }]);
+    expect(comp?.clusterHeaderHeight).toBe(19);
   });
 });
 
