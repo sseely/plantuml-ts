@@ -197,4 +197,14 @@ export interface StateGeometry {
   totalHeight: number;
   states: StateNodeGeo[];
   transitions: TransitionGeo[];
+  /**
+   * mission G4 S14: `StateDiagramAST.concurrentGlobalIds`, carried through
+   * layout unchanged so the renderer can translate a CONC-region pseudo-
+   * anchor path id from this port's own owner-local numbering to jar's
+   * diagram-global one -- see that field's own doc comment (ast.ts) for
+   * the full mechanism. Optional/absent is equivalent to an empty map
+   * (no concurrent regions in this diagram, or a hand-built geometry
+   * literal predating this mission).
+   */
+  concurrentGlobalIds?: ReadonlyMap<string, number>;
 }

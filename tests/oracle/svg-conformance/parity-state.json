@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-21T02:02:56.114Z",
+  "generatedAt": "2026-07-21T05:20:06.721Z",
   "fixtures": [
     {
       "slug": "bajelo-54-dixe684",
@@ -127,10 +127,7 @@
       "slug": "cekolo-21-gini183",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 12,
-      "firstDiff": "svg/g[1][childCount]",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "ceruzi-77-give569",
@@ -353,9 +350,9 @@
       "type": "state",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 1,
-      "firstDiff": "svg/g[1][childCount]",
-      "maxDeltaPath": "svg/@height"
+      "maxDelta": 12.914000000000016,
+      "firstDiff": "svg/g[1]/rect[2]/@stroke",
+      "maxDeltaPath": "svg/g[1]/g[13]/text[1]/@x"
     },
     {
       "slug": "fatupo-62-bemu777",
@@ -964,9 +961,7 @@
       "slug": "lalava-26-zosi801",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[2]/g[9]/path[1]/@id"
+      "verdict": "conformant"
     },
     {
       "slug": "lasasi-13-nona547",
@@ -1004,9 +999,9 @@
       "type": "state",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 1,
-      "firstDiff": "svg/g[1][childCount]",
-      "maxDeltaPath": "svg/@height"
+      "maxDelta": 12.914000000000016,
+      "firstDiff": "svg/g[1]/g[11]/text[1]/@fill",
+      "maxDeltaPath": "svg/g[1]/g[13]/text[1]/@x"
     },
     {
       "slug": "lojeju-04-fadu517",
@@ -1766,9 +1761,7 @@
       "slug": "tegali-39-molu382",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[2]/g[9]/path[1]/@id"
+      "verdict": "conformant"
     },
     {
       "slug": "temuxi-28-cega322",

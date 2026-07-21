@@ -71,6 +71,7 @@ dot-sync-report (frozen) · class census (294 set intact) · object census
 | S11 | Attempted `note ... on link` (task's own priority-1 item) in full: derived the render shape and a position formula (jar-verified independently on X-axis, DOM order, stroke symmetry), implemented the full wiring, then discovered a DEEPER, unrelated pre-existing bug while jar-verifying it -- `graph-layout-build.ts#addEdges` feeds graphviz-ts an edge `label` as raw text only, never the caller's real `labelWidth`/`labelHeight` override, so graphviz-ts under-reserves vertical rank separation for ANY state edge label whose real size diverges from its own internal Times-font guess (cascades into wrong note AND neighboring state-box positions). Ruled out 2 workarounds (fontsize-tuning: fragile/non-generalizing; the correct fix, an HTML-table label, is a substantial shared-infrastructure change touching `core/graph-layout.ts`, comparable in scope to mechanism 21 itself). Since the wired implementation could not reach byte-exact on any target fixture and made `vateco-92-pece508`'s own diff count strictly worse (9->39, zero new pins) with no offsetting gain, REVERTED it in full before committing (`git diff --stat` verified empty) per diagnosis.md, rather than land unverified/wrong code. Re-scoped to the cheapest fully-diagnosable remaining item: landed mechanism 23 (pseudostate `#color` override applies to FILL only, never STROKE -- `renderInitial`/`renderFinal` previously passed `stroke: fill`, jar keeps stroke at the literal `#222222` default regardless of override), TDD-first (`tests/unit/state/renderer-pseudostate.test.ts`, 4 tests, 2 red before the fix), a 2-line change. Census: `44/271` -> `46/271` zero-diff (`1-3:28->27, 4-10:128->127, 11-30:26->26, 31+:45->45`), +2 new pins (`ceruzi-77-give569` -- the target; `gepoti-01-sasi356` -- same mechanism, found via fresh census), 0 regressed, ratchet now 48 tests (46 pins). See `plans/g4-state-svg/ledger.md` S11 for the full note-on-link derivation (including the newly-named "edge-label real-size injection gap" mechanism, its exact library-level root cause, and the 3 workarounds considered/rejected), the attribution table, and the S12+ queue. | done |
 | S12 | Followed the fenced-item protocol on S11's own top queue item (the edge-label real-size injection gap) in full: traced the exact mechanism BEFORE coding (jar's cached svek DOT confirms an HTML-table label, `FIXEDSIZE="TRUE" WIDTH=".." HEIGHT=".."`; read graphviz-ts's bundled runtime source, not just its `.d.ts`, to confirm `isHtmlValue`/`applyLabel`/`sizeTableInner`'s exact mechanism; ran a standalone probe script confirming the rank gap tracks the declared HEIGHT, not text content), landed it TDD-first (`graph-layout-build.ts#addEdges`'s new `applyEdgeLabelAttrs`/`htmlSizedLabel`, `HTML_LABEL_MARK = String.fromCharCode(1)`) -- then discovered via `npm test -- --run` that it regressed 12/268 `state-dot-parity.test.ts` size-backlog entries (all composite fixtures dominated by 1-2 short internal labeled transitions), root-caused precisely to a PRE-EXISTING, S4-named ink-under-count floor (`state-composite-autonom.ts#buildPlainAutonomSpec`'s `Math.max(geometry.*, result.*)`) that was silently benefiting from graphviz-ts's OLD, over-large Times-LUT label-size guess -- feeding the REAL (smaller) size removed that accidental compensation. Verified ZERO offsetting SVG-census gain (state 46/271 IDENTICAL SET, class 303/718, object 22/80, description 48/355, DOT gate frozen exactly) before REVERTING the fenced item in full per this iteration's own protocol (`git show HEAD:` restore, `git diff --stat` verified empty) -- the write-set's size-backlog.json is hard tighten-only, no exception for elsewhere-verified correctness. Re-scoped to mechanism 24 (solid `#color` override on notes, re-diagnosed from the S10/S11 queue's "NOTE_COLOR non-capturing" framing after a real-fixture render revealed the TRUE gap is larger -- state has NO gradient/`Paint` support at all): landed the SOLID-color subset (`NOTE_COLOR_CAPTURE`, `StateNote.color`, `resolveStateFill` reused verbatim for note fill), TDD-first (11 new tests), jar-verified byte-exact against `fatupo-62-bemu777`'s own note fill (`fill="#FFFFFF"`) though the fixture itself stays non-zero (separate, still-unbuilt creole/table content gap). Also investigated "composite-scoped notes" (S10 item 4) to the point of naming the exact two injection points needed (`materializeCluster`/`materializeAutonom`, `state-composite-geo.ts`) but found ZERO corpus fixtures reach zero from it alone (all 4 known combinations blocked by a separate gap) -- deferred, named precisely. Census: `46/271` → `46/271` zero-diff, unchanged (same 46-fixture SET, no new pins, no regressions), ratchet still 48 tests (46 pins). See `plans/g4-state-svg/ledger.md` S12 for the full fenced-item derivation+revert, the mechanism-24 derivation, the attribution table, and the S13+ queue (item 1: land the fenced item TOGETHER WITH the adjacent ink-under-count fix in the same iteration). | done |
 | S13 | Re-landed the fenced item (edge-label real-size HTML injection, independently re-verified) exactly per S12's own derivation, TDD-first, then attempted THREE distinct label-ink formulas for the adjacent `buildPlainAutonomSpec` ink-under-count floor (full box from the render-position approximation; full box from graphviz's REAL computed label position, threaded as a NEW separate `TransitionGeo.labelInk` field; the same box halved) -- each jar-verified against a 10-fixture control set (the 6-fixture `0.244904in` multi-edge family, the `bunade`/`beguxu` S4 pair, 3 large-pre-existing-gap controls) via a disposable delta-measurement script. Variant 1 fixed the multi-edge family but regressed 10 previously-fine fixtures; Variant 2 fixed NONE of the 13 originally-failing fixtures while introducing a NEW regression (`zacajo-09-tamu628`, concurrent regions, PASS->FAIL); Variant 3 fixed `bemena` but broke `bunade` and worsened `zacajo` further -- no formula net-improved. Root-caused the instability (jar-verified via `bemena-23-zebu249`'s own cached golden SVG `<text>` element) to TWO compounding gaps: jar's real `SvekEdge.java` label placement is NOT simply "centered on graphviz's own virtual label-node position" (a genuine positional divergence, not yet characterized exactly), AND this port's own `StringMeasurer` measures at least "EvNewValueSaved" ~7% WIDER than jar's real Java font metrics (a NEW, likely cross-diagram-type calibration gap) -- the same measured width feeds both graphviz's label-reservation position AND any ink-box formula, compounding the error. This is the mission's THIRD independent attempt at this mechanism (S4, S12, S13) to hit the same wall. Per protocol ("if the final state widens ANY entry [or flips PASS to FAIL], revert both and report"), REVERTED (a)+(b) in full back to the exact S12 HEAD commit (9 touched files restored via `git show HEAD:`, 4 created files deleted, `git status --short`/`git diff --stat` verified EMPTY) -- `npm test -- --run` 10053/10053 (identical to S12), `state-dot-parity.test.ts` 268/268, all 4 censuses and the DOT gate re-verified fresh and IDENTICAL to S12. Census: `46/271` -> `46/271` zero-diff, unchanged (same SET, 0 new pins, 0 regressions). See `plans/g4-state-svg/ledger.md` S13 for the full 3-variant derivation, the jar-verified root-cause numeric evidence, the attribution table, and the S14+ queue (item 1: close the text-measurement calibration gap FIRST; item 2: either port `SvekEdge.java`'s real label-placement algorithm or re-attempt the geometric-box formula only after item 1 lands). | done |
+| S14 | Landed mechanism 25 (CONC-region bare-name global numbering, `net.atmp.CucaDiagram#cpt2` -- a SEPARATE diagram-wide counter from `cpt1`, ticking once per `--`/`||` separator in document order regardless of owning composite) as an ADDITIVE translation table (`ParseState.concurrentGlobalIds` -> `StateDiagramAST.concurrentGlobalIds` -> `StateGeometry.concurrentGlobalIds`, consumed only by `renderer.ts#localScopeName`) rather than changing the internal `concurrentRegionScopeId` dedup key itself (load-bearing for 4 other internal lookups) -- jar-verified byte-exact against both named target fixtures (`lalava-26-zosi801`, `tegali-39-molu382`). Also landed mechanism 26 (`<<sdlreceive>>` folded-frame shape, `EntityImageState2`/`USymbolFrame#drawFrame`): a NEW `renderer-box.ts#renderSdlReceive` (unwrapped box + fold-notch `<path>` + top-left-anchored, NOT centered, label) plus a corrected `state-sizing.ts#measureSdlReceive` width formula (traced `BodyEnhanced1#getMarginX()=6` LEFT+RIGHT instead of the S9-era "unverified, off by ~12pt" placeholder) -- jar-verified byte-exact against `cekolo-21-gini183`. Sampled all 27 fixtures from the 1-3 bucket plus 15 from 4-10 BEFORE fixing anything (full attribution table, ledger S14): confirmed 5 of the 27 (`decede`/`lasasi`/`soxene`/`tofezi`/`xojudi`) are actually mechanism-16-blocked (entity-vs-cluster wrap), not the `<style>` blocks they also carry; diagnosed in full but explicitly did NOT land (unverifiable or genuinely larger-than-"cheap", diagnosis.md discipline): composite-scoped notes (all 4 known fixtures still cross-blocked by unrelated mechanisms), `maruju-55-soko478`'s json-table content (zero row-drawing infra exists), the `<style>` cascade family's TWO sub-mechanisms (`stateDiagram`-ancestor tier; cross-diagram-type `activityBar{.fork/.join}` + `arrow{LineColor/HeadColor}`), and `stateBackgroundColor<<X>>`/`FontColor`/`FontSize` (`laferu-31-tice836` -- FontSize alone requires layout-time measurement threading, not a render-time swap). Also newly named 2 previously-unseen mechanisms (`<<entrypoint>>`/`<<exitpoint>>` pseudostates, `o-->`/`x-->` special arrowhead endpoints) and re-confirmed `buildConcurrentRegionLeaf`'s own `creationIndex` gap is UNAFFECTED by mechanism 25 (a different mechanism: id VALUE vs region NAME). A mid-iteration `svg-parity-survey.ts` tooling incident (overlapping same-output-file background invocations under heavy system load produced false-alarm timeout counts, 18-54, on two attempts) was diagnosed with no code impact -- resolved via a clean single, uncontended re-run (`SVG_PARITY_TIMEOUT_MS=30000 SVG_PARITY_CONCURRENCY=2`), confirmed against the reliable single-process `svg-conformance-census.ts`'s consistent 49/271 throughout. Census: `46/271` -> `49/271` zero-diff (`1-3:27->22, 4-10:127->127, 11-30:26->26, 31+:45->47`), +3 new pins (`lalava-26-zosi801`, `tegali-39-molu382`, `cekolo-21-gini183`), 0 regressed, ratchet now 51 tests (49 pins). See `plans/g4-state-svg/ledger.md` S14 for the full attribution table, both mechanism derivations, the deferred-item assessments, and the S15+ queue. | done |
 
 ## Standing rules
 
@@ -87,132 +88,111 @@ parallel implementation. graphviz-ts findings go in
 `getLayout()`) applies. Complexity playbook, TDD, ledger:
 `plans/g4-state-svg/ledger.md`.
 
-## Gates (S13, final)
+## Gates (S14, final)
 
-- `state` census: **46/271** zero-diff (`1-3:27, 4-10:127, 11-30:26, 31+:45,
-  errors:0`) — IDENTICAL to S12's own baseline: same 46-fixture SET
-  (diffed against `ratchet.json`'s own pinned list, zero additions/
-  removals), not merely the same count.
+- `state` census: **49/271** zero-diff (`1-3:22, 4-10:127, 11-30:26, 31+:47,
+  errors:0`) — the 46 S13 pins plus 3 new: `lalava-26-zosi801`,
+  `tegali-39-molu382`, `cekolo-21-gini183`.
 - Class census: **303/718**, intact, unchanged.
 - Object census: **22/80**, intact, unchanged.
 - Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
 - DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
-  78/80 - state 267/267` — EXACTLY unchanged, re-verified fresh after the
-  full revert.
+  78/80 - state 267/267` — EXACTLY unchanged, re-verified fresh via
+  `dot-sync-report.ts`.
 - `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing at
-  the START and END of this iteration (dipped as low as 247/268 across the
-  three formula variants tried mid-iteration, fully restored by the revert).
-- `npm test -- --run`: **10053/10053** passing (370 files) — IDENTICAL to
-  S12's own final count (no new tests survived the revert). `npm run
-  typecheck` / `npm run lint` / `npm run build`: all clean.
-- `state.golden.ratchet.test.ts`: 48 tests (46 pins), unchanged from S12.
+  both the START and END of this iteration (neither landed mechanism
+  touches a sizing formula).
+- `npm test -- --run`: **10066/10066** passing (372 files), up from
+  10053/10053 (+13: 5 CONC-global-id tests, 5 sdlreceive tests, +3 new
+  ratchet AC1 tests). `npm run typecheck` / `npm run lint`: both clean.
+- `state.golden.ratchet.test.ts`: **51 tests** (49 pins), up from 48 (46
+  pins).
 
-## Mission status (S13, 2026-07-20)
+## Mission status (S14, 2026-07-21)
 
-**OPEN.** Re-landed S12's own fenced item (the edge-label real-size HTML
-injection, `graph-layout-build.ts#addEdges`'s `htmlSizedLabel`/
-`applyEdgeLabelAttrs`) exactly as S12 derived it — independently
-re-verified via a fresh disposable probe script BEFORE writing production
-code (a plain-text label's rank gap is identical regardless of text length;
-an HTML label's rank gap tracks the declared HEIGHT exactly; the
-`HTML_STRING_MARK = "\x01"` byte confirmed again via direct inspection of
-`node_modules/graphviz-ts/dist/index.js`), TDD-first (2 new tests in
-`tests/unit/core/graph-layout.test.ts`). Confirmed the SAME regression S12
-found — **13** (not 12; `zacajo-09-tamu628` was an additional near-miss)
-`state-dot-parity.test.ts` size-backlog fixtures fail once the injection
-lands alone.
+**OPEN.** Landed mechanism 25 (CONC-region bare-name global numbering,
+`net.atmp.CucaDiagram#cpt2` — a SEPARATE diagram-wide counter from `cpt1`,
+ticking once per `--`/`||` separator in document order regardless of
+owning composite) as an ADDITIVE translation table
+(`ParseState.concurrentGlobalIds` → `StateDiagramAST.concurrentGlobalIds` →
+`StateGeometry.concurrentGlobalIds`, consumed only by
+`renderer.ts#localScopeName`) rather than changing the internal
+`concurrentRegionScopeId` dedup key itself (load-bearing for 4 other
+internal lookups: `ctx.resolvedRegions` map keys, `__init_`/`__final_`
+scoped pseudo-anchor ids, `noteScopeId`) — jar-verified byte-exact against
+both named target fixtures (`lalava-26-zosi801`, `tegali-39-molu382`).
 
-Per this iteration's own task order, then attempted THREE distinct formulas
-to close the adjacent `state-composite-autonom.ts#buildPlainAutonomSpec`
-`Math.max(geometry.*, result.*)` ink-under-count floor ("replace the max()
-floor with the true ink formula, jar-verified per fixture"), each
-jar-verified against a 10-fixture control set (the six same-shape
-`0.244904in`-delta multi-edge-composite fixtures; the `bunade-42-fudu910`/
-`beguxu-19-tize774` pair S4 originally targeted; three large-pre-existing-gap
-control fixtures expected to stay unchanged) via a disposable delta-
-measurement script (`scripts/_tmp-s13-deltas.ts`, avoiding a slow full
-`vitest run` per formula attempt):
+Also landed mechanism 26 (`<<sdlreceive>>` folded-frame shape,
+`EntityImageState2`/`USymbolFrame#drawFrame`): a NEW `renderer-box.ts
+#renderSdlReceive` (unwrapped box, no divider, a fold-notch `<path>`
+derived from `USymbolFrame#drawFrame`'s `dimTitle.getWidth()===0` branch —
+`textWidth=width/3, cornersize=7, textHeight=12` — and a top-left-anchored,
+NOT centered, label) plus a corrected `state-sizing.ts#measureSdlReceive`
+width formula (traced `BodyEnhanced1#getMarginX()=6`, applied LEFT+RIGHT,
+instead of the S9-era "unverified, off by ~12pt" placeholder). Jar-verified
+byte-exact against `cekolo-21-gini183`.
 
-1. **Full box anchored at `attachTransitionLabel`'s own render-position
-   formula** (the pre-existing perpendicular-offset-from-routed-midpoint
-   x/y, treated as an SVG left-baseline anchor). FIXED the 6-fixture
-   multi-edge family outright but REGRESSED 10 previously-fine fixtures
-   into failure — net WORSE (16 failures vs. 13 baseline).
-2. **Full box centered on the REAL graphviz-computed label position**
-   (`DotLayoutResult.edges[].labelX/labelY/labelWidth/labelHeight`, threaded
-   through as a NEW, separate `TransitionGeo.labelInk` field — a probe
-   proved this diverges substantially from `attachTransitionLabel`'s own
-   render-position formula, ~266px apart on `bemena`'s widest internal
-   edge). Fixed **0 of the 13** originally-failing fixtures (the EXACT SAME
-   pass/fail set as making no change at all) while introducing a **NEW**
-   regression: `zacajo-09-tamu628` (3 concurrent regions, each with 2
-   internal labeled transitions) flipped from PASSING to FAILING.
-3. **The same centered box, HALVED** (an empirical attempt to compensate
-   for the systematic overshoot). Fixed `bemena` but broke `bunade`
-   (previously fine) and worsened `zacajo` further — confirming no single
-   uniform scale factor generalizes across the corpus's differently-shaped
-   composites.
+Per this iteration's own task order, sampled all 27 fixtures from the 1-3
+bucket plus 15 from the 4-10 bucket BEFORE fixing anything (full
+attribution table, `ledger.md` S14) — this surfaced that 5 of the 27
+(`decede`/`lasasi`/`soxene`/`tofezi`/`xojudi`) are actually
+mechanism-16-blocked (entity-vs-cluster wrap, confirmed via a direct
+`<g>`-tree structural dump), not blocked by the `<style>` blocks they also
+happen to carry, correctly keeping them out of scope per this iteration's
+own explicit instruction not to attempt mechanism 16.
 
-Root-caused the instability (jar-verified, not guessed) by comparing jar's
-REAL rendered `<text>` element (from `bemena-23-zebu249`'s own cached golden
-SVG, the "EvNewValueSaved" label: local x=255.86, `textLength=111.475`,
-right edge=367.335) against a naive centered box built from graphviz-ts's
-own real `labelX`/`labelWidth` for the SAME edge (center 317.94, half-width
-60.025, right edge=377.965 — off by 10.63px). Two independent, COMPOUNDING
-gaps: (1) jar's real `SvekEdge.java` label-placement algorithm is NOT simply
-"centered on graphviz's own virtual label-node position" — the LEFT edge is
-nearly right (2.05px off) while the RIGHT edge is off by 10.6px, a
-width-scaling divergence, not a uniform positional offset; (2) this port's
-own `StringMeasurer` measures "EvNewValueSaved" ~7-8px (7%) WIDER than jar's
-real Java font metrics — a NEW, likely cross-diagram-type calibration gap
-that compounds any box-based ink formula, since the SAME over-measured
-width feeds both graphviz's own label-reservation position AND the ink box
-itself.
+Diagnosed in full but explicitly did NOT land (per diagnosis.md's evidence
+requirement — landing any of these would be either unverifiable against the
+current corpus or genuinely larger than "cheap"):
 
-This is the mission's **third independent attempt** at this exact mechanism
-to hit the same wall: S4's inline `ctx.measurer` attempt (jar-verified
-directionally correct on `bunade`, overshot on `beguxu`, reverted); S12's
-fenced item (the injection landed correctly, exposed this SAME adjacent
-gap, reverted); this iteration's 3 formula variants (each trading one
-regression set for a different one, none net-improving). The convergent
-evidence across three independent attempts, by two different methods
-(inline measurement, geometric box formulas), strongly suggests a uniform
-geometric-box ink formula cannot match jar's real `SvekEdge.java`-driven
-label placement without either porting that algorithm directly or first
-closing the text-measurement calibration gap.
+- **Composite-scoped notes** (S10/S12 item 4) — the exact injection points
+  remain correctly named, but a fresh per-fixture check confirms all 4
+  known fixtures are STILL cross-blocked by a separate, unrelated mechanism
+  each (note-on-link ×2 — parked; 3-level concurrent nesting; hyperlinks).
+- **`maruju-55-soko478`'s json-table content** — root-caused precisely
+  (`renderJson` reuses `renderNormal` verbatim, zero row-drawing infra) but
+  a genuinely new multi-hour feature, comparable in scope to the
+  notes/composite-box mechanisms.
+- **The `<style>` cascade family** — TWO independent, both-unbuilt
+  sub-mechanisms confirmed: the `stateDiagram`-ancestor tier
+  (`RoundCorner`/`Shadowing`/`BackgroundColor`/`LineColor`/`FontColor`) and
+  the cross-diagram-type `activityBar{.fork/.join}` + `arrow{LineColor/
+  HeadColor}` selectors — both mirror class's dedicated 200+-line
+  `style-cascade-class.ts`, OUTSIDE this mission's write-set; building an
+  equivalent state-only subsystem is a new cascade resolver, not an
+  extension.
+- **`stateBackgroundColor<<X>>`/`FontColor`/`FontSize`**
+  (`laferu-31-tice836`) — re-diagnosed sharper than S9's queue framing:
+  `FontSize` changes MEASURED text width/box size, a layout-time change
+  (threading a per-state font-size override through `state-sizing.ts`'s
+  measurement functions), not a render-time color swap — the three fields
+  are load-bearing together, not independently landable.
 
-Per this iteration's own explicit protocol ("if the final state widens ANY
-entry, revert both and report the mechanism instead" — generalized here to
-"or flips a PASSING entry to FAILING," `zacajo-09-tamu628`'s exact case),
-REVERTED every touched file to the exact S12 HEAD commit content (`git show
-HEAD:<path> > <path>` for all 9 touched `src`/`tests` files; `tests/oracle/
-svg-conformance/parity.json` was also found modified as an unrelated side
-effect and restored the same way), deleted every file created this
-iteration (`scripts/_tmp-s13-probe.ts`, `scripts/_tmp-s13-deltas.ts`,
-`tests/unit/state/state-transition-label.test.ts`, `tests/unit/state/
-layout-ink-extent.test.ts`), verified `git status --short`/`git diff
---stat` EMPTY, then re-verified the FULL baseline from scratch: typecheck/
-lint clean, `npm test -- --run` 10053/10053 (identical to S12),
-`state-dot-parity.test.ts` 268/268, all 4 SVG censuses and the DOT gate
-re-run fresh and confirmed IDENTICAL to S12.
+Also newly named 2 previously-unseen mechanisms
+(`<<entrypoint>>`/`<<exitpoint>>` pseudostates, `lulozu-10-bopu547`;
+`o-->`/`x-->` special arrowhead endpoints, `xexika-61-fedu273`) and
+re-confirmed `buildConcurrentRegionLeaf`'s own `creationIndex` gap is
+UNAFFECTED by mechanism 25 (a genuinely different mechanism: id VALUE vs.
+region NAME — re-sampled both known fixtures fresh after mechanism 25
+landed, neither unmasked).
 
-Since neither task item 1 (land a+b) nor its prerequisite for item 2
-(note-on-link, explicitly blocked on item 1's own landing per S11/S12) could
-be completed this iteration, no further task items were attempted — landing
-partial/unverified work on top of a mechanism already shown unstable across
-three independent attempts would risk exactly the kind of "looks complete
-but is silently wrong for unpredictable inputs" outcome this mission's own
-CLAUDE.md explicitly warns against.
+A mid-iteration `svg-parity-survey.ts` tooling incident (overlapping
+same-output-file background invocations, launched while diagnosing the
+Bash tool's own background/foreground timing, produced false-alarm timeout
+counts — 18, then 54, on two successive attempts under heavy concurrent
+system load) was diagnosed with NO code impact: confirmed against the
+reliable, single-process `svg-conformance-census.ts`, which consistently
+reported 49/271 throughout every attempt, then resolved with a clean,
+single, uncontended re-run (`SVG_PARITY_TIMEOUT_MS=30000
+SVG_PARITY_CONCURRENCY=2`), which reproduced 49 conformant / 0 timeouts.
 
-Census: 46/271 → **46/271** zero-diff, unchanged — same SET, 0 new pins,
-0 regressions, all 4 censuses and the DOT gate re-verified fresh and
-byte-identical to S12's own final state. See `plans/g4-state-svg/ledger.md`
-S13 for the full 3-variant derivation (including the exact numeric evidence
-for each), the jar-verified root-cause analysis (label-placement divergence
-+ text-measurement calibration gap), the attribution table (13
-`state-dot-parity.test.ts` fixtures × 3 variants + 10 control fixtures), and
-the S14+ queue (item 1: close the text-measurement calibration gap FIRST —
-likely cross-diagram-type, not state-specific; item 2: either port
-`SvekEdge.java`'s real label-placement algorithm or re-attempt the
-geometric-box formula only once item 1 lands — NOT another blind
-formula-search iteration, this iteration exhausted that search space).
+Census: 46/271 → **49/271** zero-diff (`1-3:27→22, 4-10:127→127,
+11-30:26→26, 31+:45→47`), +3 new pins (`lalava-26-zosi801`,
+`tegali-39-molu382`, `cekolo-21-gini183`), 0 regressed, all 4 censuses and
+the DOT gate re-verified fresh. See `plans/g4-state-svg/ledger.md` S14 for
+the full attribution table (27+15 sampled fixtures), both mechanism
+derivations, the deferred-item assessments, and the S15+ queue (item 1:
+the `<style>` cascade `activityBar`/`arrow` sub-family, `koguvo-74-kubo455`
+and `nanozi-96-foda024` — both ISOLATED, single-mechanism targets, unlike
+the `stateDiagram`-ancestor tier's 5 known fixtures which are ALL
+independently blocked by mechanism 16 or lack a clean isolated target).

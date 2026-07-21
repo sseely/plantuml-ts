@@ -24,6 +24,8 @@ import {
   addDescriptionLine,
   popScope,
   nextCreationIndex,
+  nextConcurrentGlobalId,
+  concurrentRegionScopeId,
 } from './state-parse-state.js';
 import { ensureState, resolveDescriptionTarget } from './state-parse-resolve.js';
 import { parseLabel } from './state-parse-helpers.js';
@@ -169,6 +171,21 @@ export const COMMANDS: readonly Command[] = [
         // new jar tick fires on the replay). See `ParseState
         // .creationCounter`'s own doc comment (state-parse-state.ts).
         nextCreationIndex(ps);
+        // mission G4 S14 (CONC-region bare-name global numbering): burn a
+        // SEPARATE global `cpt2` tick too, mirroring jar's own
+        // `concurrentState()` (`getUniqueSequence2(CONCURRENT_PREFIX)`) --
+        // see `ParseState.concurrentGlobalCounter`'s own doc comment. The
+        // internal (owner-local) `concurrentRegionScopeId` key is computed
+        // from the region's local number, which at this exact point is
+        // `scope.regions.length - 1` (the array index the just-pushed
+        // region now occupies) -- identical to what `scope.regionCursor`
+        // becomes one line below.
+        const localRegionNumber = scope.regions.length - 1;
+        const ownerId = scope.owner?.id ?? '';
+        ps.concurrentGlobalIds.set(
+          concurrentRegionScopeId(ownerId, localRegionNumber),
+          nextConcurrentGlobalId(ps),
+        );
       }
       scope.regionCursor++;
     },

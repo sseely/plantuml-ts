@@ -35,13 +35,19 @@
  */
 import type { StateNodeGeo, StateTextLine } from './state-geo-types.js';
 import type { Theme } from '../../core/theme.js';
-import { rect, line, text } from '../../core/svg.js';
+import { rect, line, text, path } from '../../core/svg.js';
 import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFillBucketed, resolveStateBorder, textAscent } from './state-render-colors.js';
 import { javaRound4 } from '../../core/number-format.js';
 
 const STATE_BOX_RX = 12.5;
 const MARGIN = 5;
 const MARGIN_LINE = 5;
+/** `USymbolFrame#getMargin`/`BodyEnhanced1#getMarginX` -- duplicated from
+ *  `state-sizing.ts`'s own `SDL_MARGIN`/`BODY_MARGIN_X` (this codebase's
+ *  established per-module constant convention, `STATE_BOX_RX`'s own
+ *  precedent above/`renderer-composite-box.ts`'s identical duplication). */
+const SDL_MARGIN = { x1: 15, x2: 25, y1: 20, y2: 10 };
+const BODY_MARGIN_X = 6;
 
 function renderTextLines(
   lines: readonly StateTextLine[],
@@ -106,6 +112,66 @@ function renderEmptyDescription(node: StateNodeGeo, theme: Theme, box: string): 
     theme,
   );
   return box + headerMarkup;
+}
+
+/**
+ * mission G4 S14: `EntityImageState2`/`USymbolFrame#drawFrame` -- a
+ * `<<sdlreceive>>` leaf box draws UNWRAPPED (no `<g>`, `wrapClassFor`'s own
+ * doc comment), a plain (non-rounded-header, still `rx/ry=12.5`) box, a
+ * fold-notch `<path>` (`textWidth = width/3`, `cornersize = 7`,
+ * `textHeight = 12` -- `USymbolFrame#drawFrame`'s own `dimTitle.getWidth()
+ * === 0` branch, since `asSmall` always passes an empty `dimTitle`), and a
+ * single TOP-LEFT-ANCHORED (not centered) label at `x = node.x +
+ * SDL_MARGIN.x1 + BODY_MARGIN_X`, `y = node.y + SDL_MARGIN.y1 + ascent`
+ * (`USymbolFrame#asSmall`'s own `UTranslate(margin.getX1(), margin.getY1())`
+ * placement of the merged stereotype+label block -- the stereotype
+ * TextBlock is always empty for state's own `asSmall` call, so only the
+ * label's own baseline offset (`ascent`) is added). NO divider line (only
+ * `EntityImageState`'s own box draws one). jar-verified byte-exact against
+ * `cekolo-21-gini183`'s own sdlreceive node (rect 407.46,7 115.0875x44;
+ * path `M445.8225,7 L445.8225,12 L438.8225,19 L407.46,19`; text
+ * 428.46,37.8889).
+ * @see ~/git/plantuml/.../svek/image/EntityImageState2.java
+ * @see ~/git/plantuml/.../decoration/symbol/USymbolFrame.java#drawFrame
+ * @see state-sizing.ts's `SDL_MARGIN`/`BODY_MARGIN_X` doc comment
+ * @see plans/g4-state-svg/ledger.md (S14)
+ */
+export function renderSdlReceive(node: StateNodeGeo, theme: Theme): string {
+  const fill = resolveStateFillBucketed(node, theme, STATE_DEFAULT_BACKGROUND);
+  const border = resolveStateBorder(node, theme);
+  const box = rect(node.x, node.y, node.width, node.height, {
+    fill,
+    stroke: border,
+    strokeWidth: STATE_BORDER_STROKE_WIDTH,
+    rx: STATE_BOX_RX,
+    ry: STATE_BOX_RX,
+  });
+
+  const textWidth = node.width / 3;
+  const cornerSize = 7;
+  const textHeight = 12;
+  const x0 = node.x;
+  const y0 = node.y;
+  const d =
+    `M${x0 + textWidth},${y0} L${x0 + textWidth},${y0 + textHeight - cornerSize} ` +
+    `L${x0 + textWidth - cornerSize},${y0 + textHeight} L${x0},${y0 + textHeight}`;
+  const notch = path(d, { stroke: border, strokeWidth: STATE_BORDER_STROKE_WIDTH });
+
+  const ascent = textAscent(theme.fontSize);
+  const label = text(
+    node.x + SDL_MARGIN.x1 + BODY_MARGIN_X,
+    node.y + SDL_MARGIN.y1 + ascent,
+    node.display,
+    {
+      fill: '#000000',
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      lengthAdjust: 'spacing',
+      textLength: javaRound4(node.headerLines?.[0]?.width ?? 0),
+    },
+  );
+
+  return box + notch + label;
 }
 
 export function renderNormal(node: StateNodeGeo, theme: Theme): string {

@@ -256,5 +256,9 @@ export function layoutState(
     ? layoutFlat(effAst, theme, measurer)
     : layoutComposite(effAst, theme, measurer);
 
-  return applyStateDocumentMargin(raw);
+  // mission G4 S14: thread `ast.concurrentGlobalIds` through unchanged --
+  // see `StateGeometry.concurrentGlobalIds`'s own doc comment for why this
+  // is a single end-of-pipeline merge rather than plumbing through every
+  // intermediate flat/composite/margin-shift helper.
+  return { ...applyStateDocumentMargin(raw), concurrentGlobalIds: effAst.concurrentGlobalIds ?? new Map() };
 }

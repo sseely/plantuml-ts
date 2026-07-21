@@ -241,6 +241,8 @@ export function parseState(block: UmlSource): StateDiagramAST {
     separator: DEFAULT_SEPARATOR,
     creationCounter: 0,
     pseudoCreationIndex: new Map(),
+    concurrentGlobalCounter: 0,
+    concurrentGlobalIds: new Map(),
   };
 
   // PASS ONE: declaration-family commands only — builds the complete tree.
@@ -264,5 +266,9 @@ export function parseState(block: UmlSource): StateDiagramAST {
   // (see `StateDiagramAST.pseudoCreationIndex`'s own doc comment, ast.ts) --
   // mirrors the `ast.states`/`ast.transitions` handoff immediately above.
   ast.pseudoCreationIndex = ps.pseudoCreationIndex;
+  // mission G4 S14: hand off the parse-time CONC-region global-numbering
+  // translation map (see `StateDiagramAST.concurrentGlobalIds`'s own doc
+  // comment, ast.ts) -- mirrors the `pseudoCreationIndex` handoff above.
+  ast.concurrentGlobalIds = ps.concurrentGlobalIds;
   return ast;
 }

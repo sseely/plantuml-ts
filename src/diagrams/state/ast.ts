@@ -461,4 +461,25 @@ export interface StateDiagramAST {
    * @see plans/g4-state-svg/ledger.md (S7)
    */
   pseudoCreationIndex?: ReadonlyMap<string, number>;
+  /**
+   * mission G4 S14 (CONC-region bare-name global numbering): maps this
+   * port's own internal, owner-local `concurrentRegionScopeId` key (e.g.
+   * `"State2::CONC1"`) to the GLOBAL region number jar's real
+   * `net.atmp.CucaDiagram#cpt2` counter assigns -- one tick per `--`/`||`
+   * separator, in document (parse) order, regardless of which composite
+   * owns it (upstream `StateDiagram#concurrentState`'s
+   * `getUniqueSequence2(CONCURRENT_PREFIX)`, StateDiagram.java:194-208).
+   * Consumed only by `renderer.ts#localScopeName` to translate a RENDERED
+   * bare `CONC<n>` pseudo-anchor path id (`*start*CONC<n>-to-X`) from this
+   * port's own per-owner-local numbering to jar's diagram-global one --
+   * the internal `concurrentRegionScopeId` dedup key ITSELF is unchanged
+   * (still owner-local; every other internal lookup keeps using it as-is).
+   * Populated once, at end-of-parse, from `ParseState.concurrentGlobalIds`
+   * (mirrors `pseudoCreationIndex`'s own end-of-parse handoff above).
+   * `undefined` for every hand-built AST literal predating this mission.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt2
+   * @see ~/git/plantuml/.../statediagram/StateDiagram.java:194-208
+   * @see plans/g4-state-svg/ledger.md (S14)
+   */
+  concurrentGlobalIds?: ReadonlyMap<string, number>;
 }

@@ -4771,3 +4771,338 @@ revert).
 18. `skin debug`/named-skin-file directive support -- unchanged, unscoped.
 19. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
     choice/history/deepHistory call sites (S10, small follow-up).
+
+## S14 — mechanism 25 (CONC-region bare-name global numbering) and
+mechanism 26 (`<<sdlreceive>>` folded-frame shape) LANDED in full, both
+jar-verified byte-exact; composite-scoped notes/json-table/`<style>`-cascade/
+`stateBackgroundColor<<X>>` family assessed and correctly deferred (all
+either unverifiable against the current corpus or genuinely larger-than-
+"cheap") -- 46/271 -> 49/271
+
+### Attribution table (27 fixtures from the 1-3 bucket + 15 sampled from the
+### 4-10 bucket, BEFORE any fix — per this iteration's own instruction)
+
+| Fixture | Diff signature | Mechanism | In scope? |
+|---|---|---|---|
+| `lalava-26-zosi801`, `tegali-39-molu382` | `path/@id` CONC1 vs CONC2 | mechanism 25 (CONC-region global numbering) | LANDED |
+| `cekolo-21-gini183` | `viewBox`/`width` off by 12, `childCount` 10 vs 12 | mechanism 26 (`<<sdlreceive>>` folded-frame) | LANDED |
+| `decede-10-buvu414`, `lasasi-13-nona547`, `soxene-95-domu248`, `tofezi-64-koda860`, `xojudi-20-keco020` | `childCount` short by 1 at the top-level `<g>` | mechanism 16 (entity-vs-cluster wrap: `E{F}` renders as `cluster`+sibling `entity`, we merge into one) | **PARKED (mechanism 16)** — confirmed via `structdump`, NOT the `<style>` block each fixture also carries |
+| `bilare-19-fufe539`, `jelusa-98-nexa591`, `lavera-29-vuka790` | `viewBox`/`width` off by exactly 1 | `addStateBoxInk`'s max-corner asymmetry (S6, unchanged, now 3 known fixtures — same 3 as before, re-confirmed) | Out of scope (named, deferred) |
+| `dajipi-09-doki542` | `childCount` 3 vs 5, `viewBox` off by 112 | State hyperlink (`[[url]]`) | Out of scope (S8/S9, re-scoped, deferred) |
+| `fakali-52-zuje420`, `livuni-63-fira764` | `childCount` off by 2, multiple pseudostate stereotypes | Mixed: `<<sdlreceive>>` (now landed) + `<<sdlsend>>`/`<<rect>>`/skinparam-bucket stereotype colors (NOT landed) — sdlreceive alone does not zero either fixture | Partially in scope; remainder deferred |
+| `gojuja-90-pune699`, `nufigo-87-pivi558` | `height`/`viewBox` off by 5, `childCount` short 1 | Forward-declared composite (`state Configuring{}` used inside `state A{[*]-->Configuring}` before its own top-level declaration) — NOT root-caused this iteration | Diagnosed only, deferred |
+| `gokife-89-boja382` | `childCount` mismatch one level deep (`g[1]/g[1]`) | `skinparam state { backgroundColor<<X>> }` nested-block form, combined with deep composite nesting — not isolated from a possible mechanism-16 interaction | Diagnosed only, deferred |
+| `judova-36-kana429` | `text/@x` off (28.1 vs 20.3) | `<style> stateDiagram { title { HorizontalAlignment left } } }` — a TITLE-chrome cascade, unrelated to the state box itself | Out of scope (named sub-family, `<style>` cascade, deferred) |
+| `kenuci-20-cane702` | `childCount` 5 vs 2 | `[[{anchor}]]` self-reference hyperlink syntax on nested composites | Out of scope (hyperlink family) |
+| `koguvo-74-kubo455` | `rect/@fill` mismatch (fork/join bars) | `<style> activityBar { .fork {...} .join {...} } }` — a cross-diagram-type style selector, completely unbuilt (no activity-diagram renderer exists to reuse) | Diagnosed in full, deferred (genuinely new subsystem) |
+| `kujuzo-76-bavi505` | `defs[childCount]` 0 vs 2 | State/note gradient (`Paint`) support — no gradient resolution anywhere in state | Out of scope (S12, deferred) |
+| `lulozu-10-bopu547` | `height` 57 vs 136, `childCount` 1 vs 5 | `<<entrypoint>>`/`<<exitpoint>>` pseudostate kinds — entirely unimplemented (not even sized) | Diagnosed only, NEW item, deferred |
+| `maruju-55-soko478` | `childCount` 2 vs 6 inside the `json foo1{}` entity | `json` table content — `renderJson` reuses `renderNormal` verbatim, zero row-drawing infra | Diagnosed in full (root cause confirmed, not newly speculative), deferred — comparable in scope to the notes/composite-box mechanisms |
+| `mazuzu-54-mene929` | `text/@font-weight`/`textLength`/text() mismatch | Creole bold (`**text**`) markup, unimplemented (state description lines, not notes) | Out of scope (named, deferred, unimplemented feature) |
+| `nanozi-96-foda024` | `path/@stroke`, `polygon/@fill`/`@stroke` mismatch | `<style> stateDiagram { arrow { LineColor HeadColor } } }` — arrow-properties cascade sub-family, genuinely unbuilt (no `theme.colors.graph.stateCascadeArrowColor` field exists) | Diagnosed in full, deferred (named sub-family) |
+| `xexika-61-fedu273` | `childCount` mismatch at 2 nested groups | `o-->`/`x-->` special arrowhead endpoint decorations — unimplemented arrowhead variants | Diagnosed only, NEW item, deferred |
+| `xomize-22-poro350` | `childCount` 7 vs 8 one level deep | Not root-caused this iteration (composite `#red` fill + `-[#blue]->` arrow color combination) | Diagnosed only, deferred |
+| `laferu-31-tice836` (4-10 bucket sample) | 11 diffs: fill, text fill, font-size, box size | `stateBackgroundColor<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>` — color fields alone insufficient; FontSize requires per-state font threading through `state-sizing.ts` MEASUREMENT (layout-time, not render-time) | Diagnosed in full, deferred (three fields load-bearing together) |
+| `jijuze-43-ceva131`, `zecivu-62-pagu681` (4-10 bucket, re-sampled) | 5-6 diffs, `childCount` still short | `buildConcurrentRegionLeaf`'s own `creationIndex` gap (S7/S8) | Re-confirmed STILL masked by unrelated, larger childCount gaps — S14's CONC-numbering fix did NOT unmask either fixture (different mechanism: id VALUE vs region NAME) |
+| `xupefu-98-roni234`, `tumaba-64-tosu281`, `dajipi-09-doki542`, `joleju-94-maru748` (composite-scoped notes) | Various, all note-related | Composite pipeline never calls note materialization (S10/S12 item 4, call site named: `state-composite-geo.ts#materializeCluster`/`#materializeAutonom`) | Re-confirmed: ALL 4 known fixtures are STILL cross-blocked by a SEPARATE, unrelated mechanism each (note-on-link x2 — parked; 3-level concurrent nesting; hyperlinks) — landing is unverifiable against any corpus fixture this iteration, deferred per diagnosis.md |
+
+### Mechanism 25 — CONC-region bare-name global numbering (LANDED)
+
+Read `net/atmp/CucaDiagram.java#getUniqueSequence2`/`cpt2` (a SEPARATE
+`AtomicInteger` from `cpt1`) and `StateDiagram.java:194-208`
+(`concurrentState`) BEFORE writing any code: jar ticks `cpt2` exactly once
+per `--`/`||` separator, in DOCUMENT order, regardless of which composite
+owns it — `lalava-26-zosi801`'s own shape (`State1{...--...}` then
+`State2{...--...}`, each with exactly ONE region) proves this is a truly
+GLOBAL counter: State1's one region is jar's `CONC1`, State2's one region is
+jar's `CONC2` (NOT a fresh `CONC1` restart per owner, which is what this
+port's existing `concurrentRegionScopeId(ownerId, i+1)` owner-local
+numbering produced).
+
+Landed as a SEPARATE, additive translation table
+(`ParseState.concurrentGlobalCounter`/`.concurrentGlobalIds`, handed off to
+`StateDiagramAST.concurrentGlobalIds` at end-of-parse exactly mirroring
+`pseudoCreationIndex`'s S7 precedent) rather than changing
+`concurrentRegionScopeId`'s own number source — that function's
+owner-local number is a load-bearing internal dedup key shared by FOUR call
+sites (`ctx.resolvedRegions` map keys in `state-composite-concurrent.ts`/
+`state-composite-classify.ts`, the `__init_`/`__final_` scoped pseudo-anchor
+ids, `noteScopeId`) — changing its number source would have risked
+desyncing build-side vs. lookup-side keys for zero benefit (those internal
+uses never need to match jar's rendered name, only each other).
+
+The new counter ticks in `state-commands.ts` rule 4's `--` handler, in the
+SAME `pass === 'one'` branch that already burns a `creationCounter` (cpt1)
+tick (S7) — same trigger, same pass-ONE-only discipline, INDEPENDENT
+counter. `StateGeometry.concurrentGlobalIds` is populated via a SINGLE
+end-of-pipeline merge in `layoutState` (`{ ...applyStateDocumentMargin(raw),
+concurrentGlobalIds: ... }`) rather than threading through every
+flat/composite/margin-shift helper, since the map is only ever carried, never
+read or mutated during layout. `renderer.ts#localScopeName` looks up the
+region's internal `<owner>::CONC<local>` key in this map FIRST (falling
+back to the pre-S14 bare-suffix strip when absent — a hand-built test
+geometry, or a scope id shape the map was never populated for).
+
+Jar-verified byte-exact against BOTH named target fixtures
+(`lalava-26-zosi801`, `tegali-39-molu382`) — 0 diffs each. TDD-first
+(`tests/unit/state/state-concurrent-global-id.test.ts`, 5 new tests
+covering: single-composite numbering, cross-composite continuation
+[the exact `lalava` shape], multi-region-per-composite ticking, pass-TWO
+non-double-ticking, and the empty-map default for a diagram with no `--`).
+
+### Mechanism 26 — `<<sdlreceive>>` folded-frame shape (LANDED)
+
+Read `GeneralImageBuilder.java`'s `LeafType.STATE` dispatch
+(`<<sdlreceive>>` routes to `EntityImageState2`, NOT `EntityImageState`) and
+`EntityImageState2.java`/`USymbolFrame.java#drawFrame` BEFORE writing any
+code — this state uses `USymbol.FRAME`'s `asSmall` variant, a genuinely
+different shape from the regular state box:
+
+- Box: `rect` with `rx=ry=12.5` (SAME rounding as a normal box), UNWRAPPED
+  in the DOM (no `<g class="entity">`, matching fork/join/history's
+  existing unwrapped precedent — `wrapClassFor` extended with a
+  `stereotype==='sdlreceive'` short-circuit).
+- Fold-notch `<path>`: `USymbolFrame#drawFrame`'s `dimTitle.getWidth()===0`
+  branch (asSmall ALWAYS passes an empty `dimTitle`) gives `textWidth =
+  width/3`, `cornersize = 7`, `textHeight = 12` — `M(x+textWidth,y)
+  L(x+textWidth,y+textHeight-cornersize) L(x+textWidth-cornersize,
+  y+textHeight) L(x,y+textHeight)`, `fill="none"`, same border stroke as
+  the box. Derived algebraically from `cekolo-21-gini183`'s own path
+  (`M445.8225,7 L445.8225,12 L438.8225,19 L407.46,19`) BEFORE reading the
+  Java — then confirmed the Java formula reproduces it exactly (`width/3` =
+  `115.0875/3` = `38.3625` = `445.8225 - 407.46`), so the geometry is
+  jar-verified by two independent methods, not just trusted from source.
+- Label: TOP-LEFT ANCHORED (`USymbolFrame#asSmall`'s own
+  `UTranslate(margin.getX1(), margin.getY1())`), NOT centered like every
+  other single-line state box shape this port has ported so far — `x =
+  node.x + SDL_MARGIN.x1 + BODY_MARGIN_X`, `y = node.y + SDL_MARGIN.y1 +
+  ascent`.
+- NO divider line (`EntityImageState2` never draws one — only the regular
+  `EntityImageState` box does).
+
+Landing the shape ALSO required correcting `state-sizing.ts
+#measureSdlReceive`'s own width formula, which S9's own doc comment had
+explicitly flagged as "unverified against the corpus" (off by ~12pt,
+curve-fit-worthy but never traced). Per diagnosis.md, traced the ACTUAL
+Java call chain instead of empirically guessing `+12`:
+`USymbolFrame.asSmall` -> `BodyFactory.create2` -> `BodyEnhanced1` ->
+`BodyEnhancedAbstract#getMarginX()` returns `6`, applied LEFT+RIGHT via
+`TextBlockUtils.withMargin(block, marginX, 0)` — `2 * 6 = 12`, exactly the
+missing gap. `width = label.width + SDL_MARGIN.x1 + SDL_MARGIN.x2 + 2 *
+BODY_MARGIN_X` now reproduces `cekolo-21-gini183`'s own `115.0875` exactly
+(was `~103.09`).
+
+Jar-verified byte-exact against `cekolo-21-gini183` (0 diffs, the SAME
+fixture whose earlier 3-diff signature named this mechanism in the
+attribution table above). TDD-first
+(`tests/unit/state/renderer-sdlreceive.test.ts`, 5 new tests: unwrapped DOM,
+`rx`/`ry`, single fold-notch path with `fill="none"`, exact notch geometry
+formula, top-left-anchored label position) plus tightened a PRE-EXISTING
+test (`tests/unit/state/state-dot-flat.test.ts`'s sdlreceive sizing test,
+which explicitly said "size reported, not asserted" — now asserts the
+exact jar-verified dimension, `115.0875 x 44`).
+
+### Deferred items assessed in full (none landed, per diagnosis.md's
+### evidence requirement — landing any of these would be unverifiable or
+### genuinely larger-than-"cheap")
+
+1. **Composite-scoped notes** (S10/S12 item 4) — the exact injection
+   points remain correctly named (`state-composite-geo.ts
+   #materializeCluster`/`#materializeAutonom`), but a fresh per-fixture
+   check this iteration confirms ALL 4 known fixtures (`xupefu-98-roni234`,
+   `tumaba-64-tosu281`, `dajipi-09-doki542`, `joleju-94-maru748`) are STILL
+   cross-blocked by a separate, unrelated mechanism each — landing would be
+   unverifiable against any corpus fixture (diagnosis.md's evidence
+   requirement: a fix must be jar-verified against something).
+2. **`maruju-55-soko478`'s json-table content** — root-caused precisely
+   (`renderJson` reuses `renderNormal` verbatim; zero row-drawing infra
+   exists for state's own `json` leaf, unlike class's dedicated
+   `class-json-sizing.ts`/`renderer-classifier-box.ts` json path) but is a
+   genuinely new, multi-hour feature (header + divider + key/value row
+   layout, matching class's own more sophisticated json renderer) —
+   comparable in scope to mission mechanisms 5/6/21 (box shape, composite
+   box, notes), not a bounded fix.
+3. **`<style>` cascade family** — TWO independent, both-unbuilt
+   sub-mechanisms confirmed this iteration: (a) the `stateDiagram`-ancestor
+   tier (`RoundCorner`/`Shadowing`/`BackgroundColor`/`LineColor`/
+   `FontColor` at the DIAGRAM level, `decede`/`tofezi`/`xojudi` — though
+   those 3 specific fixtures are ALSO independently blocked by mechanism 16,
+   confirmed via `structdump`, so even landing this wouldn't zero them);
+   (b) the cross-diagram-type `activityBar { .fork {...} .join {...} } }`
+   selector (`koguvo-74-kubo455`'s fork/join bar colors) and the
+   `arrow { LineColor HeadColor }` sub-family (`nanozi-96-foda024`). Both
+   mirror class's dedicated `style-cascade-class.ts` (200+ lines, OUTSIDE
+   this mission's write-set) — building an equivalent state-only subsystem
+   within the write-set's `theme.ts`/`skinparam.ts`/`style-map-element.ts`
+   is a genuinely new, non-trivial cascade resolver, not an extension of an
+   existing one.
+4. **`stateBackgroundColor<<X>>`/`FontColor`/`FontSize`**
+   (`laferu-31-tice836`) — re-diagnosed to a sharper conclusion than S9's
+   queue framing implied: BackgroundColor/FontColor alone (mirroring S9's
+   `StateBorderColor<<X>>` precedent almost verbatim) would still leave the
+   fixture non-zero, because `stateFontSize<<X>>` changes the MEASURED text
+   width and therefore the box's own dimensions — a layout-time change
+   (threading a per-state font-size override through `state-sizing.ts`'s
+   measurement functions), not a render-time color swap. The three fields
+   are load-bearing TOGETHER on this fixture, not independently landable.
+5. **`buildConcurrentRegionLeaf`'s own `creationIndex` gap** (S7/S8) —
+   re-sampled both known fixtures (`jijuze-43-ceva131`, `zecivu-62-pagu681`)
+   fresh after mechanism 25 landed, to check whether the CONC-numbering fix
+   incidentally unmasked either — it did not (confirmed: this is a
+   DIFFERENT mechanism, the numeric `creationIndex` VALUE threaded through a
+   region-owning cluster's own uid, not the region's rendered NAME). Both
+   fixtures remain dominated by larger, unrelated `childCount` gaps.
+6. **`<<entrypoint>>`/`<<exitpoint>>` pseudostate kinds** (NEW, S14,
+   `lulozu-10-bopu547`) — entirely unimplemented (not even sized: `height
+   57 vs 136` suggests the states are being measured as if they had zero
+   width/height or were dropped from layout entirely). A genuinely new
+   pseudostate kind, not previously named in any prior iteration's queue.
+7. **`o-->`/`x-->` special arrowhead endpoints** (NEW, S14,
+   `xexika-61-fedu273`) — unimplemented arrowhead decoration variants
+   (open-circle/cross endpoint markers), distinct from the existing
+   inline-`<polygon>` arrowhead mechanism (mechanism 3/19).
+
+### Files changed (S14)
+
+- `src/diagrams/state/state-parse-state.ts` — `ParseState
+  .concurrentGlobalCounter`/`.concurrentGlobalIds` fields +
+  `nextConcurrentGlobalId` (mechanism 25).
+- `src/diagrams/state/state-commands.ts` — rule 4's `--` handler burns the
+  new global tick (mechanism 25).
+- `src/diagrams/state/ast.ts` — `StateDiagramAST.concurrentGlobalIds` field
+  (mechanism 25).
+- `src/diagrams/state/parser.ts` — end-of-parse handoff (mechanism 25).
+- `src/diagrams/state/state-geo-types.ts` — `StateGeometry
+  .concurrentGlobalIds` field (mechanism 25).
+- `src/diagrams/state/layout.ts` — single end-of-pipeline merge in
+  `layoutState` (mechanism 25).
+- `src/diagrams/state/renderer.ts` — `svgEndpointId`/`localScopeName`
+  translation lookup, threaded through `buildTransitionInnerMarkup`/
+  `renderTransitionWrapped`/`renderNodeWrapped`/`renderState` (mechanism
+  25); `renderShape`/`wrapClassFor` dispatch `stereotype==='sdlreceive'` to
+  `renderSdlReceive` (mechanism 26).
+- `src/diagrams/state/renderer-box.ts` — NEW `renderSdlReceive` function +
+  duplicated `SDL_MARGIN`/`BODY_MARGIN_X` constants (mechanism 26, this
+  codebase's established per-module-constant-duplication convention).
+- `src/diagrams/state/state-sizing.ts` — `measureSdlReceive`'s width
+  formula corrected (`+ 2 * BODY_MARGIN_X`), doc comment updated from
+  "unverified" to jar-verified-exact (mechanism 26).
+- `tests/unit/state/state-concurrent-global-id.test.ts` — NEW, 5 tests
+  (mechanism 25).
+- `tests/unit/state/renderer-sdlreceive.test.ts` — NEW, 5 tests (mechanism
+  26).
+- `tests/unit/state/state-dot-flat.test.ts` — tightened the pre-existing
+  sdlreceive sizing test from "reported, not asserted" to the exact
+  jar-verified dimension (mechanism 26).
+- `oracle/goldens/svg-state/{lalava-26-zosi801,tegali-39-molu382,
+  cekolo-21-gini183}/{in.puml,golden.svg}` — 3 new golden dirs.
+- `oracle/goldens/svg-state/ratchet.json` — 3 fixtures added (46 -> 49).
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated (271/271
+  surveyed cleanly, 49 conformant/6 structural-match/216 diverged/0
+  errored/0 timeout — a clean, uncontended single-process run; two earlier
+  same-iteration attempts under heavy concurrent system load produced
+  false-alarm timeout counts, 18-54, that did NOT reflect any real
+  regression — confirmed via the reliable single-process
+  `svg-conformance-census.ts`, which consistently reported 49/271
+  throughout, and a final clean re-run with `SVG_PARITY_TIMEOUT_MS=30000
+  SVG_PARITY_CONCURRENCY=2` that reproduced 49/0-timeout cleanly).
+- `plans/g4-state-svg/README.md`, `ledger.md`, `decision-journal.md` — this
+  entry.
+
+### Ratchet / pins
+
+**+3 new pins** (46 -> **49**): `lalava-26-zosi801`, `tegali-39-molu382`
+(mechanism 25), `cekolo-21-gini183` (mechanism 26).
+`state.golden.ratchet.test.ts` now **51 tests** (49 pins), up from 48 (46
+pins). All 46 pre-existing pins re-verified `dotEqual: true, verdict:
+conformant` in the freshly (clean, uncontended) regenerated
+`parity-state.json`.
+
+### size-backlog.json: unchanged (0 entries touched)
+
+Neither mechanism touches a sizing formula that feeds a composite's own
+ink-extent (mechanism 25 is a pure render-time string translation; mechanism
+26 is a FLAT-pipeline leaf-box shape, sized independently of any composite).
+`state-dot-parity.test.ts` (size-backlog ratchet) stayed **268/268** passing
+throughout, checked before and after both mechanisms landed.
+
+### Gates (S14, final)
+
+- `state` census: **49/271** zero-diff (`1-3:22, 4-10:127, 11-30:26,
+  31+:47, errors:0`) — the 46 S13 pins plus 3 new: `lalava-26-zosi801`,
+  `tegali-39-molu382`, `cekolo-21-gini183`.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
+  78/80 - state 267/267` — EXACTLY unchanged, re-verified fresh via
+  `dot-sync-report.ts component usecase` + `dot-sync-report.ts class object
+  state`.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing at
+  both the START and END of this iteration.
+- `npm test -- --run`: **10066/10066** passing (372 files), up from
+  10053/10053 (+13: 5 CONC-global-id tests, 5 sdlreceive tests, +3 new
+  ratchet AC1 tests from the 3 new pins).
+- `npm run typecheck` / `npm run lint`: both clean.
+- `state.golden.ratchet.test.ts`: **51 tests** (49 pins), up from 48 (46
+  pins).
+
+### S15+ queue
+
+1. **`<style>` cascade family, `stateDiagram`-ancestor tier** (S4, S14
+   re-confirmed unbuilt) — `RoundCorner`/`Shadowing`/`BackgroundColor`/
+   `LineColor`/`FontColor` at the diagram-ancestor level. Note: 3 of the 5
+   currently-known target fixtures (`decede`/`tofezi`/`xojudi`) are ALSO
+   independently blocked by mechanism 16 (confirmed this iteration via
+   `structdump` — a future landing of this cascade tier alone will NOT
+   zero those 3; only `lasasi-13-nona547`/`soxene-95-domu248`, which carry
+   ONLY `RoundCorner`/`Shadowing` with no `BackgroundColor`, are ALSO
+   independently mechanism-16-blocked at the SAME childCount site — so
+   ZERO of the 5 known fixtures reach zero from this alone either; a fresh
+   from-scratch verification fixture would be needed, or land it alongside
+   mechanism 16).
+2. **`<style>` cascade family, `activityBar {.fork/.join}` + `arrow
+   {LineColor/HeadColor}` sub-families** (S14, NEW-confirmed unbuilt) —
+   `koguvo-74-kubo455` (2 diffs, ISOLATED — no other known blocker) and
+   `nanozi-96-foda024` (3 diffs, ISOLATED) are BOTH clean, single-mechanism
+   targets, unlike item 1 above — good S15 candidates if this cascade
+   subsystem is built.
+3. **`json` table content** (`maruju-55-soko478`) — root-caused in full
+   (S9, re-confirmed S14), still a multi-hour feature, deferred.
+4. **`stateBackgroundColor<<X>>`/`FontColor`/`FontSize`**
+   (`laferu-31-tice836`) — needs all 3 fields together, FontSize requires
+   layout-time measurement threading.
+5. **Composite-scoped notes** (S10/S12/S14 item 4) — call site named
+   precisely, still unverifiable against any corpus fixture (all 4 known
+   candidates cross-blocked by unrelated mechanisms).
+6. **`<<entrypoint>>`/`<<exitpoint>>` pseudostate kinds** (NEW, S14,
+   `lulozu-10-bopu547`) — entirely unimplemented, not previously named.
+7. **`o-->`/`x-->` special arrowhead endpoints** (NEW, S14,
+   `xexika-61-fedu273`) — unimplemented arrowhead decoration variants, not
+   previously named.
+8. **Forward-declared composite ordering** (NEW, S14, `gojuja-90-pune699`/
+   `nufigo-87-pivi558`) — a composite referenced (via `[*]-->X`) inside
+   ANOTHER composite before its own top-level `state X {}` declaration
+   appears in source — not root-caused this iteration.
+9. `stateFontSize<<X>>`-adjacent: `gokife-89-boja382`'s
+   `skinparam state { backgroundColor<<X>> }` NESTED-block form (distinct
+   syntax from the flat `skinparam stateBackgroundColor<<X>>` form S9/item
+   4 targets) — not isolated from a possible mechanism-16 interaction this
+   iteration.
+10. Creole/table note content (`fatupo-62-bemu777`, unchanged).
+11. Creole bold (`**text**`) markup for STATE DESCRIPTION LINES (NEW, S14,
+    `mazuzu-54-mene929` — distinct from the note-creole item above, which
+    targets note bodies specifically).
+12. Mechanism 16 (entity-vs-cluster wrap dimension) — unchanged, STILL the
+    largest family in the near-zero bucket (5 of this iteration's own 27
+    sampled 1-3-bucket fixtures alone).
+13. `<<sdlsend>>`/`<<rect>>`/`<<junction>>` pseudostate stereotypes
+    (`fakali-52-zuje420`/`livuni-63-fira764`, partially unblocked by this
+    iteration's sdlreceive landing but not fully — remaining stereotypes
+    unimplemented).
+14. `pevene-26-kebo361`'s minlen=0 same-rank clip-inset delta (S8,
+    unchanged).
+15. State hyperlink (`[[url]]`) (S8/S9, unchanged, re-scoped).
+16. `skin debug`/named-skin-file directive support -- unchanged, unscoped.
+17. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
+    choice/history/deepHistory call sites (S10, small follow-up).

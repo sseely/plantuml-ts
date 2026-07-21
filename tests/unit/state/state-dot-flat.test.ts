@@ -222,15 +222,15 @@ describe('layoutState — cekolo-21-gini183 (fixed-size pseudostate table)', () 
     }
   });
 
-  it('sdlreceive is NOT rounded (rect shape) — size reported, not asserted', () => {
-    // Structural shape correctness is what's gated; the exact dimension
-    // formula for EntityImageState2/USymbolFrame is unverified against the
-    // corpus (state-sizing.ts's SDL_MARGIN doc) — reported via the DOT
-    // parity test below instead of pinned here.
+  it('sdlreceive is NOT rounded (rect shape), exact EntityImageState2 dimension (mission G4 S14)', () => {
+    // mission G4 S14: the formula is now byte-exact (state-sizing.ts's
+    // SDL_MARGIN + BODY_MARGIN_X doc comment) -- jar-verified against
+    // cekolo-21-gini183's own sdlreceive node (1.598438x0.611111in =
+    // 115.0875 x 44pt).
     const geo = layoutState(ast, theme, measurer);
     const s = geo.states.find((n) => n.id === 'sdlreceive')!;
-    expect(s.width).toBeGreaterThan(0);
-    expect(s.height).toBeGreaterThan(0);
+    expect(s.width).toBeCloseTo(115.0875, 3);
+    expect(s.height).toBeCloseTo(44, 5);
   });
 });
 

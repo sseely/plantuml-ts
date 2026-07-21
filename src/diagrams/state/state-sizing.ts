@@ -148,18 +148,23 @@ const EMPTY_DESC_MIN_HEIGHT = 40;
  * BodyFactory.create2, not the description/body lines — the stereotype
  * itself renders as an EMPTY TextBlock, USymbolFrame.asSmall:72).
  *
- * UNVERIFIED against the corpus: cekolo-21-gini183's sdlreceive node is
- * 1.598438x0.611111in (115.0875 x 44pt); this formula computes ~103.09 x
- * 44pt at the WidthTableMeasurer's default-theme metrics — height matches
- * exactly (single-line label, no extra padding), width is off by ~12pt.
- * BodyEnhanced1/BodyFactory.create2's exact creole padding for the FRAME
- * symbol's label was not fully traced (single fixture in the whole corpus,
- * mechanisms.md marks the upstream formula itself as "no fixed formula").
- * Shape (`rect`, not rounded) and structural presence are exact; only this
- * one dimension is approximate — reported, not asserted, mirroring
- * svek-dot-emit.ts's SHIELD_MARGIN precedent for other unverified metrics.
+ * mission G4 S14: the ~12pt width gap this doc comment used to report as
+ * unverified is `BodyEnhancedAbstract#getMarginX()` = 6 (`BodyEnhanced1`'s
+ * own override), applied via `TextBlockUtils.withMargin(block, marginX, 0)`
+ * -- LEFT+RIGHT, so `2 * BODY_MARGIN_X` = 12 total, ON TOP OF
+ * `USymbolFrame`'s own `SDL_MARGIN`. jar-verified byte-exact against
+ * `cekolo-21-gini183`'s sdlreceive node (115.0875 x 44pt): `label.width`
+ * (63.0875, "sdlreceive" at the deterministic theme font) + `SDL_MARGIN.x1
+ * + SDL_MARGIN.x2` (40) + `2 * BODY_MARGIN_X` (12) = 115.0875 exactly;
+ * height (44) needs no correction (single-line label, no extra vertical
+ * padding from `getMarginX`, which is X-only).
+ * @see ~/git/plantuml/.../cucadiagram/BodyEnhancedAbstract.java#getMarginX
+ * @see ~/git/plantuml/.../cucadiagram/BodyEnhanced1.java#getMarginX
+ * @see plans/g4-state-svg/ledger.md (S14)
  */
 const SDL_MARGIN = { x1: 15, x2: 25, y1: 20, y2: 10 };
+/** `BodyEnhanced1#getMarginX` — see {@link SDL_MARGIN}'s own doc comment. */
+const BODY_MARGIN_X = 6;
 
 function measureLines(lines: readonly string[], font: FontSpec, measurer: StringMeasurer): Dim {
   if (lines.length === 0) return { width: 0, height: 0 };
@@ -176,7 +181,10 @@ function measureLines(lines: readonly string[], font: FontSpec, measurer: String
 /** EntityImageState2 sizing (approximate — see SDL_MARGIN doc). */
 function measureSdlReceive(state: State, font: FontSpec, measurer: StringMeasurer): Dim {
   const label = measureLines(splitCreoleLines(state.display), font, measurer);
-  return { width: label.width + SDL_MARGIN.x1 + SDL_MARGIN.x2, height: label.height + SDL_MARGIN.y1 + SDL_MARGIN.y2 };
+  return {
+    width: label.width + SDL_MARGIN.x1 + SDL_MARGIN.x2 + 2 * BODY_MARGIN_X,
+    height: label.height + SDL_MARGIN.y1 + SDL_MARGIN.y2,
+  };
 }
 
 /** EntityImageStateEmptyDescription: `hide empty description` + no body lines. */

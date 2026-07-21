@@ -248,6 +248,36 @@ export interface ParseState {
    * mechanism and why this lives outside the `State`/`Transition` shape.
    */
   pseudoCreationIndex: Map<string, number>;
+  /**
+   * mission G4 S14 (CONC-region bare-name global numbering): a SEPARATE
+   * diagram-wide monotonic counter mirroring upstream
+   * `net.atmp.CucaDiagram#cpt2` (`AtomicInteger`), consumed exclusively by
+   * `StateDiagram#concurrentState`'s own
+   * `getUniqueSequence2(CONCURRENT_PREFIX)` -- ONE tick per `--`/`||`
+   * concurrent-region separator, in DOCUMENT (parse) order, regardless of
+   * which composite owns it (StateDiagram.java:194-208). This is
+   * INDEPENDENT of `creationCounter` (cpt1) -- upstream keeps the two
+   * `AtomicInteger` fields separate too. Incremented on pass ONE ONLY
+   * (mirrors `creationCounter`'s own pass-ONE-only discipline, same `--`
+   * handler in state-commands.ts's rule 4). Persistent across both parser
+   * passes.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt2
+   * @see ~/git/plantuml/.../statediagram/StateDiagram.java:194-208
+   */
+  concurrentGlobalCounter: number;
+  /**
+   * mission G4 S14: maps this port's own internal, owner-local
+   * `concurrentRegionScopeId` key (e.g. `"State2::CONC1"`) to the GLOBAL
+   * region number jar's real `cpt2` counter assigned that SAME region
+   * (e.g. `2`, when it is the SECOND `--` encountered anywhere in the
+   * document). The internal `concurrentRegionScopeId` dedup key itself is
+   * UNCHANGED (still owner-local -- see that function's own doc comment
+   * for why every other internal lookup keeps using it as-is); this map is
+   * a SEPARATE, additive translation table consumed only by
+   * `renderer.ts#localScopeName` to produce jar's real global `CONC<n>` in
+   * a rendered `*start*CONC<n>-to-X` path id. Populated on pass ONE only.
+   */
+  concurrentGlobalIds: Map<string, number>;
 }
 
 /**
@@ -259,6 +289,17 @@ export interface ParseState {
 export function nextCreationIndex(ps: ParseState): number {
   ps.creationCounter += 1;
   return ps.creationCounter;
+}
+
+/**
+ * Consume and return the next global concurrent-region number (mission G4
+ * S14) -- mirrors upstream `CucaDiagram#getUniqueSequence2`
+ * (`cpt2.addAndGet(1)`). A SEPARATE counter from {@link nextCreationIndex}
+ * (cpt1) -- see `ParseState.concurrentGlobalCounter`'s own doc comment.
+ */
+export function nextConcurrentGlobalId(ps: ParseState): number {
+  ps.concurrentGlobalCounter += 1;
+  return ps.concurrentGlobalCounter;
 }
 
 /**

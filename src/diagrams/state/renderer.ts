@@ -36,7 +36,7 @@ import {
   renderChoiceJunction,
   renderHistory,
 } from './renderer-pseudostate.js';
-import { renderNormal } from './renderer-box.js';
+import { renderNormal, renderSdlReceive } from './renderer-box.js';
 import { renderComposite } from './renderer-composite-box.js';
 import { renderStateNote } from './renderer-note.js';
 
@@ -85,7 +85,12 @@ function renderShape(node: StateNodeGeo, theme: Theme): string {
     case 'deepHistory':
       return renderHistory(node, theme);
     case 'normal':
-      return renderNormal(node, theme);
+      // mission G4 S14: `<<sdlreceive>>` (EntityImageState2) is a
+      // DIFFERENT shape from the regular EntityImageState box -- see
+      // `renderSdlReceive`'s own doc comment (renderer-box.ts).
+      return node.stereotype?.toLowerCase() === 'sdlreceive'
+        ? renderSdlReceive(node, theme)
+        : renderNormal(node, theme);
     case 'json':
       return renderJson(node, theme);
     case 'note':
@@ -117,6 +122,9 @@ function renderShape(node: StateNodeGeo, theme: Theme): string {
 function wrapClassFor(node: StateNodeGeo): 'entity' | 'start_entity' | 'end_entity' | undefined {
   if (node.children.length > 0) return 'entity';
   if (node.emptyDescription === true) return undefined;
+  // mission G4 S14: `<<sdlreceive>>` (EntityImageState2) draws UNWRAPPED --
+  // see `renderSdlReceive`'s own doc comment (renderer-box.ts).
+  if (node.kind === 'normal' && node.stereotype?.toLowerCase() === 'sdlreceive') return undefined;
   switch (node.kind) {
     case 'initial':
       return 'start_entity';
@@ -167,22 +175,33 @@ function renderSeparator(sep: { x1: number; y1: number; x2: number; y2: number }
  *  own image). Every other node (`node.concurrentRegions === undefined`)
  *  keeps the pre-S6 "all children, then this node's own transitions"
  *  layout unchanged. */
-function renderNodeWrapped(node: StateNodeGeo, theme: Theme, uidPlan: StateUidPlan): string {
+function renderNodeWrapped(
+  node: StateNodeGeo,
+  theme: Theme,
+  uidPlan: StateUidPlan,
+  concurrentGlobalIds: ReadonlyMap<string, number>,
+): string {
   const ownShape = renderShape(node, theme);
   let inner: string;
   if (node.concurrentRegions !== undefined) {
     const separators = node.separators ?? [];
     const blocks = node.concurrentRegions.map((region, i) => {
-      const stateMarkup = region.children.map((c) => renderNodeWrapped(c, theme, uidPlan)).join('');
-      const transitionMarkup = region.transitions.map((t) => renderTransitionWrapped(t, theme, uidPlan)).join('');
+      const stateMarkup = region.children
+        .map((c) => renderNodeWrapped(c, theme, uidPlan, concurrentGlobalIds))
+        .join('');
+      const transitionMarkup = region.transitions
+        .map((t) => renderTransitionWrapped(t, theme, uidPlan, concurrentGlobalIds))
+        .join('');
       const sepMarkup = i < separators.length ? renderSeparator(separators[i]!, theme) : '';
       return stateMarkup + transitionMarkup + sepMarkup;
     });
     inner = ownShape + blocks.join('');
   } else {
-    const childrenMarkup = node.children.map((c) => renderNodeWrapped(c, theme, uidPlan)).join('');
+    const childrenMarkup = node.children
+      .map((c) => renderNodeWrapped(c, theme, uidPlan, concurrentGlobalIds))
+      .join('');
     const ownTransitionsMarkup = node.transitions
-      .map((t) => renderTransitionWrapped(t, theme, uidPlan))
+      .map((t) => renderTransitionWrapped(t, theme, uidPlan, concurrentGlobalIds))
       .join('');
     inner = ownShape + childrenMarkup + ownTransitionsMarkup;
   }
@@ -264,21 +283,39 @@ function buildPathD(points: ReadonlyArray<{ x: number; y: number }>): string {
  *  (owner-level, unqualified already), `*start*toutou9-to-leo` (nested
  *  composite, unqualified already), `*start*CONC1-to-toutou9` (region,
  *  qualified `s7_2::CONC1` stripped to `CONC1`). */
-function svgEndpointId(nodeId: string): string {
+function svgEndpointId(
+  nodeId: string,
+  concurrentGlobalIds: ReadonlyMap<string, number>,
+): string {
   if (nodeId === INITIAL_ID) return '*start*';
   if (nodeId === FINAL_ID) return '*end*';
   const scopedInit = /^__init_(.*)$/.exec(nodeId);
-  if (scopedInit !== null) return `*start*${localScopeName(scopedInit[1]!)}`;
+  if (scopedInit !== null) return `*start*${localScopeName(scopedInit[1]!, concurrentGlobalIds)}`;
   const scopedFinal = /^__final_(.*)$/.exec(nodeId);
-  if (scopedFinal !== null) return `*end*${localScopeName(scopedFinal[1]!)}`;
+  if (scopedFinal !== null) return `*end*${localScopeName(scopedFinal[1]!, concurrentGlobalIds)}`;
   return nodeId;
 }
 
 /** Strips this port's own `<ownerId>::CONC<n>` internal qualification down
  *  to the bare trailing segment jar's own unqualified `getName()` produces
  *  -- see {@link svgEndpointId}'s own doc comment for the full mechanism.
- *  A non-region scope id (no `::`) is already local, unchanged. */
-function localScopeName(scopeId: string): string {
+ *  A non-region scope id (no `::`) is already local, unchanged.
+ *
+ *  mission G4 S14 (CONC-region bare-name global numbering): a `::`-qualified
+ *  region scope id (e.g. `"State2::CONC1"`) is FIRST looked up in
+ *  `concurrentGlobalIds` (`StateGeometry.concurrentGlobalIds`, ultimately
+ *  `ast.concurrentGlobalIds` -- see that field's own doc comment, ast.ts)
+ *  to translate this port's own owner-local region number into jar's real
+ *  diagram-global `net.atmp.CucaDiagram#cpt2` one -- e.g. `State2`'s own
+ *  FIRST region is locally `"CONC1"` but renders as jar's real `"CONC2"`
+ *  when it is the SECOND `--` encountered anywhere in the document
+ *  (jar-verified `lalava-26-zosi801`/`tegali-39-molu382`). Falls back to
+ *  the pre-S14 bare-suffix strip when the key is absent (a hand-built test
+ *  geometry with no `concurrentGlobalIds`, or -- defensively -- an
+ *  internal id shape this map was never populated for). */
+function localScopeName(scopeId: string, concurrentGlobalIds: ReadonlyMap<string, number>): string {
+  const globalId = concurrentGlobalIds.get(scopeId);
+  if (globalId !== undefined) return `CONC${globalId}`;
   const i = scopeId.lastIndexOf('::');
   return i === -1 ? scopeId : scopeId.slice(i + 2);
 }
@@ -290,7 +327,11 @@ function localScopeName(scopeId: string): string {
  *  reference -- `ExtremityArrow`'s decorationLength-based path trim
  *  (`applyHeadTrim`) must run BEFORE `buildPathD` so the connecting line
  *  stops at the arrow's outer edge, matching jar exactly. */
-function buildTransitionInnerMarkup(transition: TransitionGeo, theme: Theme): string {
+function buildTransitionInnerMarkup(
+  transition: TransitionGeo,
+  theme: Theme,
+  concurrentGlobalIds: ReadonlyMap<string, number>,
+): string {
   const arrowhead = buildTransitionArrowhead(transition, theme.colors.arrow, 1);
   const points = applyHeadTrim(transition.points, arrowhead.trim);
   const d = buildPathD(points);
@@ -299,7 +340,7 @@ function buildTransitionInnerMarkup(transition: TransitionGeo, theme: Theme): st
   const pathEl = path(d, {
     stroke: theme.colors.arrow,
     strokeWidth: 1,
-    id: `${svgEndpointId(transition.from)}-to-${svgEndpointId(transition.to)}`,
+    id: `${svgEndpointId(transition.from, concurrentGlobalIds)}-to-${svgEndpointId(transition.to, concurrentGlobalIds)}`,
   });
 
   const labelEl =
@@ -318,8 +359,9 @@ function renderTransitionWrapped(
   transition: TransitionGeo,
   theme: Theme,
   uidPlan: StateUidPlan,
+  concurrentGlobalIds: ReadonlyMap<string, number>,
 ): string {
-  const inner = buildTransitionInnerMarkup(transition, theme);
+  const inner = buildTransitionInnerMarkup(transition, theme, concurrentGlobalIds);
   if (inner === '') return '';
   const uid = uidPlan.edgeUid.get(transition) ?? '';
   return wrapLink(
@@ -343,13 +385,14 @@ function renderTransitionWrapped(
  */
 export function renderState(geo: StateGeometry, theme: Theme): RenderFragment {
   const uidPlan = buildStateUidPlan(geo);
+  const concurrentGlobalIds = geo.concurrentGlobalIds ?? new Map<string, number>();
 
   const children: string[] = [];
   for (const node of geo.states) {
-    children.push(renderNodeWrapped(node, theme, uidPlan));
+    children.push(renderNodeWrapped(node, theme, uidPlan, concurrentGlobalIds));
   }
   geo.transitions.forEach((transition) => {
-    children.push(renderTransitionWrapped(transition, theme, uidPlan));
+    children.push(renderTransitionWrapped(transition, theme, uidPlan, concurrentGlobalIds));
   });
 
   // mission G4 S1 mechanism 1: background is communicated via the shell's
