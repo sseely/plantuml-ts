@@ -4485,3 +4485,289 @@ mechanism 24). No entry was tightened or widened.
 17. `skin debug`/named-skin-file directive support -- unchanged, unscoped.
 18. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
     choice/history/deepHistory call sites (S10, small follow-up).
+
+## S13 — re-landed the fenced item (edge-label real-size injection), attempted
+THREE distinct label-ink formulas for the adjacent composite ink-under-count,
+none viable -- REVERTED both in full per protocol; the mechanism is now
+precisely characterized with jar-verified numeric evidence -- 46/271 -> 46/271
+(no census movement; nothing landed this iteration)
+
+### Step 1: re-landed the fenced item (LANDED, then reverted with everything
+### else -- see below)
+
+Followed this iteration's own instruction to land the fenced item first,
+independently re-derived (not merely trusted from S12's prose) via a fresh
+disposable probe script (`scripts/_tmp-s13-probe.ts`, deleted before
+finishing): a plain-text label's rank gap was IDENTICAL regardless of text
+length (`"hi"` vs `"this is a note"` both 88.5px gap on a synthetic 2-node
+probe graph); an HTML label's rank gap tracked the DECLARED HEIGHT exactly
+(`HEIGHT="23"` -> 95px gap, `HEIGHT="100"` -> 172px gap). Confirmed
+`HTML_STRING_MARK = "\x01"` via direct byte inspection of
+`node_modules/graphviz-ts/dist/index.js` (`od -c`), matching S12's own
+finding exactly. Implemented `graph-layout-build.ts#addEdges`'s
+`htmlSizedLabel`/`applyEdgeLabelAttrs` (`HTML_LABEL_MARK =
+String.fromCharCode(1)`), TDD-first (`tests/unit/core/graph-layout.test.ts`,
+2 new tests: "sizes the rank gap from the caller label box, not text length"
+and "reserves a larger rank gap for a taller caller-measured label box" --
+both RED against the pre-fix code, GREEN after). `npm run typecheck`/`npm
+run lint` clean. Confirmed the SAME S12-identified regression: 12/268
+`state-dot-parity.test.ts` size-backlog fixtures failed (later found to
+actually be **13** -- `zacajo-09-tamu628` was ALSO failing with the fenced
+item alone, an off-by-one relative to S12's own 12-fixture list that only
+surfaced once this iteration ran the FULL failing-fixture enumeration rather
+than trusting the prior iteration's count).
+
+### Step 2: THREE label-ink formulas attempted for the adjacent
+### composite-internal-labeled-transition ink-under-count, none viable
+
+Per this iteration's own instruction ("replace the max() floor with the true
+ink formula, jar-verified per fixture"), used `scripts/_tmp-s13-deltas.ts`
+(a disposable script computing `maxSizeDeltaIn` directly against every
+`size-backlog.json` fixture, avoiding a slow full `vitest run` per
+iteration) to jar-verify each attempt against the SAME set of 10 fixtures
+throughout: the 6 already-known composite-internal-label fixtures
+(`bemena-23-zebu249`/`jorere`/`ketibo`/`pajefo`/`xepafa`/`zitifa`, all
+sharing the IDENTICAL `0.244904in` delta -- confirmed via direct puml
+inspection to be near-identical `state Configuring { ... 3 parallel edges
+... }` shapes), the S4-named target pair (`bunade-42-fudu910`,
+`beguxu-19-tize774`, both PASSING pre-iteration with small headroom), and 3
+large-pre-existing-gap fixtures (`bajelo-54-dixe684`, `pesita-10-dene726`,
+`rovese-43-tadu368`) used as a "these should stay UNCHANGED, they're
+unrelated" control group.
+
+**Variant 1 (LANDED then reverted): full box `[x, x+width] x [y-height,
+y]`, anchored at `attachTransitionLabel`'s own render-position formula**
+(the pre-existing perpendicular-offset-from-routed-midpoint x/y, treated as
+a literal SVG left-baseline text anchor, matching `renderer.ts
+#buildTransitionInnerMarkup`'s own `<text x y>` convention). TDD-first
+(`tests/unit/state/state-transition-label.test.ts`,
+`tests/unit/state/layout-ink-extent.test.ts`, 6 new tests). FIXED the
+0.244904 family outright (bemena/jorere/ketibo/pajefo/xepafa/zitifa all
+disappeared from the failing set) but REGRESSED 10 previously-fine fixtures
+into failure (`beguxu-19-tize774`, `bunade-42-fudu910`, `dulixa-11-kufe247`,
+`fadupe-90-koti079`, `fojisi-40-zogo372`, `gifasa-23-zile558`,
+`kejabo-83-vinu490`, `kujaju-47-neku764`, `mosigo-88-rove013`,
+`nuboca-13-xape657`) -- net WORSE (16 failures vs 13 baseline). Root cause:
+`attachTransitionLabel`'s own x/y is an APPROXIMATION (perpendicular offset
+from the routed spline's midpoint, `LABEL_PERP=12`), never verified against
+jar's real label position for ANY fixture (S11's own finding: "no
+currently-pinned fixture exercises a real guard/action label at all") -- for
+SIMPLE 2-node composites (`beguxu`'s `a`/`b`: `x --> y : ev`) this offset
+pushes the box outside the node footprint where jar's real label sits
+COMFORTABLY INSIDE it, an artificial overshoot.
+
+**Variant 2 (LANDED then reverted): full box centered on the REAL
+graphviz-computed label position** (`DotLayoutResult.edges[].labelX/labelY/
+labelWidth/labelHeight`, threaded through as a NEW, separate `TransitionGeo
+.labelInk` field -- deliberately NOT reusing the render-position `label`
+field, since a probe proved the two diverge substantially: for `bemena`'s
+widest internal edge, `attachTransitionLabel`'s own x=51.83 vs the real
+graphviz labelX=317.94, a ~266px gap). Verified via a standalone probe
+(`result.edges[].labelX/labelY/labelWidth/labelHeight`, printed directly
+from `layoutGraph()`'s output) that this position is architecturally
+correct in principle (jar's own SVEK DOT emits the SAME `label=` attr form
+graphviz's rank-based layout places as a virtual node, not the external
+xlabel/taillabel mechanism G2/N25 already extracts via the render-SVG
+channel). Result: **0 of the 13 originally-failing fixtures fixed** (EXACT
+SAME pass/fail set as making no `(b)` change at all) but a **genuinely NEW
+regression**: `zacajo-09-tamu628` (3 concurrent regions, each with 2
+internal short-labeled transitions) flipped from PASSING (0.116636,
+allowance 0.144419) to FAILING (0.158303) -- confirmed via
+`state-composite-concurrent.ts#regionInkGeometry`'s OWN separate
+`Math.max(ink.*, p.result.*)` floor (a second, sibling floor this
+iteration's task did not name but which reads the SAME
+`computeSvekResultGeometry` this variant modified) also dropped, with no
+change to the outcome -- ruling out "the sibling floor is the cause" as a
+hypothesis.
+
+**Variant 3 (LANDED then reverted): the SAME centered box, HALVED
+(`width/4`/`height/4` half-extents instead of `width/2`/`height/2`)** -- an
+empirical attempt to compensate for the systematic overshoot named below.
+FIXED `bemena` (0.286571 -> 0.130270, now PASSING) but BROKE `bunade`
+(0.014095 -> 0.156022, now FAILING, previously fine) and WORSENED `zacajo`
+further (0.158303 -> 0.293173). Confirms the formula's sensitivity: no
+single uniform scale factor generalizes across the corpus's differently-shaped
+composites.
+
+### Root cause of the formula instability (jar-verified, not guessed)
+
+Compared jar's REAL rendered `<text>` element (from `bemena-23-zebu249`'s
+own cached golden SVG, `lnk16`'s "EvNewValueSaved" label: absolute
+`x="262.86"`, `textLength="111.475"`; local x = 255.86 (abs 262.86 minus
+`Configuring`'s own doc-frame origin x=7), right edge = 367.335 local)
+against a naive centered box built from graphviz-ts's own real `labelX`/
+`labelWidth` for the SAME edge (center 317.94, our own measured
+`labelWidth`=120.05, half-width 60.025, right edge = 377.965 -- off from
+jar's real right edge by 10.63px). Two independent, COMPOUNDING gaps:
+
+1. **Label-placement divergence**: jar's real `SvekEdge.java` label
+   placement algorithm is NOT simply "centered on graphviz's own virtual
+   label-node position" -- comparing left edges too (jar's real 255.86 vs
+   this port's derived 257.915, only 2.05px apart) shows the LEFT side is
+   nearly right while the RIGHT side is off by 10.6px, meaning the
+   divergence is NOT a uniform positional offset (which would shift both
+   edges equally) -- it is a WIDTH-scaling divergence.
+2. **Text-measurement calibration gap (NEW finding)**: this port's own
+   `StringMeasurer` (`WidthTableMeasurer`/`LutTextMeasurer`, depending on
+   call site) measures "EvNewValueSaved" at 120.05px width vs jar's real
+   Java-font-metrics `textLength` of 111.475px -- a ~7-8px (7%)
+   overestimate. Since the SAME measured width feeds BOTH graphviz's own
+   label-reservation/positioning calculation (shifting `labelX` itself) AND
+   any ink-box formula built from it, this single calibration gap compounds
+   into a LARGER combined error than either alone -- closely matching the
+   observed 10.6px right-edge divergence.
+
+This is the mission's **third independent attempt** at this exact
+mechanism to hit the same wall: S4's inline `ctx.measurer` attempt
+(jar-verified directionally correct on `bunade`, overshot on `beguxu`,
+reverted); S12's fenced item (the injection landed correctly, but exposed
+this SAME adjacent gap, reverted); this iteration's 3 formula variants (each
+trading one regression set for a different one, none net-improving). The
+convergent evidence across three independent attempts, by two different
+methods (inline measurement, geometric box formulas), strongly suggests a
+uniform geometric-box ink formula cannot match jar's real
+`SvekEdge.java`-driven label placement without either (a) porting that
+algorithm directly (a substantial, `SvekEdge.java`-scale undertaking) or (b)
+first closing the text-measurement calibration gap named above as
+prerequisite work (itself a cross-cutting, likely multi-diagram-type
+investigation, not state-specific).
+
+### Reverted in full
+
+Per this iteration's own explicit protocol ("if the final state widens ANY
+entry, revert both and report the mechanism instead") -- generalized here to
+"or flips a PASSING entry to FAILING," since `zacajo-09-tamu628` is exactly
+that case for Variant 2, and Variant 1's own 10-fixture regression is the
+same failure mode at larger scale. Since (a) cannot be landed without (b)
+fully compensating for its own 13-fixture `state-dot-parity.test.ts`
+regression, and no tested `(b)` formula achieves that compensation without
+introducing a DIFFERENT regression, landing either piece alone (or with any
+tried `(b)` variant) fails the mission's own protected `npm test -- --run`
+gate. REVERTED every touched file to the exact S12 HEAD commit content
+(`git show HEAD:<path> > <path>` for all 9 touched files: `src/core/
+graph-layout-build.ts`, `src/diagrams/state/{layout-ink-extent.ts,layout.ts,
+state-composite-autonom.ts,state-composite-concurrent.ts,
+state-composite-pass.ts,state-geo-types.ts,state-transition-label.ts}`,
+`tests/unit/core/graph-layout.test.ts`; `tests/oracle/svg-conformance/
+parity.json` was also found modified as an unrelated side effect and
+restored the same way), deleted every file created this iteration
+(`scripts/_tmp-s13-probe.ts`, `scripts/_tmp-s13-deltas.ts`,
+`tests/unit/state/state-transition-label.test.ts`, `tests/unit/state/
+layout-ink-extent.test.ts`), verified `git status --short`/`git diff --stat`
+EMPTY, then re-verified the FULL baseline from scratch: `npm run typecheck`
+(both configs) clean, `npm run lint` clean, `npm test -- --run`
+**10053/10053** passing (370 files, IDENTICAL to S12's own final count),
+`state-dot-parity.test.ts` **268/268** passing, `state.golden.ratchet.test.ts`
+**48 tests** (46 pins) passing, DOT gate `component 262/262 - usecase 90/90 -
+class 708/708 - object 78/80 - state 267/267` EXACTLY unchanged, and all
+FOUR SVG censuses re-run fresh and confirmed IDENTICAL to S12: state
+**46/271** (`1-3:27, 4-10:127, 11-30:26, 31+:45`), class **303/718**, object
+**22/80**, description (no-arg) **48/355**.
+
+### Attribution table (13 `state-dot-parity.test.ts` fixtures examined, +
+### 10 investigation-target/control fixtures)
+
+| Fixture | (a)-only delta | Variant 1 | Variant 2 (labelInk box) | Variant 3 (half box) | Notes |
+|---|---|---|---|---|---|
+| `bemena-23-zebu249` | 0.244904 FAIL | ~0 PASS | 0.286571 FAIL (worse) | 0.130270 PASS | multi-edge composite, THE target shape |
+| `jorere-75-peja265`/`ketibo-84-juzo029`/`pajefo-95-neri955`/`xepafa-33-lazi826`/`zitifa-97-bizo337` | 0.244904 FAIL (same shape) | PASS | FAIL (same as bemena) | not individually re-verified | same `Configuring`-multi-edge shape as bemena |
+| `beguxu-19-tize774` | 0.013889 PASS | 0.132987 FAIL (new regression) | 0.013889 PASS (unchanged) | not re-verified | simple 2-node composite; real label sits INSIDE node footprint |
+| `bunade-42-fudu910` | 0.014095 PASS | 0.136770 FAIL (new regression) | 0.041460 PASS (worse but still passing) | 0.156022 FAIL (new regression) | S4's own original target pair-mate |
+| `dulixa-11-kufe247`/`fadupe-90-koti079`/`fojisi-40-zogo372`/`gifasa-23-zile558`/`kejabo-83-vinu490`/`kujaju-47-neku764`/`mosigo-88-rove013`/`nuboca-13-xape657` | PASS (pre-iteration) | FAIL (new regressions, 8 more) | PASS (unchanged) | not re-verified | Variant-1-only casualties, never diagnosed individually (Variant 1 abandoned once the net count was seen to be worse) |
+| `zacajo-09-tamu628` | 0.116636 PASS | not tested (Variant 1 not run against it directly this precisely, presumed similar family) | 0.158303 FAIL (NEW regression) | 0.293173 FAIL (worse) | concurrent regions, 3x internal labeled transitions -- the mechanism's own worst case |
+| `bajelo-54-dixe684` | 0.979167 FAIL | 0.979167 FAIL (unchanged) | 0.979167 FAIL (unchanged) | not re-verified | control: UNRELATED to this mechanism (identical across every variant) -- deep nesting, mechanism-16 territory |
+| `pesita-10-dene726` | 1.302800 FAIL | not individually tracked | 1.344467 FAIL (worse) | 0.974415 FAIL (better but still far over) | control: large pre-existing gap, marginally touched by every variant |
+| `rovese-43-tadu368` | 0.673611 FAIL | not individually tracked | 0.673611 FAIL (unchanged) | 0.673611 FAIL (unchanged) | control: UNRELATED (identical across every variant) |
+| `jaxebo-54-nifi592`/`mifuti-36-jine785` | 0.308167 FAIL | not individually tracked | 0.308167 FAIL (unchanged) | not re-verified | nested composite-within-composite (jaxebo's own `NewValuePreview{State1->State2}`), UNRELATED to the label-ink formula at all 3 variants |
+| `nimana-36-veco708` | 0.125000 FAIL | not individually tracked | 0.125000 FAIL (unchanged) | 0.211628 FAIL (worse) | cross-composite label (`no --> yes`), the formula's cross-scope case never closes |
+
+### Files changed (S13)
+
+None -- fully reverted. Every file touched during the iteration (9 `src`/
+`tests` files) was restored byte-for-byte to the S12 HEAD commit content;
+every file created (4 temp scripts/tests) was deleted. `git status --short`
+and `git diff --stat` both verified EMPTY before finishing.
+
+### Ratchet / pins
+
+**0 new pins** (46 -> **46**, unchanged) -- no landed work this iteration
+(full revert). `state.golden.ratchet.test.ts` stays **48 tests** (46 pins).
+
+### size-backlog.json: unchanged (0 entries touched)
+
+No sizing-formula change survived this iteration. `state-dot-parity.test.ts`
+stayed/returned to **268/268** passing (dipped to 255/268 during Variant 1,
+256/268 during Variant 2, varying during Variant 3 -- fully restored by the
+revert).
+
+### Gates (S13, final)
+
+- `state` census: **46/271** zero-diff (`1-3:27, 4-10:127, 11-30:26, 31+:45,
+  errors:0`) -- IDENTICAL to S12's own baseline, same 46-fixture SET.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
+  78/80 - state 267/267` -- EXACTLY unchanged.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing at
+  the START and END of this iteration.
+- `npm test -- --run`: **10053/10053** passing (370 files), IDENTICAL to
+  S12's own final count (0 new tests -- none survived the revert).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: **48 tests** (46 pins), unchanged from
+  S12.
+
+### S14+ queue
+
+1. **Text-measurement calibration gap** (NEW, S13, the deepest finding this
+   iteration) -- this port's `StringMeasurer` implementations
+   (`WidthTableMeasurer`/`LutTextMeasurer`) measure at least some strings
+   (`"EvNewValueSaved"`, confirmed) ~7% wider than jar's real Java font
+   metrics. Needs its own dedicated investigation (likely cross-diagram-type,
+   not state-specific) BEFORE any future attempt at the composite-internal-
+   labeled-transition ink formula below -- the two are coupled, not
+   independent.
+2. **Edge-label real-size injection + composite-internal-labeled-transition
+   ink under-count, COMBINED** (S11/S12/S13, THREE times attempted, THREE
+   times reverted) -- the injection itself (`graph-layout-build.ts
+   #addEdges`'s `htmlSizedLabel`/`applyEdgeLabelAttrs`) is fully derived,
+   independently re-verified TWICE now (S12, S13), and ready to re-land
+   AS-IS the moment a working `(b)` is found. `(b)` itself needs EITHER: (i)
+   a real port of jar's `SvekEdge.java` label-placement algorithm (not a
+   geometric-box approximation -- three attempts at approximation have each
+   failed differently), or (ii) the text-measurement calibration fix above
+   landed FIRST, followed by a FOURTH attempt at a geometric-box formula
+   (which may then converge, since S13's own root-cause analysis attributes
+   roughly half the observed error to the measurement gap alone). A future
+   iteration should budget for (i) OR (ii)+re-attempt, not another blind
+   formula-search iteration -- this iteration exhausted the "try a
+   plausible box shape" search space (full-render-position, full-real-
+   center, half-real-center) without success.
+3. **`note ... on link`** (S10/S11, blocked on item 2 above) -- render shape
+   + DOM order + X-position formula already derived and jar-verified
+   independently (S11's own ledger entry); still blocked, unchanged.
+4. **State/note gradient (`Paint`) support** (S12, unchanged) -- `kujuzo-76-
+   bavi505`.
+5. **Composite-scoped notes** (S10 item 4, unchanged) -- `state-composite-
+   geo.ts#materializeCluster`/`#materializeAutonom`, 0 fixtures reach zero
+   alone.
+6. **Creole/table note content** (S10, unchanged) -- `fatupo-62-bemu777`.
+7. **CONC-region bare-name global numbering** (S8/S9, unchanged).
+8. Mechanism 16 (entity-vs-cluster wrap dimension) -- unchanged, LARGEST
+   family in the near-zero bucket.
+9. `stateBackgroundColor<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>`
+   (S9, unchanged) -- `laferu-31-tice836`.
+10. `<style>` cascade generalization (S4, unchanged, 3 sub-families).
+11. `<<sdlreceive>>` folded-frame shape (S9, unchanged, `cekolo-21-gini183`).
+12. `maruju-55-soko478`'s json+composite childCount gap (S9, unchanged).
+13. `pevene-26-kebo361`'s minlen=0 same-rank clip-inset delta (S8,
+    unchanged).
+14. `buildConcurrentRegionLeaf`'s own `creationIndex` gap (S7/S8, unchanged).
+15. `addStateBoxInk`'s max-corner asymmetry (S6, unchanged, 3 known
+    fixtures).
+16. State hyperlink (`[[url]]`) (S8/S9, unchanged, re-scoped, substantially
+    more complex than first framed).
+17. Creole/markdown bold (`**text**`) markup -- unchanged, unimplemented.
+18. `skin debug`/named-skin-file directive support -- unchanged, unscoped.
+19. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
+    choice/history/deepHistory call sites (S10, small follow-up).
