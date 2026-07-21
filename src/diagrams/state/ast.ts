@@ -339,6 +339,24 @@ export interface StateNote {
    * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt1
    */
   creationIndex?: number;
+  /**
+   * mission G4 S12: the note's own raw `#color`/`#back:color;...` inline
+   * override -- the SAME raw grammar shape `State.color` uses (see that
+   * field's own doc comment), resolved to a hex fill at RENDER time via
+   * `renderer-note.ts`'s note-fill resolver (mirrors `state-render-
+   * colors.ts#resolveStateFill`'s exact FILL-only precedent -- a note's
+   * border/stroke is never overridden by this token, matching jar's
+   * `EntityImageNote` ctor, which only reads `getColors().getColor(BACK)`).
+   * A GRADIENT token (`#color1|color2`, `#color1-color2`, …) is NOT resolved
+   * this iteration -- `resolveColorToSvgHex` (the SAME limitation
+   * `state-render-colors.ts#resolveStateBucketBackground`'s own doc comment
+   * already names for the `skinparam`-bucket path) passes it through
+   * unresolved; full `Paint`/gradient threading for state notes AND state
+   * boxes is a separate, larger, not-yet-built mechanism (`plans/g4-state-
+   * svg/ledger.md` S12 queue).
+   * @see ~/git/plantuml/.../klimt/image/EntityImageNote.java (ctor)
+   */
+  color?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -59,7 +59,7 @@ import type { DotLayoutResult } from '../../core/graph-layout.types.js';
 import { path, text as svgText } from '../../core/svg.js';
 import { javaRound4 } from '../../core/number-format.js';
 import { measureNote } from './state-note-layout.js';
-import { textAscent } from './state-render-colors.js';
+import { resolveStateFill, textAscent } from './state-render-colors.js';
 import {
   opalePolygonLeft,
   opalePolygonRight,
@@ -80,8 +80,12 @@ const NOTE_MARGIN_Y = 5;
 /** `Opale.java`'s `cornersize` — the folded-corner triangle size, SAME
  *  constant `../class/note-opale.ts#OPALE_CORNER_SIZE` already uses. */
 const NOTE_FOLD = 10;
-/** `ColorParam.noteBackground`'s plantuml.skin default — no `#color`/
- *  `<style>` override support this iteration (module doc comment). */
+/** `ColorParam.noteBackground`'s plantuml.skin default — the fallback when
+ *  a note has no `#color` override (mission G4 S12: resolved via
+ *  `resolveStateFill`, the SAME fill-only override precedent
+ *  `state-render-colors.ts` already establishes for state boxes/
+ *  pseudostates — `<style>`-bucket override support remains out of scope,
+ *  module doc comment). */
 const NOTE_FILL = '#FEFFDD';
 const NOTE_STROKE_WIDTH = 0.5;
 /** `UStroke`'s bare default width — `drawNormal`'s UN-stroked corner draw
@@ -148,6 +152,7 @@ function buildOneNoteGeo(note: StateNote, ctx: FlatNoteGeoCtx): StateNodeGeo | u
     noteLines: m.lines,
     ...(opale !== undefined ? { noteOpale: opale } : {}),
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
+    ...(note.color !== undefined ? { color: note.color } : {}),
   };
 }
 
@@ -204,11 +209,12 @@ function renderNoteTextLines(node: StateNodeGeo, theme: Theme): string {
 export function renderStateNoteFreestanding(node: StateNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
   const c = NOTE_FOLD;
+  const fill = resolveStateFill(node, NOTE_FILL);
   const outline = `M${x},${y} L${x},${y + h} L${x + w},${y + h} L${x + w},${y + c} L${x + w - c},${y} L${x},${y}`;
   const corner = `M${x + w - c},${y} L${x + w - c},${y + c} L${x + w},${y + c} L${x + w - c},${y}`;
   return (
-    path(outline, { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }) +
-    path(corner, { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_CORNER_DEFAULT_STROKE_WIDTH }) +
+    path(outline, { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }) +
+    path(corner, { fill, stroke: theme.colors.border, strokeWidth: NOTE_CORNER_DEFAULT_STROKE_WIDTH }) +
     renderNoteTextLines(node, theme)
   );
 }
@@ -230,9 +236,10 @@ export function renderStateNoteOpale(node: StateNodeGeo, theme: Theme): string {
   const connector = { pp1: opale.pp1, pp2: opale.pp2 };
   const outline = OPALE_OUTLINE_FN[opale.direction](box, connector);
   const corner = opaleCorner({ x: node.x, y: node.y }, node.width);
+  const fill = resolveStateFill(node, NOTE_FILL);
   return (
-    path(outline, { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }) +
-    path(corner, { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }) +
+    path(outline, { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }) +
+    path(corner, { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }) +
     renderNoteTextLines(node, theme)
   );
 }

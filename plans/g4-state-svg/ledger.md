@@ -4112,3 +4112,376 @@ change to any sizing formula either.
 18. `skin debug`/named-skin-file directive support -- unchanged, unscoped.
 19. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
     choice/history/deepHistory call sites (S10, small follow-up).
+
+## S12 — fenced item (edge-label real-size injection gap) diagnosed, implemented,
+jar-verified correct, then REVERTED after regressing the size-backlog ratchet;
+solid-color note override (mechanism 24) LANDED instead -- 46/271 -> 46/271
+(no census movement; landed work is jar-verified but unmasks no fixture alone
+this iteration)
+
+### Fenced item: edge-label real-size injection gap
+
+Followed the task's own two-step protocol in full. Step 1 (determine whether
+graphviz-ts can accept an explicit edge-label size): read jar's cached svek
+DOT for a real labeled edge (`test-results/dot-cache/state/bajelo-54-dixe684/
+svek-2.dot:11`) -- confirmed jar's own DOT emission uses an HTML-table label
+(`label=<<TABLE BGCOLOR="..." FIXEDSIZE="TRUE" WIDTH=".." HEIGHT="..">
+<TR><TD></TD></TR></TABLE>>`), the EXACT shape `svek-dot-emit.ts#labelTable`
+already emits for the (test-only) DOT-parity comparison channel. Then read
+graphviz-ts's BUNDLED runtime source (`node_modules/graphviz-ts/dist/
+index.js`, not just its `.d.ts` -- the library's public `exports` map does
+not expose `common/html-string.js`/`common/htmltable.js` as importable
+subpaths at the pinned version) to confirm the mechanism end-to-end:
+`isHtmlValue(s)` checks `s.startsWith(HTML_STRING_MARK)` where
+`HTML_STRING_MARK` is the single-codepoint string U+0001 (SOH, confirmed via
+direct byte inspection of the bundle); `applyLabel`/`applyMainLabels` read
+this off the edge's OWN `label` attr regardless of whether it came from
+DOT-text parsing or the programmatic `GvGraphBuilder` API (both write to the
+SAME `Edge.attrs` map); `makeHtmlLabel`/`sizeHtmlLabel`/`sizeTableInner`'s own
+`zeroContent` branch sets `dimen = {w: WIDTH, h: HEIGHT}` verbatim whenever
+`FIXEDSIZE=TRUE` and both are non-zero, independent of cell content; and the
+edge-sizing layout algorithm (`class2`-style virtual label node) reads
+`earray[i].info.label.dimen` directly. Verified this ENTIRE chain empirically
+with a disposable 2-node/1-edge probe script (`scripts/_tmp-s12-probe.mjs`,
+deleted before finishing) BEFORE writing any production code: a plain-text
+`"hi"` vs. `"this is a note"` label produced an IDENTICAL 52.5px rank gap
+(same fontsize/line-count -> same Times-LUT height, confirming the text
+CONTENT doesn't matter to graphviz-ts's OWN plain-text sizing), while an HTML
+label with `HEIGHT="23"` vs. `HEIGHT="100"` produced a strictly larger gap
+(59px vs. 136px) tracking the DECLARED height, not the (empty) cell content.
+
+Step 2 (land it): implemented `htmlSizedLabel(width, height)` +
+`applyEdgeLabelAttrs` in `graph-layout-build.ts#addEdges` (extracted the
+existing inline label-attrs block into `applyEdgeLabelAttrs` to keep
+`addEdges`'s own CCN under the complexity hook's threshold -- pure move, zero
+behavior change to the tailLabel/headLabel branches), using
+`String.fromCharCode(1)` to build the HTML marker prefix rather than a
+literal control character in source (a literal U+0001 embedded directly in a
+Write-tool call was silently stripped to an empty string by this session's
+own tool-call serialization on the first attempt -- confirmed via
+byte-level inspection of the written file; `String.fromCharCode(1)` produces
+the identical runtime string via a portable, ASCII-only source
+representation). TDD-first: 2 new tests in
+`tests/unit/core/graph-layout.test.ts` ("reserves a larger rank gap for a
+taller caller-measured label box" / "still echoes the caller label box
+unchanged") -- the first failed RED against the pre-fix code (52.5 vs
+152.5 expected) before the fix, GREEN after.
+
+### Fenced item REVERTED: size-backlog regression, root-caused precisely
+
+`npm test -- --run` with the fenced item landed showed 12/268
+`state-dot-parity.test.ts` failures (all composite fixtures whose dominant
+internal content is 1-2 short internal labeled transitions:
+`bajelo-54-dixe684`, `bemena-23-zebu249`, `jaxebo-54-nifi592`,
+`jorere-75-peja265`, `ketibo-84-juzo029`, `mifuti-36-jine785`,
+`nimana-36-veco708`, `pajefo-95-neri955`, `pesita-10-dene726`,
+`rovese-43-tadu368`, `xepafa-33-lazi826`, `zitifa-97-bizo337`). Per
+diagnosis.md's "trace the divergence to where behavior first departs, not
+where it surfaces," instrumented `bajelo-54-dixe684`'s own graph-2 composite
+wrapper (`Track_FSM.Run`) directly rather than accepting the symptom at face
+value: BEFORE the fenced item, candidate height 4.5833in vs. oracle 5.5278in
+(delta 0.9444in, EXACTLY the fixture's pinned `size-backlog.json` allowance);
+AFTER, candidate height 4.5486in (delta 0.9792in -- WORSE, not better).
+
+Root-caused to a PRE-EXISTING, S4-named "composite whose own dominant
+content is 1-2 short INTERNAL labeled transitions... needs edge-LABEL ink...
+folded in" gap (`state-composite-autonom.ts#buildPlainAutonomSpec`'s own
+`childImg = { width: Math.max(geometry.width, result.width), height:
+Math.max(geometry.height, result.height) }` floor, S4's own doc comment
+already names this as NOT FULLY CLOSED, a same-iteration S4 attempt to
+measure label ink inline was jar-verified to overshoot a different fixture
+and was reverted in favor of this floor). `result.*` is EXACTLY the raw
+`layoutGraph()` canvas size the fenced item changes: BEFORE the fix,
+graphviz-ts's default-14pt-Times guess for the internal transition's real
+(smaller, state's own ~11-13pt) label text happened to OVER-reserve rank gap
+relative to the real font -- an accidental, uncredited compensation the
+pre-existing floor bug was silently benefiting from. Feeding the REAL
+(smaller) label height removed that accidental over-reservation, shrinking
+the ALREADY-undercounting floor further. This is architecturally CORRECT
+behavior from the fenced item's own perspective (it makes `result.*` more
+faithful to jar's real DOT layout) exposing a SEPARATE, already-known,
+not-yet-fixed bug in a downstream consumer -- not a flaw in the fenced item
+itself.
+
+Verified the fenced item caused ZERO regression/gain in the SVG census before
+deciding whether to revert (state 46/271 -- IDENTICAL 46-fixture SET before/
+after, not just the same count; class 303/718; object 22/80; description
+48/355; DOT gate frozen EXACTLY `component 262/262 - usecase 90/90 - class
+708/708 - object 78/80 - state 267/267`) -- no currently-pinned or near-zero
+fixture exercises a real guard/action label whose size diverges enough from
+graphviz-ts's own guess to matter, and `note ... on link` (the mechanism's
+own intended beneficiary, per S11's queue) was not re-wired this iteration.
+Unlike every prior mission mechanism-landing iteration's own "mixed-direction
+unmasking with a net positive" pattern, this landing had a real cost (12
+regressed size-backlog entries, a protected `npm test -- --run` gate) with NO
+offsetting census gain this iteration.
+
+Per this iteration's own explicit protocol ("if any protected set shrinks,
+revert and report the mechanism instead") and the write-set's own hard
+"tighten-only" constraint on `size-backlog.json` (not a judgment call --
+widening it to accommodate the regression was never an option), REVERTED the
+fenced item in full: `git show HEAD:src/core/graph-layout-build.ts >
+src/core/graph-layout-build.ts`, `git show HEAD:tests/unit/core/
+graph-layout.test.ts > tests/unit/core/graph-layout.test.ts`, `git diff
+--stat` verified EMPTY before proceeding. Re-verified `npm test -- --run`
+(10042/10042, the exact pre-iteration baseline) and all 4 censuses/DOT gate/
+size-backlog ratchet (268/268) at baseline after the revert.
+
+The mechanism is now precisely named (exact file/line, exact library
+internals confirmed via bundled source, exact adjacent bug that blocks it,
+exact fixtures that would benefit once BOTH land together) for a future
+iteration authorized to ALSO touch `state-composite-autonom.ts`'s
+`buildPlainAutonomSpec`/`layout-ink-extent.ts`'s `attachTransitionLabel`
+label-ink reconciliation in the SAME iteration -- landing the injection alone
+without also closing the adjacent ink-under-count gap will keep regressing
+this exact fixture family.
+
+### Mechanism 24 (LANDED): solid `#color` override on notes
+
+Re-scoped to the cheapest fully-diagnosable item remaining after the fenced
+item's revert: the S10/S11 queue's "note `#color`/gradient override" item,
+originally framed as "`NOTE_COLOR` regex non-capturing." Verified the TRUE
+scope via a real fixture render BEFORE coding (`kujuzo-76-bavi505`, `state s1
+#red|yellow` + `note right #black-yellow`): the CURRENT output leaks the raw,
+unresolved gradient token straight into `fill="#red|yellow"` -- state's
+`#color` resolution has NO gradient/`Paint` support at all (not just notes;
+state boxes too), confirmed via `state-render-colors.ts`'s own doc comment
+("a Gradient `Paint` bucket value is unsupported here... out of scope").
+Full gradient/`Paint` threading (`core/paint.ts#parseColor`/`paintToSvg`,
+already the established mechanism `description`/`class`'s own note
+stereotype-cascade path uses) would need wiring through EVERY state renderer
+call site currently consuming a plain `string` fill (box, composite-box,
+pseudostate ellipses/diamonds, note) plus a `<defs>`-collection mechanism for
+the emitted `<linearGradient>` -- a multi-file mechanism comparable in scope
+to mechanism 21 (notes) itself, explicitly NOT attempted this iteration.
+
+Landed the SOLID-color subset only: made `NOTE_COLOR_CAPTURE` (a NEW,
+separate capturing constant, `state-notes.ts`) used ONLY by the 4 entity-note
+parser rules (attached single/multi-line, freestanding single/multi-line,
+`state-commands-notes.ts` rules 10/11/13/14) -- `note on link`'s own rules
+(12/12b) stay on the pre-existing non-capturing `NOTE_COLOR`, since making it
+capturing globally would have shifted `NOTE_ON_LINK_RE`/
+`NOTE_ON_LINK_MULTI_RE`'s own downstream `match[N]` indices for an unrelated,
+out-of-scope feature. Threaded `color?: string` through `PendingNote` ->
+`StateNote` (ast.ts) -> the materialized `StateNodeGeo` (`renderer-note.ts
+#buildOneNoteGeo`, reusing the EXISTING generic `StateNodeGeo.color` field
+every other node kind already carries) -> BOTH note render shapes
+(`renderStateNoteFreestanding`/`renderStateNoteOpale`), which now call
+`resolveStateFill(node, NOTE_FILL)` -- the EXACT SAME fill-only-override
+function (`state-render-colors.ts`) mechanism 20/23 already established for
+state boxes and pseudostates, reused verbatim rather than duplicated (a
+note's border/stroke is never overridden by `#color`, matching jar's
+`EntityImageNote` ctor, which only reads `getColors().getColor(BACK)`).
+
+TDD-first: 7 new parser tests (`tests/unit/state/state-notes.test.ts`,
+covering all 4 capturing rules + the no-override/undefined case + a
+trailing-`<<stereotype>>`-alongside-`#color` interaction) and 4 new render
+tests (`tests/unit/state/renderer-note.test.ts`, 2 geo-threading + 2
+fill-resolution, asserting the resolved hex REPLACES `NOTE_FILL` and stroke
+stays unchanged) -- all 6 parser color-tests + both new geo tests
+red-then-green verified before landing.
+
+Jar-verified against `fatupo-62-bemu777`'s own real SVG (`note right of X
+#FFF`): jar renders BOTH note `<path>` fills as `fill="#FFFFFF"`; the port
+now renders the IDENTICAL `fill="#FFFFFF"` on both paths, byte-exact on this
+specific attribute -- even though the SAME fixture stays far from zero-diff
+overall (it ALSO needs creole/table note-body content, a separate,
+still-unbuilt S10-named gap: its body is a markdown-table literal,
+`|= header 1 |...`, rendered today as raw un-parsed pipe text).
+
+### Corpus census-proof: zero fixtures reach zero from mechanism 24 alone
+### (searched, not assumed)
+
+Grepped the full 271-fixture `dot-cache/state` corpus for any `note` +
+`#<hex-or-name>` co-occurrence to find every candidate beneficiary BEFORE
+claiming any census movement: exactly 2 fixtures match
+(`fatupo-62-bemu777`, blocked by the separate creole/table gap above;
+`fotigo-12-gufu949`, `note on link #red`/`#blue`, blocked by BOTH the
+reverted fenced item's own edge-label gap AND `note on link`'s own
+`Transition.linkNoteColor` field, which was not built this iteration since
+`NOTE_COLOR_CAPTURE` deliberately excludes `note on link`'s rules). Neither
+reaches zero from mechanism 24 alone -- landed as a correct, additive,
+independently jar-verifiable improvement with NO fixture-count reach this
+iteration, the SAME "0 fixtures reach zero from it alone" shape S9's own
+mechanism 22 and S10's own mechanism 22 (bare `state`-element skinparam
+bucket) already established as acceptable precedent for this mission.
+
+### Composite-scoped notes (S10 item 4): investigated, NOT implemented
+
+Traced the exact two injection points a future iteration needs (both already
+have the right data available, no new plumbing to DISCOVER, only to WRITE):
+`state-composite-geo.ts#materializeCluster` (a non-autonom composite shares
+its container pass's `posMap`/`edgePosMap` -- `addScopeNotes(s.id, ctx, acc,
+cluster)` already pushes a cluster-scoped note's DOT node into the SAME
+accumulator `resolveClusterComposite` builds `children` from, but
+`materializeCluster` never converts it into a `StateNodeGeo`) and
+`#materializeAutonom` (an autonom composite's OWN separate pass result is
+already threaded as `spec.localPositions: DotLayoutResult`, including
+`.edges` -- the SAME shape `buildOneNoteGeo` already consumes for the
+top-level case, just never called for this scope).
+
+Did NOT implement: a targeted corpus grep (`note` and `{` co-occurring in
+the SAME `.puml`) found only 4 fixtures with this combination in the
+271-fixture corpus -- 2 are `note ... on link` (blocked on the reverted
+fenced item), 1 (`joleju-94-maru748`) is a 3-level concurrent-region nesting
+case far more complex than the materialization gap alone (its own comment
+literally says "breaks render" for a 3rd concurrency level), and 1
+(`dajipi-09-doki542`) also needs state/note HYPERLINKS (S8/S9's own
+separately-named, unbuilt item) to reach zero. With ZERO fixtures reachable
+by this mechanism ALONE this iteration, and real implementation risk
+(`materializeAutonom`'s own note injection would add ink into the SAME
+`computeSvekResultGeometry` walk this iteration's own fenced-item revert just
+demonstrated is fragile -- adding note-ink there without a fresh
+jar-verification pass risks repeating the SAME class of regression), deferred
+whole with the exact injection points named.
+
+### Attribution table (hand-verified samples, S12)
+
+| Fixture | Symptom | Root cause | Status |
+|---|---|---|---|
+| Fenced item (12 composite fixtures listed above) | `state-dot-parity.test.ts` size-backlog regression | Pre-existing S4 ink-under-count floor loses its accidental over-reservation compensation once real label sizes flow through | Fenced item REVERTED; adjacent bug named precisely for a combined future fix |
+| `fatupo-62-bemu777` | Note fill `fill="#FEFFDD"` (default) instead of jar's `fill="#FFFFFF"` | Mechanism 24's own target: solid `#color` never threaded to note render | **LANDED** (fill byte-exact verified); fixture stays non-zero (creole/table content, separate S10-named gap) |
+| `kujuzo-76-bavi505` | State box `fill="#red\|yellow"` (raw, unresolved) AND note fill wrong | Mechanism 24 covers the NOTE half only; state-box/note GRADIENT support is a separate, larger, unbuilt mechanism | NOT landed (gradient/`Paint` threading), scoped precisely for a future iteration |
+| `fotigo-12-gufu949` | `note on link #red`/`#blue`, neither color nor position/size correct | `note on link` blocked on 3 separate gaps: the fenced item (reverted), `Transition.linkNoteColor` (not built), and the label+note merge-stacking case (S11-named, still unbuilt) | NOT landed, triple-blocked |
+| `joleju-94-maru748` | 3-level concurrent nesting with composite-scoped notes; `dot-cache` fixture's own comment says a 3rd concurrency level "breaks render" | Composite-scoped note materialization gap (item 4) PLUS an independent, deeper concurrent-nesting limit | NOT landed, deferred whole |
+| `dajipi-09-doki542` | Top-level notes + unrelated composite elsewhere + state/note hyperlinks | Composite-scoped note materialization gap (item 4) PLUS the separately-named S8/S9 hyperlink gap | NOT landed, deferred whole |
+| 20 hand-verified samples (15 pinned + 5 investigation targets) | -- | -- | ALL 15 pinned fixtures reconfirmed `dotEqual: true, verdict: conformant` in the freshly regenerated `parity-state.json`; the 5 investigation-target fixtures (`fatupo`/`kujuzo`/`fotigo`/`vateco`/all confirmed `dotEqual: true` structurally, `verdict: diverged` as expected -- their remaining diffs trace to the separately-named, unbuilt gaps above, not to any S12 regression) |
+
+### Files changed (S12)
+
+- `src/diagrams/state/state-notes.ts` -- NEW `NOTE_COLOR_CAPTURE` constant;
+  `PendingNote`'s `attached`/`freestanding` variants gained `color?: string`;
+  `addNote`/`addFreestandingNote`/`finalizePendingNote` thread it through
+  (`addFreestandingNote`'s trailing 2 params bundled into a single `opts?`
+  object after the complexity hook flagged the 6-positional-param version).
+- `src/diagrams/state/state-commands-notes.ts` -- rules 10/11/13/14 switched
+  from `NOTE_COLOR` to `NOTE_COLOR_CAPTURE`, downstream `match[N]` indices
+  shifted by 1 accordingly; rules 12/12b unchanged.
+- `src/diagrams/state/ast.ts` -- `StateNote` gained `color?: string`.
+- `src/diagrams/state/renderer-note.ts` -- `buildOneNoteGeo` threads
+  `note.color` onto the materialized `StateNodeGeo`; both
+  `renderStateNoteFreestanding`/`renderStateNoteOpale` resolve fill via
+  `resolveStateFill(node, NOTE_FILL)` (imported from
+  `state-render-colors.ts`) instead of the hardcoded `NOTE_FILL` constant.
+- `tests/unit/state/state-notes.test.ts` -- NEW `describe('note #color
+  override', ...)` block, 7 tests.
+- `tests/unit/state/renderer-note.test.ts` -- 2 new `buildFlatNoteGeos`
+  color-threading tests, 2 new render-color-override tests (19 total, was
+  15).
+- `tests/unit/core/graph-layout.test.ts` -- REVERTED (restored to HEAD, `git
+  diff --stat` verified empty; the fenced item's own 2 new tests were part of
+  the reverted work, not landed).
+- `src/core/graph-layout-build.ts` -- REVERTED (restored to HEAD, `git diff
+  --stat` verified empty).
+- `tests/oracle/svg-conformance/parity-state.json` -- regenerated
+  (271/271 surveyed cleanly in one run, 46 conformant/6 structural-match/
+  219 diverged/0 errors/0 timeouts, identical to the pre-iteration figures --
+  diff is a `generatedAt` timestamp only).
+- `plans/g4-state-svg/README.md`, `ledger.md`, `decision-journal.md` -- this
+  entry.
+- No files left changed from the fenced-item investigation -- fully reverted
+  (`git status --short` shows only the 6 landed files above).
+
+### Ratchet / pins
+
+**0 new pins** (46 -> **46**, unchanged) -- no corpus fixture reaches
+zero-diff from mechanism 24 alone this iteration (census-proof section
+above); `state.golden.ratchet.test.ts` stays **48 tests** (46 pins),
+unchanged from S11. All 46 pre-existing pins re-verified
+`dotEqual: true, verdict: conformant` in the freshly regenerated
+`parity-state.json`.
+
+### size-backlog.json: unchanged (0 entries touched)
+
+Mechanism 24 is render-color-only (no sizing-formula changes) --
+`state-dot-parity.test.ts` (size-backlog ratchet) stayed **268/268**
+passing throughout, checked before AND after the fenced item's own
+implementation+revert cycle (12 failures mid-iteration while the fenced item
+was landed; 268/268 restored immediately after the revert; unaffected by
+mechanism 24). No entry was tightened or widened.
+
+### Gates (S12, final)
+
+- `state` census: **46/271** zero-diff (`1-3:27, 4-10:127, 11-30:26, 31+:45,
+  errors:0`) -- IDENTICAL to S11's own baseline, same 46-fixture SET
+  (diffed against `oracle/goldens/svg-state/ratchet.json`'s own pinned list,
+  zero additions/removals).
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
+  78/80 - state 267/267` -- EXACTLY unchanged, verified before AND after
+  both the fenced item's implementation and its revert.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing at
+  the START and END of this iteration (dipped to 256/268 mid-iteration while
+  the fenced item was landed, fully restored by the revert).
+- `npm test -- --run`: **10053/10053** passing (370 files), up from
+  10042/10042 (+11 new tests: 7 parser color tests, 4 render color tests).
+- `npm run typecheck` / `npm run lint` / `npm run build`: all clean.
+- `state.golden.ratchet.test.ts`: **48 tests** (46 pins), unchanged from
+  S11.
+
+### S13+ queue
+
+1. **Edge-label real-size injection gap + composite-internal-labeled-
+   transition ink under-count, COMBINED** (S11/S12) -- the fenced item's own
+   mechanism is fully derived, jar-verified, and ready to re-land AS-IS
+   (`graph-layout-build.ts#addEdges`'s `applyEdgeLabelAttrs`/
+   `htmlSizedLabel`, `HTML_LABEL_MARK = String.fromCharCode(1)`), but MUST
+   land together with a fix to `state-composite-autonom.ts
+   #buildPlainAutonomSpec`'s `Math.max(geometry.*, result.*)` floor (S4's own
+   named, twice-deferred item -- a prior attempt to measure label ink inline
+   overshot a different fixture and was reverted) in the SAME iteration, or
+   the SAME 12-fixture size-backlog regression will recur. A byte-exact
+   fix needs the label's real measured width/height reconciled against
+   `attachTransitionLabel`'s own placement formula (`state-transition-
+   label.ts`) -- `attachTransitionLabel` currently derives its position from
+   the routed spline's OWN midpoint, never from `edgeResult.labelX/labelY`
+   (graphviz-ts's real computed label position, now correct once the
+   injection lands) at all, which may itself be part of the fix.
+2. **`note ... on link`** (S10/S11, blocked on item 1 above) -- render shape
+   + DOM order + X-position formula already derived and jar-verified
+   independently (S11's own ledger entry); the label+note merge-stacking
+   sub-case (`jaxuxe`/`kupexa`) additionally needs `mergeLR`/`mergeTB`
+   stacking + a 13pt arrow-label font-size correction. `Transition
+   .linkNoteColor` (a NEW field, mirroring this iteration's `StateNote.color`
+   precedent) is needed for `fotigo-12-gufu949`'s own `#red`/`#blue`
+   overrides -- not built this iteration (`NOTE_COLOR_CAPTURE` deliberately
+   excludes `note on link`'s rules 12/12b).
+3. **State/note gradient (`Paint`) support** (NEW, S12) -- state's `#color`
+   resolution has NO gradient support at all (confirmed: a raw `#color1|
+   color2` token leaks unresolved into `fill="..."`), for BOTH state boxes
+   AND notes. Needs `core/paint.ts#parseColor`/`paintToSvg` wired through
+   EVERY state renderer call site currently consuming a plain `string` fill
+   (`renderer-box.ts`, `renderer-composite-box.ts`, `renderer-pseudostate.ts`
+   ellipses/diamonds, `renderer-note.ts`) plus a `<defs>`-collection
+   mechanism for the emitted `<linearGradient>` -- comparable in scope to
+   mechanism 21 (notes) itself. `kujuzo-76-bavi505` is the primary target.
+4. **Composite-scoped notes** (S10 item 4, re-diagnosed S12) -- the exact two
+   injection points are now named precisely (`state-composite-geo.ts
+   #materializeCluster`/`#materializeAutonom`, both already have the right
+   `posMap`/`edgePosMap` available) but ZERO corpus fixtures reach zero from
+   this alone (all 4 known combinations are ALSO blocked by a separate gap:
+   `note on link` x2, 3-level concurrent nesting, state/note hyperlinks) --
+   land only once one of those companion gaps ALSO closes, or budget a
+   from-scratch verification fixture.
+5. **Creole/table note content** (S10, unchanged) -- `fatupo-62-bemu777`.
+6. **CONC-region bare-name global numbering** (S8/S9, unchanged).
+7. Mechanism 16 (entity-vs-cluster wrap dimension) -- unchanged, LARGEST
+   family in the near-zero bucket.
+8. `stateBackgroundColor<<X>>`/`stateFontColor<<X>>`/`stateFontSize<<X>>`
+   (S9, unchanged) -- `laferu-31-tice836`.
+9. `<style>` cascade generalization (S4, unchanged, 3 sub-families).
+10. `<<sdlreceive>>` folded-frame shape (S9, unchanged, `cekolo-21-gini183`).
+11. `maruju-55-soko478`'s json+composite childCount gap (S9, unchanged).
+12. `pevene-26-kebo361`'s minlen=0 same-rank clip-inset delta (S8,
+    unchanged).
+13. `buildConcurrentRegionLeaf`'s own `creationIndex` gap (S7/S8, unchanged).
+14. `addStateBoxInk`'s max-corner asymmetry (S6, unchanged, 3 known
+    fixtures).
+15. State hyperlink (`[[url]]`) (S8/S9, unchanged, re-scoped, substantially
+    more complex than first framed).
+16. Creole/markdown bold (`**text**`) markup -- unchanged, unimplemented.
+17. `skin debug`/named-skin-file directive support -- unchanged, unscoped.
+18. `resolveStateFillBucketed` NOT yet wired into `renderer-pseudostate.ts`'s
+    choice/history/deepHistory call sites (S10, small follow-up).

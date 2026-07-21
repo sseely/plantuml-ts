@@ -108,6 +108,28 @@ describe('buildFlatNoteGeos', () => {
     const ast: StateDiagramAST = { states: [], transitions: [] };
     expect(buildFlatNoteGeos(ast, ctx())).toHaveLength(0);
   });
+
+  it('threads a note\'s #color override onto the materialized StateNodeGeo (mission G4 S12)', () => {
+    const ast: StateDiagramAST = {
+      states: [],
+      transitions: [],
+      notes: [note({ id: 'N1', text: 'hi', scopeId: '', color: '#FF0000' })],
+    };
+    const posMap = new Map([['N1', { id: 'N1', x: 0, y: 0, width: 50, height: 20 }]]);
+    const geos = buildFlatNoteGeos(ast, ctx({ posMap }));
+    expect(geos[0]!.color).toBe('#FF0000');
+  });
+
+  it('omits the color field entirely when the note has no override', () => {
+    const ast: StateDiagramAST = {
+      states: [],
+      transitions: [],
+      notes: [note({ id: 'N1', text: 'hi', scopeId: '' })],
+    };
+    const posMap = new Map([['N1', { id: 'N1', x: 0, y: 0, width: 50, height: 20 }]]);
+    const geos = buildFlatNoteGeos(ast, ctx({ posMap }));
+    expect(geos[0]!.color).toBeUndefined();
+  });
 });
 
 function baseNoteGeo(overrides: Partial<StateNodeGeo> = {}): StateNodeGeo {
@@ -149,6 +171,14 @@ describe('renderStateNoteFreestanding', () => {
     const ys = [...markup.matchAll(/y="([\d.]+)"/g)].map((m) => Number(m[1]));
     expect(ys[1]! - ys[0]!).toBeCloseTo(13, 5);
   });
+
+  it('mission G4 S12: a #color override replaces BOTH path fills, stroke unchanged', () => {
+    const geo = baseNoteGeo({ color: '#red' });
+    const markup = renderStateNoteFreestanding(geo, defaultTheme);
+    expect(markup).toContain('fill="#FF0000"');
+    expect(markup).not.toContain('fill="#FEFFDD"');
+    expect(markup).toContain(`stroke="${defaultTheme.colors.border}"`);
+  });
 });
 
 describe('renderStateNoteOpale', () => {
@@ -165,6 +195,16 @@ describe('renderStateNoteOpale', () => {
   it.each(['left', 'right', 'up', 'down'] as const)('dispatches direction %s to its own opale outline fn', (direction) => {
     const geo = baseNoteGeo({ noteOpale: { direction, pp1: { x: 5, y: 5 }, pp2: { x: 50, y: 15 } } });
     expect(() => renderStateNoteOpale(geo, defaultTheme)).not.toThrow();
+  });
+
+  it('mission G4 S12: a #color override replaces BOTH path fills', () => {
+    const geo = baseNoteGeo({
+      color: '#blue',
+      noteOpale: { direction: 'right', pp1: { x: 0, y: 15 }, pp2: { x: 120, y: 15 } },
+    });
+    const markup = renderStateNoteOpale(geo, defaultTheme);
+    expect(markup).toContain('fill="#0000FF"');
+    expect(markup).not.toContain('fill="#FEFFDD"');
   });
 });
 
