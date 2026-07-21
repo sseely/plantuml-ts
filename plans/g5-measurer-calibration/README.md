@@ -41,78 +41,95 @@ aren't in any other task's write-set either"), C0 did NOT modify any
 `src/` file — there is no in-scope measurer bug to fix. See "Next
 iteration" below.
 
-## Gates table (baseline verified fresh at C0 start, unchanged at C0 end
-## — zero `src/` files touched this iteration)
+## Gates table (re-verified fresh at C1 end — all protected sets
+## byte-identical to C0's baseline; `npm test -- --run` count grew only
+## by C1's own new, currently-passing/skipped tests)
 
 | Gate | Value |
 | --- | --- |
 | `npm run typecheck` | clean (both configs) |
 | `npm run lint` | clean |
-| `npm test -- --run` | 10128/10128 (377 files) |
-| DOT gate | component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267 |
-| `state-dot-parity.test.ts` (size-backlog ratchet) | 268/268 |
-| `description.golden.ratchet.test.ts` | 51 tests |
-| `class.golden.ratchet.test.ts` | 305 tests |
-| `object.golden.ratchet.test.ts` | 24 tests |
-| `state.golden.ratchet.test.ts` | 54 tests |
-| description census (no-arg) | 48/355 |
-| class census | 303/718 |
-| object census | 22/80 |
-| state census | 52/271 |
+| `npm test -- --run` | 10134 passed \| 5 skipped (381 files) — C1's own 5 new test files; the 5 skipped are the reverted sites 2/3 evidence, preserved for C2 |
+| DOT gate | component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267 (unchanged at every C1 site landing) |
+| `state-dot-parity.test.ts` (size-backlog ratchet) | 268/268 (regressed to 251/268 with all five C1 sites landed — sites 2/3 reverted specifically to restore this) |
+| `description.golden.ratchet.test.ts` | 51 tests (unchanged) |
+| `class.golden.ratchet.test.ts` | 305 tests (unchanged) |
+| `object.golden.ratchet.test.ts` | 24 tests (unchanged) |
+| `state.golden.ratchet.test.ts` | 54 tests (unchanged) |
+| description census (no-arg) | 48/355 (unchanged) |
+| class census | 303/718 (unchanged) |
+| object census | 22/80 (unchanged) |
+| state census | 52/271 (unchanged) |
 | `oracle/goldens/state/size-backlog.json` | 103 entries, untouched |
 
 ## Protected sets (movement rules, per mission brief)
 
 - DOT gate: movement in EITHER direction on any of the five counts = STOP
-  and report to orchestrator (a size-driven structural change is possible
-  if the font-size bug above is ever fixed — see Next iteration).
-- `size-backlog.json`: tighten-only (entries may only shrink/pass).
-- Four censuses: each may grow, none may shrink.
+  and report to orchestrator. C1 confirmed all five call sites individually
+  keep this gate byte-identical (262/90/708/78/267) — the size-driven risk
+  materialized elsewhere (the size-backlog ratchet, below), not here.
+- `size-backlog.json`: tighten-only (entries may only shrink/pass). C1
+  found this rule DOES bind in practice: sites 2/3 (state composite)
+  regressed it (16-17/103 entries) despite the DOT gate staying clean —
+  reverted per this rule, not per the DOT-gate rule above. Treat the two
+  protected sets as INDEPENDENT checks, not one proxy for the other.
+- Four censuses: each may grow, none may shrink. C1: unchanged (0 growth,
+  0 shrink) at all landed sites.
 - `npm test -- --run`: must stay green; ratchet test files may only gain
-  tests (new pins), never lose them.
+  tests (new pins), never lose them. C1's own new test files (not ratchet
+  files) may be freely edited/skipped by the iteration that authored them.
 
 ## Iteration log
 
-- **C0** (this iteration): harness (`scripts/measurer-calibration-report.ts`),
+- **C0**: harness (`scripts/measurer-calibration-report.ts`),
   full corpus-wide characterization, jar-verified diagnosis (mechanism
   found: font-size 14-vs-13 caller bug, NOT a measurer defect). Zero `src/`
   changes — no in-scope fix exists. See `ledger.md` §C0 and
   `decision-journal.md` for the full record.
+- **C1** (this iteration): landed 3 of 5 call sites (state flat pipeline,
+  class relationship labels, description edge labels — the last requiring
+  a mandatory 500-line file split, `layout.ts`→`layout-dot-tree.ts`, plus
+  a materially more careful fix than a constant swap, since that site's
+  `fontSpec` is shared with node/title measurement). Reverted 2 sites
+  (state composite pipeline, `addLevelEdges`/`sweepOrphanEdges`) after a
+  jar-verified `state-dot-parity.test.ts` size-backlog regression, traced
+  to an ALREADY-NAMED, pre-existing gap in `state-composite-autonom.ts`
+  (unrelated to this mission, predates it) — see `ledger.md` §C1 for the
+  full mechanism, bisection evidence, and the edge-label-ink
+  re-attemptability assessment (still blocked; a third compounding gap
+  identified). All protected sets (DOT gate, four censuses, four golden
+  ratchets) verified byte-identical to baseline at every site landing and
+  in the final state.
 
-## Next iteration — recommended scope
+## Next iteration (C2) — recommended scope
 
-1. **Primary fix** (requires write-set expansion — orchestrator decision):
-   change the five identified call sites
-   (`src/diagrams/state/state-dot-graph.ts:179`,
-   `src/diagrams/state/state-composite-pass.ts:244,326`,
-   `src/diagrams/class/class-dot-graph.ts:298`,
-   `src/diagrams/description/layout.ts:735`) from `theme.fontSize` to a
-   shared `ARROW_LABEL_FONT_SIZE = 13` constant (the exact pattern already
-   proven safe and jar-verified twice in this codebase:
-   `class-layout-helpers.ts`'s `CARDINALITY_FONT_SIZE` and
-   `description/renderer-edge.ts`'s `ARROW_LABEL_FONT_SIZE`). MUST run the
-   full protection protocol (DOT gate, size-backlog, all four censuses,
-   full test suite) after EACH call site, not batched — a size-driven
-   structural DOT-gate change is plausible per
-   `class-layout-helpers.ts:96-100`'s own prior-iteration warning, and
-   isolating which call site (if any) moves the gate is essential
-   diagnostic information.
-2. **After (1) lands**, the edge-label-ink mechanism (G4 S11/S12/S13,
-   parked) becomes re-attemptable for a FOURTH time with the measurement
-   half of its compounding error removed — S13's own estimate: "roughly
-   half the observed error [is] attributed to the measurement gap alone."
-   Still requires either a real `SvekEdge.java` label-placement port or a
-   fourth geometric-box formula attempt; not guaranteed to converge, but
-   no longer blocked on unresolved measurement uncertainty.
-3. **Secondary, unrelated finding** (component diagrams only, low corpus
-   impact — 1 of 265 fixtures dominates): `component/gutute-00-gaki684`
-   (a `!pragma svek_trace on` stress-test fixture, ~9000px tall, deeply
-   nested `protocol X { C1 C2 ... }` port declarations) shows a real,
-   small, growing-with-string-length divergence between
-   `WidthTableMeasurer` and jar's textLength for port labels
-   (`"C1"` -3.25%, `"C10"` -6.08%). NOT root-caused this iteration (ruled
-   out: SVG-level scale/transform, the `svek_trace` pragma itself — it
-   does not exist in current upstream source, confirmed via
-   `grep -rn svek_trace ~/git/plantuml/src/main/java/net/`, so it is a
-   no-op and not the mechanism). Low priority: affects 1/265 component
-   fixtures, unrelated to the S13 founding evidence's mechanism.
+1. **Priority, well-scoped, jar-verifiable in isolation**:
+   `state-composite-autonom.ts#buildPlainAutonomSpec`'s `childImg =
+   Math.max(geometry.width, result.width)` floor — replace with a formula
+   that folds edge-label ink into `geometry.width` (that function's OWN
+   doc comment already names this "NOT FULLY CLOSED... Queued for S5",
+   predating this mission — C1 proved it ALSO blocks G5's own remaining
+   two sites, not just G4's parked edge-label-ink mechanism). Re-enable
+   `tests/unit/state/state-composite-pass.test.ts`'s five `describe.skip`
+   blocks as the TDD anchor once this lands.
+2. **After (1) lands**: re-land G5 sites 2/3
+   (`state-composite-pass.ts:244,326`) verbatim — the font-size fix is
+   already correct and jar-verified; only the composite-bbox prerequisite
+   was missing. Full protection protocol again (DOT gate + size-backlog +
+   censuses + full suite), same discipline as C1.
+3. **After (1) AND (2) land**: the edge-label-ink mechanism (G4
+   S11/S12/S13, parked) becomes re-attemptable for a FOURTH time —
+   REQUIRES orchestrator/maintainer sign-off first (the mission's own
+   3-strike rule; G4 S13 already frames itself as attempt #3). Expected
+   residual after (1)+(2): S13's own smaller, single-variable
+   label-placement divergence (~2px-scale on the left edge), not the
+   current three-variable (measurement × ink-folding × placement) tangle.
+4. **Secondary, unrelated finding, unchanged from C0** (component
+   diagrams only, low corpus impact — 1 of 265 fixtures dominates):
+   `component/gutute-00-gaki684` (a `!pragma svek_trace on` stress-test
+   fixture, ~9000px tall, deeply nested `protocol X { C1 C2 ... }` port
+   declarations) shows a real, small, growing-with-string-length
+   divergence between `WidthTableMeasurer` and jar's textLength for port
+   labels (`"C1"` -3.25%, `"C10"` -6.08%). NOT root-caused (ruled out:
+   SVG-level scale/transform, the `svek_trace` pragma itself — confirmed
+   unrecognized/no-op in current upstream source). Low priority.

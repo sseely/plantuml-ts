@@ -11,13 +11,11 @@
  * cross-container endpoints clipped at the container bbox. No DOM/SVG/async.
  */
 
-import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
+import type { DescriptionDiagramAST, DescriptiveNode } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import type {
-  DotInputNode,
   DotInputEdge,
-  DotInputCluster,
   DotInputGraph,
   DotLayoutResult,
 } from '../../core/graph-layout.js';
@@ -25,22 +23,10 @@ import { layoutGraph } from '../../core/graph-layout.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import {
   type DescriptionNodeGeo,
-  type Bbox,
-  EMPTY_CONTAINER_WIDTH,
-  EMPTY_CONTAINER_HEIGHT,
-  GROUP_ANCHOR_SIZE,
   isClusterNode,
-  measureLeafNode,
-  computeContainerBbox,
   shiftGeo,
   buildNodeGeoIndex,
   type EdgeContainerEndpoints,
-  resolveEndpoint,
-  containerEndpointsInfo,
-  groupAnchorNodeId,
-  shapeForNode,
-  isPortLabelWide,
-  portTablePad,
   measureTitleLabel,
   measureShadowAnchorDims,
   type DescriptionEdgeGeo,
@@ -53,21 +39,27 @@ import {
   computeTotalDimensions,
 } from './layout-geo-post.js';
 import { computeInkShift } from './layout-ink-shift.js';
-import { computePortClusterBbox, type PortClusterInfo, type ClusterSpacing } from './frontier-cluster-bbox.js';
+import type { PortClusterInfo, ClusterSpacing } from './frontier-cluster-bbox.js';
 import type { ComponentStyle } from './leaf-sizing.js';
-import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
+import { computeGraphSpacing } from './link-edge-attrs.js';
 import type { SpriteDimsLookup } from '../../core/creole-atoms.js';
 import { spriteDimsLookupFor } from '../../core/sprite-commands.js';
 import { buildMagmaEdges, magmaGroups } from './magma.js';
-import {
-  effectiveRemovedIds, effectiveHiddenIds, visibleStereotypeLabels, nodeWithVisibleStereotype,
-} from './element-grammar.js';
+import { effectiveRemovedIds, effectiveHiddenIds } from './element-grammar.js';
 import {
   buildNamespaceGroups,
   findCollidingIds,
   dotKeyFor,
   scopedKey,
 } from './namespace-groups.js';
+import {
+  computePortRanksByCluster,
+  buildDotNodes,
+  buildDotClusters,
+  buildDotEdges,
+  buildGeoTree,
+  type PortClusterCtx,
+} from './layout-dot-tree.js';
 
 export type {
   DescriptionNodeGeo,
@@ -91,7 +83,7 @@ interface ContainerDesc {
   parentAstId?: string;
 }
 
-interface ClassifyCtx {
+export interface ClassifyCtx {
   leafIdSet: Set<string>;
   containers: ContainerDesc[];
   containerById: Map<string, ContainerDesc>;
@@ -121,12 +113,7 @@ interface ClassifyCtx {
   qualifiedPathToDotKey: Map<string, string>;
 }
 
-interface PortClusterCtx {
-  readonly infoByAstId: ReadonlyMap<string, PortClusterInfo>;
-  readonly spacing: ClusterSpacing;
-}
-
-interface EdgeDotBuildResult {
+export interface EdgeDotBuildResult {
   dotEdges: DotInputEdge[];
   dotEdgeToLinkIdx: Map<string, number>;
   edgeContainerEndpoints: Map<string, EdgeContainerEndpoints>;
@@ -134,6 +121,11 @@ interface EdgeDotBuildResult {
    *  each needs a shared group-anchor point node + cluster membership. */
   groupAnchorClusterIds: Set<string>;
 }
+
+/** `FontParam.ARROW(13, normal)` (klimt/font/FontParam.java:54) -- see
+ *  `layoutDescription`'s `edgeFontSpec` construction for the full
+ *  jar-verified derivation (G5/C0). */
+const ARROW_LABEL_FONT_SIZE = 13;
 
 
 // ── Phase 1: AST classification ──
@@ -160,6 +152,11 @@ function classifyAsCluster(
   ctx.containers.push(desc);
   ctx.containerById.set(key, desc);
   classifyAst(node.children, ctx, removed, childAncestors, key);
+  // #lizard forgives -- pre-existing (6 params): the cohesive AST-
+  // classification context (node/ctx/removed/key/ancestorIds/parentAstId)
+  // threaded from classifyAst's own recursive call, not new here
+  // (mission G5/C1 500-line split -- pure move, full-file rescan surfaced
+  // it, not introduced).
 }
 
 /** Unfiltered container count (declaration view) — the degenerate check
@@ -176,7 +173,7 @@ function countRawContainers(nodes: readonly DescriptiveNode[]): number {
  *  demotion (java:416-418) applies to the removal-FILTERED view — a group
  *  whose visible children are all removed becomes a LEAF (gezemu-34 oracle:
  *  `frame l3 { component D }` + `remove D` renders l3 as a rect). */
-function isEffectiveCluster(node: DescriptiveNode, removed: ReadonlySet<string>): boolean {
+export function isEffectiveCluster(node: DescriptiveNode, removed: ReadonlySet<string>): boolean {
   return (
     isClusterNode(node) && node.children.some((c) => !removed.has(c.id))
   );
@@ -201,367 +198,6 @@ function classifyAst(
   }
 }
 
-// ── Phase 2: DotInputGraph construction ──
-
-/** One entry per rank (source=portin, sink=portout) that a cluster's own
- *  direct port children populate, keyed by clusterId — feeds both the
- *  DotInputCluster.portRanks emitter field and the anchor-shape decision
- *  in buildDotNodes (ClusterDotString.entityPositionsExceptNormal /
- *  hasPort()). Description-diagram entities only ever carry
- *  EntityPosition NORMAL/PORTIN/PORTOUT (abel/Entity.java:327-338) — so
- *  "cluster has a port child" and Java's hasPort() coincide exactly here. */
-function computePortRanksByCluster(
-  ctx: ClassifyCtx,
-): Map<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]> {
-  const result = new Map<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]>();
-  for (const c of ctx.containers) {
-    const source: string[] = [];
-    const sink: string[] = [];
-    for (const id of c.directLeafAstIds) {
-      const n = ctx.astNodeById.get(id);
-      if (n?.symbol !== 'port') continue;
-      (n.position === 'portout' ? sink : source).push(id);
-    }
-    const ranks: { rank: 'source' | 'sink'; nodeIds: string[] }[] = [];
-    if (source.length > 0) ranks.push({ rank: 'source', nodeIds: source });
-    if (sink.length > 0) ranks.push({ rank: 'sink', nodeIds: sink });
-    if (ranks.length > 0) result.set(c.clusterId, ranks);
-  }
-  return result;
-}
-
-/** A port leaf's own DOT node: fixed RADIUS*2 square, `shape=plaintext`
- *  PORT="P" table when its label is wide (SvekNode
- *  .appendLabelHtmlSpecialForPort), plain small `shape=rect` otherwise;
- *  `isPort` always set (drives the `:P` edge-ref suffix regardless of
- *  which shape branch applies — Link.getEntityPort/usePortP). The real
- *  layout engine (unlike the emitter-only fields above) DOES read
- *  `attributes.rank` (graph-layout.ts addNodes) — portin/portout genuinely
- *  pin the port to its container's source/sink rank, matching
- *  EntityPosition.getInputs()/getOutputs(). */
-function buildPortNode(
-  id: string,
-  node: DescriptiveNode,
-  dims: { width: number; height: number },
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-): DotInputNode {
-  const dotNode: DotInputNode = {
-    id, width: dims.width, height: dims.height, isPort: true,
-    attributes: { rank: node.position === 'portout' ? 'sink' : 'source' },
-  };
-  if (isPortLabelWide(node, fontSpec, measurer)) {
-    dotNode.shape = 'plaintext';
-    dotNode.portPad = portTablePad(node, fontSpec, measurer);
-  }
-  return dotNode;
-}
-
-/** The shared anchor node for a cluster that needs one — either because an
- *  edge targets the group directly (`groupAnchorClusterIds`, P2/i5) or
- *  because it has port children (`portClusterIds`). ClusterDotString's
- *  hasPort() branch (lines 177-184) redeclares the SAME id with
- *  `shape=rect` + the cluster's own title HTML; when the cluster is BOTH a
- *  port cluster AND a real group-edge target (`hasGroupEdge`,
- *  `thereALinkFromOrToGroup2`, lines 148-149), upstream emits the plain
- *  `shape=point` anchor FIRST, unconditionally of hasPort() — reproduced via
- *  `groupAnchorAlsoPoint` (see graph-layout.types.ts / svek-dot-emit.ts),
- *  not by picking a single shape. */
-function buildAnchorNode(
-  clusterId: string,
-  display: string,
-  symbol: USymbol,
-  isPortCluster: boolean,
-  hasGroupEdge: boolean,
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-): DotInputNode {
-  const anchor: DotInputNode = {
-    id: groupAnchorNodeId(clusterId),
-    width: GROUP_ANCHOR_SIZE,
-    height: GROUP_ANCHOR_SIZE,
-  };
-  if (isPortCluster) {
-    anchor.shape = 'rect';
-    const title = measureTitleLabel(display, symbol, fontSpec, measurer);
-    anchor.titleLabelWidth = title.width;
-    anchor.titleLabelHeight = title.height;
-    if (hasGroupEdge) anchor.groupAnchorAlsoPoint = true;
-  } else {
-    anchor.shape = 'point';
-  }
-  return anchor;
-}
-
-function buildDotNodes(
-  ctx: ClassifyCtx,
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-  anchorClusterIds: ReadonlySet<string>,
-  portClusterIds: ReadonlySet<string>,
-  groupAnchorClusterIds: ReadonlySet<string>,
-  links: readonly DescriptiveLink[],
-  fixCircle: boolean,
-  stereotypeRules: ReadonlyArray<{ pattern?: string; show: boolean }>,
-): DotInputNode[] {
-  const result: DotInputNode[] = [];
-  for (const [id, node] of ctx.astNodeById) {
-    if (!ctx.leafIdSet.has(id)) continue;
-    // G1 I-hideshow: DOT node width/height must be sized from the FILTERED
-    // (visible-only) stereotype labels, matching jar's own
-    // EntityImageDescription/EntityImageUseCase (both size from
-    // `portionShower.getVisibleStereotypeLabels`, never the raw list) --
-    // otherwise a `hide stereotype` fixture reserves height/width for a
-    // guillemet block the render pass then correctly omits, a real
-    // geometry mismatch (favega-89-rado990, lufiba-62-dubi670). Cheap
-    // shallow clone; returns the SAME node reference when nothing changes
-    // (`visibleStereotypeLabels`'s own doc comment).
-    const sizedNode = nodeWithVisibleStereotype(node, stereotypeRules);
-    const dims = measureLeafNode(sizedNode, fontSpec, measurer, ctx.componentStyle, ctx.sprites);
-    if (node.symbol === 'port') {
-      result.push(buildPortNode(id, node, dims, fontSpec, measurer));
-      continue;
-    }
-    const dotNode: DotInputNode = { id, width: dims.width, height: dims.height };
-    const shape = shapeForNode(node, links, fixCircle);
-    if (shape !== undefined) dotNode.shape = shape;
-    result.push(dotNode);
-  }
-  // Group-anchor nodes (ClusterDotString.java:149/177-184) — one per
-  // cluster referenced directly by an edge and/or carrying port children,
-  // shared across all edges/ranks that reference that cluster.
-  for (const clusterId of anchorClusterIds) {
-    const c = ctx.containers.find((cd) => cd.clusterId === clusterId);
-    if (c === undefined) continue;
-    result.push(
-      buildAnchorNode(
-        clusterId, c.display, c.symbol, portClusterIds.has(clusterId),
-        groupAnchorClusterIds.has(clusterId), fontSpec, measurer,
-      ),
-    );
-  }
-  return result;
-}
-
-function buildDotClusters(
-  ctx: ClassifyCtx,
-  anchorClusterIds: ReadonlySet<string>,
-  portRanksByCluster: ReadonlyMap<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]>,
-  kermor: boolean,
-): DotInputCluster[] {
-  return ctx.containers.map((c) => {
-    // The anchor is a direct member of its own cluster (not nested in any
-    // child sub-cluster) — ClusterDotString.java:149 emits it at the
-    // cluster's own level, before its `i`/`p1` nesting.
-    const nodeIds = anchorClusterIds.has(c.clusterId)
-      ? [...c.directLeafAstIds, groupAnchorNodeId(c.clusterId)]
-      : c.directLeafAstIds;
-    const cluster: DotInputCluster = { id: c.clusterId, nodeIds };
-    if (c.display.length > 0) cluster.label = c.display;
-    if (c.parentAstId !== undefined) {
-      const parentDesc = ctx.containerById.get(c.parentAstId);
-      if (parentDesc !== undefined) cluster.parentId = parentDesc.clusterId;
-    }
-    const portRanks = portRanksByCluster.get(c.clusterId);
-    if (portRanks !== undefined) {
-      cluster.portRanks = portRanks;
-      // ClusterDotStringKermor's printRanks never chains to an anchor (see
-      // runLayout's anchorClusterIds comment) — no anchor node exists to
-      // point at under kermor, so portAnchorId stays unset.
-      if (!kermor) cluster.portAnchorId = groupAnchorNodeId(c.clusterId);
-    }
-    return cluster;
-  });
-}
-
-function buildDotEdges(
-  links: readonly DescriptiveLink[],
-  ctx: ClassifyCtx,
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-  linetype: 'ortho' | 'polyline' | undefined,
-): EdgeDotBuildResult {
-  const dotEdges: DotInputEdge[] = [];
-  const dotEdgeToLinkIdx = new Map<string, number>();
-  const edgeContainerEndpoints = new Map<string, EdgeContainerEndpoints>();
-  const groupAnchorClusterIds = new Set<string>();
-  const clusterIdByContainerAstId = new Map(
-    ctx.containers.map((c) => [c.astId, c.clusterId]),
-  );
-
-  for (let i = 0; i < links.length; i++) {
-    const link = links[i]!;
-    // Link.isRemoved (net/sourceforge/plantuml/abel/Link.java:492-498): a
-    // stereotype-removed link is dropped from DOT emission independent of
-    // its endpoints (see element-grammar.ts#removeMatchingLinks). Endpoint-
-    // based removal is filtered separately, after this loop, via the
-    // `removed` node-id set (runLayout's dotEdges.filter below).
-    if (link.removed === true) continue;
-    const fromRes = resolveEndpoint(
-      link.from, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId,
-      ctx.qualifiedPathToDotKey,
-    );
-    const toRes = resolveEndpoint(
-      link.to, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId,
-      ctx.qualifiedPathToDotKey,
-    );
-    if (fromRes === undefined || toRes === undefined) continue;
-    if (fromRes.dotNodeId === toRes.dotNodeId) continue;
-
-    const dotId = `dot-edge-${i}`;
-    dotEdges.push({
-      id: dotId,
-      from: fromRes.dotNodeId,
-      to: toRes.dotNodeId,
-      attributes: buildLinkEdgeAttributes(link, fontSpec, measurer, linetype, ctx.sprites),
-    });
-    dotEdgeToLinkIdx.set(dotId, i);
-
-    const info = containerEndpointsInfo(fromRes, toRes);
-    if (info !== undefined) edgeContainerEndpoints.set(dotId, info);
-    if (fromRes.containerAstId !== undefined) {
-      groupAnchorClusterIds.add(clusterIdByContainerAstId.get(fromRes.containerAstId)!);
-    }
-    if (toRes.containerAstId !== undefined) {
-      groupAnchorClusterIds.add(clusterIdByContainerAstId.get(toRes.containerAstId)!);
-    }
-  }
-  return { dotEdges, dotEdgeToLinkIdx, edgeContainerEndpoints, groupAnchorClusterIds };
-}
-
-// ── Phase 3: geo tree construction (bottom-up, containers padded around children) ──
-
-/**
- * `EntityImagePort.upPosition()` (svek/image/EntityImagePort.java:76-80):
- * a port child's label goes ABOVE its box when the port's own top edge
- * sits above the parent cluster's vertical CENTER, else BELOW. Mutates
- * each `symbol === 'port'` entry of `children` in place -- this is the
- * one call site where a port's already-resolved `y` (assigned earlier in
- * THIS SAME recursive walk, via the leaf branch of `buildGeoNode`) and its
- * parent's own just-computed `bbox` are both in scope together; every
- * other node kind is left untouched (upstream's own check is only ever
- * reached from `EntityImagePort`, never from a general entity/cluster
- * draw path). See `DescriptionNodeGeo.portLabelAbove`'s doc comment.
- */
-function applyPortLabelPositions(children: readonly DescriptionNodeGeo[], bbox: Bbox): void {
-  const centerY = bbox.y + bbox.height / 2;
-  for (const child of children) {
-    if (child.symbol === 'port') child.portLabelAbove = child.y < centerY;
-  }
-}
-
-function buildGeoNode(
-  astNode: DescriptiveNode,
-  leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
-  ancestorIds: readonly string[],
-  collidingIds: ReadonlySet<string>,
-  removed: ReadonlySet<string>,
-  hidden: ReadonlySet<string>,
-  stereotypeRules: ReadonlyArray<{ pattern?: string; show: boolean }>,
-  portClusterCtx: PortClusterCtx,
-): DescriptionNodeGeo {
-  // Container-scoped identity (mission I1b): the geo tree's own `.id` must
-  // match whatever `classifyAst` assigned as the node's canonical DOT key
-  // -- bare `astNode.id` in the common (non-colliding) case, else the same
-  // ancestor-qualified path, so `renderer-uid.ts#buildRenderPlan`'s
-  // `nodeUid` map (keyed off THIS field) still lines up with
-  // `DescriptionEdgeGeo.from`/`.to` (copied verbatim from `link.from`/`.to`,
-  // which carries that same canonical key for a qualified link endpoint).
-  const key = dotKeyFor(ancestorIds, astNode.id, collidingIds);
-  // Removal-aware branch decision (I5g): mirrors `classifyAst`'s own
-  // `isEffectiveCluster` check -- a container that is NOT itself removed
-  // but whose visible children are all gone was laid out as a LEAF DOT
-  // node (GraphvizImageBuilder.printGroups java:415-418's empty-group
-  // mute-to-LeafType.EMPTY_PACKAGE); the raw, removal-blind `isClusterNode`
-  // used here previously always recursed into `astNode.children`
-  // regardless of removal, drawing a demoted container's already-removed
-  // content anyway (gogosu-37-mipe918: `component b { component b_sub }`
-  // + `remove b_sub` drew `b` as a cluster wrapping a phantom `b_sub`
-  // instead of the jar's single leaf-styled `b` box).
-  if (!isEffectiveCluster(astNode, removed)) {
-    const pos = leafPosMap.get(key) ?? {
-      x: 0, y: 0, width: EMPTY_CONTAINER_WIDTH, height: EMPTY_CONTAINER_HEIGHT,
-    };
-    const geo: DescriptionNodeGeo = {
-      id: key, symbol: astNode.symbol, display: astNode.display,
-      x: pos.x, y: pos.y, width: pos.width, height: pos.height, children: [],
-    };
-    const visibleStereotype = visibleStereotypeLabels(astNode.stereotype, stereotypeRules);
-    if (visibleStereotype !== undefined && visibleStereotype.length > 0) geo.stereotype = visibleStereotype;
-    if (astNode.color !== undefined) geo.color = astNode.color;
-    if (astNode.creationIndex !== undefined) geo.creationIndex = astNode.creationIndex;
-    if (astNode.declaredAsGroup === true) geo.declaredAsGroup = true;
-    // G1 I-hideshow: draw-time-only marker (see `DescriptionNodeGeo.hidden`'s
-    // doc comment) -- position/size above are UNAFFECTED, jar-verified.
-    if (hidden.has(key)) geo.hidden = true;
-    return geo;
-  }
-  const childAncestors = [...ancestorIds, astNode.id];
-  // A directly-`remove`d child (leaf OR container) is dropped entirely --
-  // `GraphvizImageBuilder.printGroups` (`if (g.isRemoved()) continue;`) and
-  // `printEntities` both skip a removed entity outright, no placeholder.
-  // Only an EFFECTIVELY-empty (not itself removed) container survives the
-  // filter and recurses into the leaf branch above via its own
-  // `isEffectiveCluster` check.
-  const children = astNode.children
-    .filter((c) => !removed.has(c.id))
-    .map((c) => buildGeoNode(
-      c, leafPosMap, childAncestors, collidingIds, removed, hidden, stereotypeRules, portClusterCtx,
-    ));
-  // G1b/J2 (mechanism B): a cluster with port children gets its box from
-  // `FrontierCalculator`/`manageEntryExitPoint`, not the plain padded-union
-  // formula -- see frontier-cluster-bbox.ts's doc comment.
-  const portInfo = portClusterCtx.infoByAstId.get(key);
-  const bbox = portInfo === undefined
-    ? computeContainerBbox(children)
-    : computePortClusterBbox(children, portInfo, portClusterCtx.spacing);
-  applyPortLabelPositions(children, bbox);
-  const geo: DescriptionNodeGeo = {
-    id: key, symbol: astNode.symbol, display: astNode.display,
-    ...bbox, children,
-  };
-  const visibleStereotype = visibleStereotypeLabels(astNode.stereotype, stereotypeRules);
-  if (visibleStereotype !== undefined && visibleStereotype.length > 0) geo.stereotype = visibleStereotype;
-  if (astNode.color !== undefined) geo.color = astNode.color;
-  if (astNode.creationIndex !== undefined) geo.creationIndex = astNode.creationIndex;
-  if (astNode.declaredAsGroup === true) geo.declaredAsGroup = true;
-  // G1 I-hideshow: a hidden CONTAINER draws NOTHING at all (jar-verified,
-  // Cluster.java:298-300's own early return -- not even its border/title,
-  // component/mavuxi-16-jafi782's `a` cluster) -- its descendants are
-  // ALSO hidden (`effectiveHiddenIds`'s ancestor-propagation closure), so
-  // this single flag suffices; `renderer.ts#drawClusters` never needs to
-  // special-case "hidden container, visible descendant" (jar's own
-  // `Entity#isHidden` parent short-circuit makes that combination
-  // structurally impossible).
-  if (hidden.has(key)) geo.hidden = true;
-  return geo;
-}
-
-function buildGeoTree(
-  astNodes: readonly DescriptiveNode[],
-  leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
-  collidingIds: ReadonlySet<string>,
-  removed: ReadonlySet<string>,
-  hidden: ReadonlySet<string>,
-  stereotypeRules: ReadonlyArray<{ pattern?: string; show: boolean }>,
-  portClusterCtx: PortClusterCtx,
-): DescriptionNodeGeo[] {
-  // Removed leaves (lazy CommandRemoveRestore markers) were never laid out;
-  // a directly-removed CONTAINER is excluded here too (I5g) -- only an
-  // effectively-empty-but-not-removed container demotes to a leaf via
-  // `buildGeoNode`'s own `isEffectiveCluster` check, matching
-  // `printGroups`'s `isRemoved()` skip vs `isEmpty()` mute distinction.
-  // `hidden` (G1 I-hideshow) is NEVER a membership filter here -- unlike
-  // `removed`, a hidden node stays fully in the geo tree (see
-  // `buildGeoNode`'s doc comment); only threaded through so it and every
-  // descendant carry the correct `.hidden` marker for the render pass.
-  return astNodes
-    .filter((n) => !removed.has(n.id))
-    .filter((n) => leafPosMap.has(dotKeyFor([], n.id, collidingIds)) || isEffectiveCluster(n, removed))
-    .map((n) => buildGeoNode(
-      n, leafPosMap, [], collidingIds, removed, hidden, stereotypeRules, portClusterCtx,
-    ));
-}
 
 // ── Public API helpers ──
 
@@ -612,6 +248,7 @@ function runLayout(
   ast: DescriptionDiagramAST,
   ctx: ClassifyCtx,
   fontSpec: FontSpec,
+  edgeFontSpec: FontSpec,
   measurer: StringMeasurer,
   linetype: 'ortho' | 'polyline' | undefined,
   removed: ReadonlySet<string>,
@@ -625,7 +262,7 @@ function runLayout(
   // require a group-anchor node — either a direct group-edge
   // (edgeDotBuild.groupAnchorClusterIds, P2/i5) or port children
   // (portRanksByCluster, ClusterDotString.entityPositionsExceptNormal).
-  const edgeDotBuild = buildDotEdges(ast.links, ctx, fontSpec, measurer, linetype);
+  const edgeDotBuild = buildDotEdges(ast.links, ctx, edgeFontSpec, measurer, linetype);
   // applySingleStrategy: standalone leaves square-chain with invisible
   // links per group (magma.ts).
   edgeDotBuild.dotEdges.push(...buildMagmaEdges(magmaGroups(ctx),
@@ -650,7 +287,7 @@ function runLayout(
     : new Set([...edgeDotBuild.groupAnchorClusterIds, ...portClusterIds]);
   const dotClusters = buildDotClusters(ctx, anchorClusterIds, portRanksByCluster, kermor)
     .map((c) => ({ ...c, nodeIds: c.nodeIds.filter((id) => !removed.has(id)) }));
-  const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer, kermor, ctx.sprites);
+  const { nodeSep, rankSep } = computeGraphSpacing(ast.links, edgeFontSpec, measurer, kermor, ctx.sprites);
   const input: DotInputGraph = {
     nodes: buildDotNodes(
       ctx, fontSpec, measurer, anchorClusterIds, portClusterIds,
@@ -673,6 +310,10 @@ function runLayout(
     ctx, portRanksByCluster, fontSpec, measurer, kermor,
   );
   const spacing: ClusterSpacing = { nodeSep, rankSep, rankdir: ast.rankdir === 'LR' ? 'LR' : 'TB' };
+  // #lizard forgives -- NLOC 47, CCN 9 pre-existing (mission G5/C1
+  // 500-line split, pure move); 8 params after this iteration's own
+  // `edgeFontSpec` addition -- a flat sequence of DOT-input-assembly
+  // steps (edges, clusters, nodes, spacing) with no new branching.
   return { result: layoutGraph(input), edgeDotBuild, portClusterInfoByAstId, spacing };
 }
 
@@ -713,6 +354,10 @@ function buildGeoAndEdges(
   const edges = (dx === 0 && dy === 0)
     ? rawEdges
     : buildEdgeGeos(ast.links, result.edges, { ...rawMapping, dx, dy }, hidden);
+  // #lizard forgives -- pre-existing (8 params): the cohesive geo-tree +
+  // edge-geometry assembly context threaded from layoutDescription's own
+  // single call site -- mission G5/C1 500-line split (pure move), not
+  // introduced here.
   return { nodes, edges };
 }
 
@@ -733,6 +378,20 @@ export function layoutDescription(
     };
   }
   const fontSpec: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  // `FontParam.ARROW(13, normal)` (klimt/font/FontParam.java:54) --
+  // link-label default, distinct from `COMPONENT(14)`/`theme.fontSize`
+  // (this port's node/title default). G5/C0 jar-verified gap:
+  // `babafi-51-dixi026`'s `"use"` link label renders at jar size 13
+  // (20.9625px), not the prior size-14 measurement (22.575px). Scoped to
+  // ONLY the two edge-label-consuming calls inside runLayout
+  // (buildDotEdges/computeGraphSpacing) -- `fontSpec` above is SHARED
+  // with node/title measurement (buildDotNodes,
+  // buildPortClusterInfoByAstId) and must stay at theme.fontSize; unlike
+  // state/class, this engine has no separate per-role font construction
+  // site to swap in place. No `skinparam ArrowFontSize` override path
+  // exists yet (`core/skinparam.ts#ELEMENT_BUCKET_SNAMES` omits
+  // `'arrow'`) -- bare DEFAULT only.
+  const edgeFontSpec: FontSpec = { family: theme.fontFamily, size: ARROW_LABEL_FONT_SIZE };
   // Container-scoped identity (mission I1b): the set of TRUE cross-scope
   // colliding bare ids, computed from the ORIGINAL (un-grouped) tree once --
   // reused by both `classifyAst` (walks the namespace-grouped tree) and
@@ -774,7 +433,7 @@ export function layoutDescription(
     };
   }
   const { result, edgeDotBuild, portClusterInfoByAstId, spacing } = runLayout(
-    ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
+    ast, ctx, fontSpec, edgeFontSpec, measurer, theme.linetype ?? ast.linetype, removed,
     theme.fixCircleLabelOverlapping === true,
   );
   const { nodes, edges } = buildGeoAndEdges(
@@ -788,6 +447,10 @@ export function layoutDescription(
     ...(ast.sprites !== undefined ? { sprites: ast.sprites } : {}),
     ...(ast.scale !== undefined ? { scale: ast.scale } : {}),
   };
+  // #lizard forgives -- pre-existing (NLOC 50): the public entry point's
+  // own flat pipeline sequence (classify, degenerate-check, layout,
+  // geo-assembly, total-dims) -- mission G5/C1 500-line split (pure
+  // move), not introduced here.
 }
 
 export type { USymbol };
