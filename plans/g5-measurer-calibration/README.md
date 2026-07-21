@@ -41,12 +41,10 @@ aren't in any other task's write-set either"), C0 did NOT modify any
 `src/` file — there is no in-scope measurer bug to fix. See "Next
 iteration" below.
 
-## Gates table (re-verified fresh at C5 end — DOT gate/censuses/golden
-## ratchets/size-backlog ALL byte-identical to C4's baseline; C4's own
-## revert left `size-backlog.json` at 93 entries, not 92 -- see C4's own
-## ledger entry, unrelated to this iteration which touched none of it;
-## `npm test -- --run` count grew only by C5's own new, currently-passing
-## test cases)
+## Gates table (re-verified fresh at C6 end -- DOT gate/censuses/golden
+## ratchets/size-backlog ALL byte-identical to C5's baseline; C6 landed a
+## fifth edge-label-ink attempt, then reverted it in full per protocol
+## (see ledger.md §C6) -- nothing below moved as a result)
 
 | Gate | Value |
 | --- | --- |
@@ -81,6 +79,14 @@ iteration" below.
 - `npm test -- --run`: must stay green; ratchet test files may only gain
   tests (new pins), never lose them. C1's own new test files (not ratchet
   files) may be freely edited/skipped by the iteration that authored them.
+- C6: reconfirmed the `size-backlog.json` tighten-only rule binds even
+  when a change is a clear NET improvement (10/15 control-set PASS vs.
+  C4's 9/15, 7/8 backlog regressions fixed) — 6 residual failures still
+  meant a full revert, no partial credit. Also established a new
+  diagnostic technique worth reusing: toggling a candidate dead-code path
+  (the `Math.max` floor) across the FULL corpus, not just the named
+  control set, to get a corpus-wide dead/live proof rather than an
+  inference from 15-23 samples.
 
 ## Iteration log
 
@@ -189,7 +195,33 @@ iteration" below.
   its own still-undeived WithLabel-branch width formula. See `ledger.md`
   §C5 for the full derivation, the corpus evidence, and the C6+ queue.
 
-## Next iteration (C6) — recommended scope
+- **C6** (maintainer sign-off 2026-07-21, "Attempt the floor fix" — fifth
+  attempt at the edge-label-ink mechanism, targeted precisely at C4's own
+  isolated root: `geometry.width` never folded label ink in at all): landed
+  a jar-faithful fold (new `TransitionGeo.labelInk`, real graphviz
+  `labelX`/`labelY` centered box + jar-exact width/height), re-landed C1's
+  font-fix (sites 2/3) and C4's HTML-FIXEDSIZE injection verbatim, then
+  PROVED the `Math.max(geometry.width, result.width)` floor is fully dead
+  code — corpus-wide (267/268 fixtures), not just the 15-fixture control
+  set, removing it changes NOTHING. Materially better than C4: 10/15
+  control-set fixtures pass (up from 9/15, including `bunade-42-fudu910`,
+  which C4 could not clear), and 7 of C4's own 8 non-control-set backlog
+  regressions are now fixed. But 6/268 `state-dot-parity.test.ts` fixtures
+  still fail — `bajelo-54-dixe684`/`rovese-43-tadu368`/`beguxu-19-tize774`
+  byte-identical to C4's own numbers (this iteration's ink-fold contributes
+  NOTHING to them, proving their regression is C4's injection/font-fix
+  package alone, unrelated to the floor), `pesita-10-dene726` WORSE than
+  C4, `nimana-36-veco708`/`fotuje-06-fifa085` improved but still short.
+  REVERTED IN FULL per the mission's own protocol (9 files restored
+  byte-for-byte to the C5 HEAD commit) rather than widen any `size-
+  backlog.json` entry. All protected sets re-verified byte-identical to
+  the C5 baseline after the revert. See `ledger.md` §C6 for the full
+  derivation, the 15-fixture control-set table, the corpus-wide floor-dead
+  proof, and the precisely-scoped C7+ queue (the floor question is now
+  CLOSED; the real remaining blocker is C4's injection package's own
+  interaction with 3 specific, already-partially-characterized fixtures).
+
+## Next iteration (C7) — recommended scope
 
 0. **PRIORITY, newly characterized this iteration**: the cluster WIDTH/
    side-margin gap (graphviz's own 8pt default cluster margin vs jar's
@@ -230,15 +262,36 @@ iteration" below.
    nested call sites (`state-composite-cluster.ts`/`state-composite-
    autonom.ts`/`state-composite-concurrent.ts`'s own `sortSpecsByCreation
    Index` calls, unchanged).
-6. **The `buildPlainAutonomSpec#Math.max(geometry.width, result.width)`
-   floor** — now the confirmed sole blocker for THREE independent
-   mechanisms (C4's own edge-label-ink derivation, mechanism 16's
-   nested-cluster adoption from C3, and sites 2/3). A fifth attempt (S4 +
-   S13's 3 variants + C4 = 4 prior attempts) needs its own explicit
-   orchestrator/maintainer sign-off. See `ledger.md` §C4's own C5+ queue
-   item 2 for the specific next-derivation candidate.
-7. **Sites 2/3 remain blocked** — unchanged from C1/C2/C4, same G4 S11-S13
-   edge-label-ink mechanism, same sign-off requirement.
+6. **CLOSED this iteration: the `buildPlainAutonomSpec#Math.max
+   (geometry.width, result.width)` floor.** C6 proved it dead code
+   corpus-wide (267/268 fixtures, floor-present vs. floor-removed
+   byte-identical) once label-ink folding + C1's font-fix + C4's HTML
+   injection all land together — `geometry.width`/`height` alone is the
+   correct final formula, no further derivation needed on this specific
+   question. Do NOT re-attempt deriving a floor-replacement formula; that
+   part is done.
+7. **The REAL remaining blocker (C6's own finding): C4's injection/
+   font-fix package's own interaction with 3 specific fixtures/families**,
+   NOT the floor. (a) `bajelo-54-dixe684`/`rovese-43-tadu368` — byte-
+   identical deltas to C4 in C6 too (S13's own "unrelated... identical
+   across every variant" framing holds a THIRD time); worth checking
+   against item 0's own cluster side-margin gap as a shared root, since
+   both are deep-nesting composite families. (b) `pesita-10-dene726` — the
+   one fixture C6 made WORSE than C4 (+0.041666); needs its OWN dedicated
+   diagnosis (not a `labelInk` formula variant — C6's own boundary already
+   forbade that). (c) `beguxu-19-tize774`/`fotuje-06-fifa085`/`nimana-36-
+   veco708` — all three IMPROVED in C6 and are now failing by SMALL
+   margins (`+0.006945`/`+0.013341`/`+0.048611`) — re-measure these FIRST
+   once (a)/(b) are independently understood; closing either might shrink
+   these to zero as a side effect, mirroring how `bunade`/7 backlog
+   regressions cleared as a side effect of C6's ink-fold without being
+   independently targeted. A seventh attempt at (some part of) this
+   mechanism (S4, S13×3, C4, C6 = 5 prior attempts) needs its own explicit
+   orchestrator/maintainer sign-off, scoped EXACTLY to (a)/(b)/(c) above —
+   sites 2/3 + the injection mechanism are fully re-landable verbatim the
+   moment those close, no further formula search needed on the ink-fold/
+   injection/readback side itself. See `ledger.md` §C6 for the full
+   per-fixture table and mechanism.
 8. **`class="entity"` vs jar's `class="cluster"`** — a confirmed-unrelated,
    pre-existing, renderer-wide convention gap (NOT mechanism 16, not this
    mission's scope), logged for a future iteration.

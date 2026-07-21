@@ -1869,3 +1869,335 @@ defect in items 1a/1b/2 themselves).
    orchestrator/maintainer sign-off (3-strike rule, now 4 prior attempts).
 7. **Unchanged from C0-C4**: the secondary `gutute-00-gaki684` (component
    port-label divergence) finding remains unresolved, low priority.
+## C6 — fifth attempt at the edge-label-ink mechanism (maintainer sign-off
+## 2026-07-21, "Attempt the floor fix"), targeted precisely at C4's own
+## isolated root: `buildPlainAutonomSpec`'s `Math.max(geometry.width,
+## result.width)` floor exists ONLY because `geometry.width`'s own ink walk
+## never folded label ink in at all -- LANDED the fold (new `TransitionGeo
+## .labelInk`, real graphviz `labelX/labelY` centered box), re-landed C1's
+## font-fix (sites 2/3) + C4's HTML-FIXEDSIZE injection verbatim, then
+## PROVED THE FLOOR IS FULLY DEAD CODE (0/267 fixtures differ with vs.
+## without it, corpus-wide, not just the control set) -- but the injection+
+## font-fix package it depends on (C4's OWN mechanism, unchanged from C4)
+## still regresses 6/268 `state-dot-parity.test.ts` fixtures past their
+## pinned ceiling, all attributable to that pre-existing, already-
+## characterized C4 residual, NOT to this iteration's own geometry-fold
+## contribution (proven: identical deltas with the floor present or
+## removed for every failing fixture) -- REVERTED IN FULL per protocol; 0
+## net change to any protected set; the floor's dead-code status is now
+## the mission's most load-bearing NEW finding for a sixth attempt
+
+### The attempt, precisely (per authorization's own three-step order)
+
+**Step 1 — fold label ink into `geometry.width`/`height`.** Added
+`TransitionGeo.labelInk?: {x, y, width, height}` (`state-geo-types.ts`) --
+deliberately SEPARATE from the pre-existing `label` field (the render-
+position field, driven by `attachTransitionLabel`'s own perpendicular-
+offset-from-spline-midpoint approximation), mirroring G4 S13 Variant 2's
+OWN structural precedent (a dedicated `labelInk` field, not reusing the
+render-position formula) but with the material difference the
+authorization named: this attempt's `labelInk.x/y` is graphviz's REAL
+computed label-reservation CENTER (`DotLayoutResult.edges[].labelX/labelY`,
+`graph-layout.ts#mapEdges`) and `labelInk.width/height` is the measured box
+FED into that same layout pass (`DotLayoutResult.edges[].labelWidth/
+labelHeight`, an echo of `DotInputEdge.attributes.labelWidth/labelHeight`)
+-- populated in `state-composite-pass.ts#buildLevelTransitionGeos` from the
+SAME `edgeResult` already in scope there, no new plumbing needed.
+`layout-ink-extent.ts#addTransitionInk` now adds the FULL box (`[x-w/2,
+y-h/2]`..`[x+w/2, y+h/2]`) when `labelInk` is present, falling back to the
+pre-existing single-point `label.x/y` contribution otherwise (the flat
+pipeline, and any hand-built test geometry, are unaffected -- neither
+builds `labelInk`). `shiftDotLayoutResult` already shifted `labelX`/
+`labelY` in lockstep with `points` (pre-existing, C2-era code, unchanged),
+so the box rides the SAME per-pass origin translation as everything else
+in the ink walk -- verified by inspection, not assumed.
+
+**Step 2 — re-landed C4's validated stack, verbatim.** `DotInputEdge
+.attributes.measuredLabelBox?: true` (NEW opt-in flag, same design as C4's
+own -- gates `graph-layout-build.ts#addEdges` on `measuredLabelBox === true`
+AND both dims present, skipping the plain-text `label` attr for a real HTML
+`<TABLE FIXEDSIZE="TRUE" WIDTH=".." HEIGHT="..">` via `GvEdge.setHtmlAttr`,
+mirroring `addClusters`'s `hasTitleTable` branch verbatim, C3's own public-
+API precedent). Set ONLY by `state-composite-edge-label.ts#edgeLabelAttrs`
+for the note-free case (identical scoping to C4). `state-composite-pass.ts`
+sites 2/3 (`addLevelEdges`/`sweepOrphanEdges`) re-exported and used
+`ARROW_LABEL_FONT_SIZE` (13, `state-dot-graph.ts`) instead of
+`theme.fontSize` (14) -- C1's own fix, verbatim. Un-skipped all 5 tests in
+`tests/unit/state/state-composite-pass.test.ts` -- all 5 PASS unchanged
+(the font-size math was never in question, only what consumes it, exactly
+as C1's own file header already stated). Deliberately did NOT re-land C4's
+render-position `labelX`/`labelY`-via-`textAscent` readback for
+`attachTransitionLabel` -- out of scope for the geometry-only root-cause
+fix this authorization named, and untested by C4 in isolation either
+(C4's own decision journal explicitly declined to isolate injection from
+readback, calling that split "the forbidden formula-search pattern"); this
+iteration's `labelInk` is a THIRD, independent readback path (ink-only,
+never touching render position), so leaving the render-position formula
+untouched keeps the render-visible output identical to C5's baseline for
+every fixture whose `structurallyEqual`/DOT-gate check does not move.
+
+**Step 3 — tested whether the floor is now dead, per the authorization's
+own instruction ("remove the floor... once 1+2 make it dead").** Replaced
+`childImg = {width: Math.max(geometry.width, result.width), height:
+Math.max(geometry.height, result.height)}` with `childImg = {width:
+geometry.width, height: geometry.height}` in `state-composite-autonom.ts
+#buildPlainAutonomSpec` and re-ran the FULL `oracle/goldens/state/`
+corpus (267/268 fixtures — see "off-by-one" note below) with and without
+this change. **Result: byte-identical outcome for EVERY SINGLE FIXTURE,
+including all 6 that fail** (see "Control-set outcome" below) — the floor
+resolves to `geometry.width`/`height` unconditionally now; `result.width`/
+`height` is never the larger operand for any fixture in the corpus. This is
+a stronger, corpus-wide confirmation of "the floor is dead" than the
+15/23-fixture control set alone could prove.
+
+### Probe/verification tooling
+
+`scripts/_tmp-c6-deltas.ts` (disposable, deleted before finishing): computes
+`maxSizeDeltaIn` for either the 15-fixture control set or the full
+`oracle/goldens/state/` corpus directly against `size-backlog.json`, without
+paying the full `npm test` cost per iteration — mirrors `scripts/_tmp-s13-
+deltas.ts`/`scripts/_tmp-c4-deltas.ts`'s own established pattern. Its "267
+fixtures" count differs by exactly 1 from the real `state-dot-parity.
+test.ts` suite's "268 tests" (confirmed via direct `npx vitest run` — the
+authoritative source of truth used for every PASS/FAIL number in this
+entry) — NOT chased further (same diminishing-returns precedent as C1's own
+"10130 vs 10128" baseline-discrepancy note); every number reported below
+that matters for the go/no-go decision was independently cross-checked
+against the real vitest suite, not the disposable script alone.
+
+### Control-set outcome (baseline re-verified FIRST: all 15 control-set
+### fixtures + the FULL 268-fixture ratchet PASS at C5 HEAD, matching
+### `size-backlog.json` exactly with ZERO headroom on every one of the 15 —
+### confirms this iteration started from the documented C5 baseline, not a
+### stale or drifted one)
+
+| Fixture | C4's own delta/verdict | C6 (this attempt) delta/verdict | Verdict |
+| --- | --- | --- | --- |
+| bemena-23-zebu249 (S13 founding evidence) | 0.110003 PASS | 0.068337 | **PASS**, MORE headroom than C4 |
+| jaxebo-54-nifi592 (S13: "unrelated... at all 3 variants") | 0.060950 PASS | 0.060950 | **PASS**, unchanged from C4 |
+| jorere-75-peja265 | 0.110592 PASS | 0.068337 | **PASS**, more headroom |
+| ketibo-84-juzo029 | 0.110592 PASS | 0.068337 | **PASS**, more headroom |
+| mifuti-36-jine785 (S13: "unrelated... at all 3 variants") | 0.060950 PASS | 0.060950 | **PASS**, unchanged from C4 |
+| pajefo-95-neri955 | 0.110003 PASS | 0.068337 | **PASS**, more headroom |
+| xepafa-33-lazi826 | 0.110003 PASS | 0.068337 | **PASS**, more headroom |
+| zitifa-97-bizo337 | 0.110592 PASS | 0.068337 | **PASS**, more headroom |
+| zacajo-09-tamu628 (S13's own control) | 0.083333 PASS | 0.083333 | **PASS**, unchanged from C4 |
+| bunade-42-fudu910 (S4's own original target) | 0.099275 FAIL | 0.043719 | **PASS** (NEW — C4 could not clear this one) |
+| bajelo-54-dixe684 (S13: "unrelated... identical across every variant") | 0.993056 FAIL | 0.993056 | **FAIL**, byte-identical to C4 |
+| nimana-36-veco708 (site 3's own founding fixture) | 0.158763 FAIL | 0.138889 | **FAIL**, improved vs. C4 but still over |
+| pesita-10-dene726 (S13: "large pre-existing gap" control) | 0.806638 FAIL | 0.848304 | **FAIL**, WORSE than C4 (+0.041666) |
+| rovese-43-tadu368 (S13: "unrelated... identical across every variant") | 0.687500 FAIL | 0.687500 | **FAIL**, byte-identical to C4 |
+| beguxu-19-tize774 (S13's own control, zero pre-existing headroom) | 0.027778 FAIL | 0.027778 | **FAIL**, byte-identical to C4 |
+
+**10/15 PASS (up from C4's 9/15), 5/15 FAIL (down from C4's 6/15).**
+Plus, of C4's own 8 non-control-set backlog regressions (`dulixa-11-
+kufe247`, `fojisi-40-zogo372`, `fomusu-59-fupe538`, `fotuje-06-fifa085`,
+`kejabo-83-vinu490`, `kujaju-47-neku764`, `mosigo-88-rove013`, `nuboca-13-
+xape657`), **7/8 now PASS** — only `fotuje-06-fifa085` still fails, and
+only barely (`maxSizeDeltaIn=2.746328` vs. allowed `2.732987`, an overshoot
+of `0.013341`, the smallest margin of any failure this iteration).
+
+**Full `state-dot-parity.test.ts` (268 fixtures, the authoritative real
+vitest run, not the disposable script): 262 passed, 6 failed** — `bajelo-
+54-dixe684`, `beguxu-19-tize774`, `fotuje-06-fifa085`, `nimana-36-veco708`,
+`pesita-10-dene726`, `rovese-43-tadu368`. This is a materially SMALLER
+failing set than C4's own 14 (268→254), but it is still nonzero, so per the
+mission's own explicit bar ("size-backlog final state may not widen ANY
+entry") this attempt does **NOT** clear the gate.
+
+### Mechanism of the 6 failures — the floor is proven NOT the cause; the
+### injection/font-fix package (C4's own mechanism) is (per diagnosis.md —
+### cause, origin, causal chain, ruled out)
+
+**Mechanism.** Step 3's own experiment (floor present vs. removed,
+byte-identical outcome for all 267/268 fixtures) is a DIRECT, corpus-wide
+proof that `Math.max(geometry.width, result.width)`'s SECOND operand
+(`result.width`) is NEVER the binding value anymore, for ANY fixture —
+`geometry.width` (now label-ink-aware) always dominates. This means the 6
+failures cannot be attributed to the floor's own formula at all; they are
+caused by something upstream of BOTH operands.
+
+**Origin.** Comparing this iteration's per-fixture deltas against C4's own
+(same table above): `bajelo-54-dixe684`, `rovese-43-tadu368`, and `beguxu-
+19-tize774` are BYTE-IDENTICAL to C4's own measurement — meaning this
+iteration's entire NEW contribution (the `labelInk` fold) changes NOTHING
+for these three; their regression (relative to the C5/pre-C4 baseline,
+where all three passed with zero headroom) is caused PURELY by re-landing
+C4's OWN injection+font-fix package, unchanged since C4 first measured it.
+`pesita-10-dene726` is WORSE under this iteration (0.848304 vs. C4's
+0.806638, +0.041666) — the ONE fixture where the `labelInk` fold itself
+demonstrably makes an already-large, already-pre-existing gap (S13's own
+"large pre-existing gap" framing) larger still. `nimana-36-veco708` and
+`fotuje-06-fifa085` both improve materially over C4 but do not cross the
+line.
+
+**Causal chain.** C4's own ledger entry already named this precisely: the
+injection mechanism makes `result.width` MORE ACCURATE (real graphviz
+label reservation, not a Times-font guess) — for fixtures where a
+pre-existing, SEPARATE mechanism (S13's own "unrelated... identical across
+every variant" framing for bajelo/rovese, and the "large pre-existing gap"
+framing for pesita) is the TRUE dominant error source, a more-accurate
+`result.width` does not help, because that mechanism never depended on
+`result.width`'s accuracy in the first place. This iteration's OWN
+`labelInk` fold makes `geometry.width` correspondingly MORE accurate too —
+which is why the floor is now dead (both operands converge toward the
+truth) — but "more accurate" does not mean "jar-exact" for composites whose
+dominant error is a THIRD, unrelated mechanism (mechanism-16/deep-nesting
+territory per S13's own naming, or the still-unresolved entrypoint/exitpoint
+family per C3/C5's own queue) that this attempt was never targeted at.
+
+**Ruled out** (in order investigated, mirroring C1/C4/S13's own discipline):
+1. **A defect in the `labelInk`-fold mechanism itself** — ruled out: the
+   floor-present-vs-removed experiment is a clean, corpus-wide proof the
+   fold makes `geometry.width` the binding operand everywhere (a POSITIVE
+   result — the fold is doing real, correct work); 10 fixtures net-improve
+   over C4 (including `bunade`, newly PASSING, and 7/8 backlog regressions
+   newly fixed), none of which the floor-toggle experiment attributes to
+   luck (removing the floor changes NOTHING, so the improvement is real
+   ink-accuracy, not an artifact of the `Math.max` selection).
+2. **The floor itself, as a residual, still-needed guard for SOME fixture**
+   — ruled out MORE conclusively than the authorization's own step 3 asked
+   for: not just the 15/23 control-set fixtures but the FULL 267/268-fixture
+   corpus shows zero behavioral difference with vs. without the floor. The
+   floor is unconditionally dead code once items 1+2 land together.
+3. **A NEW defect this iteration introduced, independent of C4's own
+   mechanism** — ruled out for 3 of 6 failures (bajelo/rovese/beguxu are
+   byte-identical to C4's own already-reported numbers — this iteration's
+   `labelInk` fold contributes NOTHING to their outcome, positive or
+   negative); ruled out as the SOLE cause for the other 3 (nimana/fotuje
+   both IMPROVE under this iteration, ruling out "this iteration made
+   things categorically worse" for them) but NOT ruled out as a
+   CONTRIBUTING factor for `pesita` specifically (the one fixture that
+   measurably worsens vs. C4) — not root-caused further this iteration
+   (would require its own dedicated diagnosis of `pesita`'s specific
+   composite shape, out of this iteration's "no formula variants"
+   boundary).
+
+### Revert (per the mission's own explicit protocol, mirroring C4/S13's
+### identical precedent)
+
+Restored every touched file byte-for-byte to the C5 HEAD commit
+(`df1ecb5`) via `git show HEAD:<path> > <path>`: `src/core/graph-layout-
+build.ts`, `src/core/graph-layout.types.ts`, `src/diagrams/state/
+layout-ink-extent.ts`, `src/diagrams/state/state-composite-autonom.ts`,
+`src/diagrams/state/state-composite-edge-label.ts`, `src/diagrams/state/
+state-composite-pass.ts`, `src/diagrams/state/state-dot-graph.ts`,
+`src/diagrams/state/state-geo-types.ts`, `tests/unit/state/
+state-composite-pass.test.ts` (re-`describe.skip`'d, unchanged from C1/C4's
+own state). Deleted the disposable probe (`scripts/_tmp-c6-deltas.ts`).
+`git status --short`/`git diff --stat` both verified EMPTY before
+re-running any gate.
+
+### Fixture impact
+
+**0 oracle fixtures changed** (fully reverted). `oracle/goldens/**`
+untouched. `oracle/goldens/state/size-backlog.json`: **untouched, 93
+entries** (byte-for-byte, `git status --short` confirms).
+
+### Gates (C6, final state — fully reverted, byte-identical to C5's own
+### final state)
+
+- `npm run typecheck`: clean (both configs).
+- `npm run lint`: clean.
+- `npm test -- --run`: **10144 passed | 5 skipped** (381 files) —
+  IDENTICAL to C5's own final count (the 5 skipped are UNCHANGED, still
+  C1's reverted sites-2/3 evidence; this iteration's own re-land-then-
+  revert cycle left no new test file behind).
+- DOT gate (verbatim, re-verified fresh AFTER the revert):
+  `structurally EQUAL (DOT in sync): 262 (100%)` (component)
+  `structurally EQUAL (DOT in sync): 90 (100%)` (usecase)
+  `structurally EQUAL (DOT in sync): 708 (100%)` (class)
+  `structurally EQUAL (DOT in sync): 78 (98%)` (object)
+  `structurally EQUAL (DOT in sync): 267 (100%)` (state)
+  — EXACTLY unchanged from the frozen baseline (component 262/262 · usecase
+  90/90 · class 708/708 · object 78/80 · state 267/267), also re-verified
+  fresh WHILE the attempt was landed (same five counts, confirming the
+  attempt never touched DOT-structural output, only sizing).
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** at the
+  START and END of this iteration (dipped to 262/268 — 6 failures — while
+  the attempt was landed; fully restored by the revert).
+- `description.golden.ratchet.test.ts`: **51 tests** (unchanged).
+- `class.golden.ratchet.test.ts`: **305 tests** (unchanged).
+- `object.golden.ratchet.test.ts`: **24 tests** (unchanged).
+- `state.golden.ratchet.test.ts`: **54 tests** (unchanged).
+- Censuses, re-verified fresh after the revert (not assumed): description
+  (no-arg) **48/355**, class **303/718**, object **22/80**, state
+  **52/271** — all byte-identical to the C5 baseline. Also re-verified
+  MID-iteration (attempt landed, before revert): identical counts even
+  while the attempt was live — same "the two protected sets are
+  independent" confirmation C4 already established, reproduced here.
+
+### Ratchet / pins
+
+**0 new pins** (fully reverted; no landed work survives this iteration).
+
+### Files changed (C6)
+
+None survive — fully reverted. Touched-then-reverted: `src/core/graph-
+layout-build.ts`, `src/core/graph-layout.types.ts`, `src/diagrams/state/
+layout-ink-extent.ts`, `src/diagrams/state/state-composite-autonom.ts`,
+`src/diagrams/state/state-composite-edge-label.ts`, `src/diagrams/state/
+state-composite-pass.ts`, `src/diagrams/state/state-dot-graph.ts`,
+`src/diagrams/state/state-geo-types.ts`, `tests/unit/state/
+state-composite-pass.test.ts`. Created-then-deleted: `scripts/_tmp-c6-
+deltas.ts`. Only `plans/g5-measurer-calibration/{README.md,ledger.md,
+decision-journal.md}` (this entry) remain changed.
+
+### Secondary item (C5's own margin-gap queue item 0/1): NOT attempted
+
+Per the authorization's own item 5 ("only if the attempt lands") — the
+attempt did not clear the control set, so the cluster side-margin
+investigation (graphviz's 8pt default vs. jar's real ~16px) was correctly
+NOT started this iteration.
+
+### C7+ queue
+
+1. **The floor (`buildPlainAutonomSpec`'s `Math.max(geometry.width,
+   result.width)`) is now PROVEN dead code once `labelInk`-style ink
+   folding + C1's font-fix + C4's HTML injection are ALL landed together**
+   — confirmed corpus-wide (267/268 fixtures), not just the 15/23 control
+   set. A sixth attempt does NOT need to re-derive or re-verify the floor's
+   removal — that question is now closed. `geometry.width`/`height` alone
+   (dropping `Math.max` with `result.width`/`height` entirely) is the
+   correct final formula once the injection/font-fix package is safe to
+   land.
+2. **The REAL remaining blocker is C4's own injection/font-fix package**
+   interacting with 3 SPECIFIC, already-named-elsewhere mechanisms, not
+   the floor: (a) `bajelo-54-dixe684`/`rovese-43-tadu368` — S13's own
+   "unrelated... identical across every variant" framing, unchanged by
+   BOTH C4's and this iteration's own work (byte-identical deltas in both);
+   likely mechanism-16/deep-nesting territory (C2/C3's own naming) — a
+   plausible next target is checking whether C5's still-open cluster
+   side-margin gap (graphviz's 8pt vs. jar's ~16px) is the ACTUAL shared
+   root for these two specifically, since both are deep-nesting composite
+   families. (b) `pesita-10-dene726` — S13's own "large pre-existing gap"
+   control, the SINGLE fixture this iteration made WORSE than C4
+   (+0.041666); its own composite shape (entrypoint/exitpoint-bearing,
+   deeply nested) was never isolated as its own mechanism — a dedicated
+   diagnosis of `pesita` alone (not a formula variant on the shared
+   `labelInk` mechanism) is the correct next step, per this iteration's own
+   "no formula variants" boundary. (c) `beguxu-19-tize774`/`fotuje-06-
+   fifa085`/`nimana-36-veco708` — all three IMPROVED this iteration and are
+   now failing by SMALL margins (`+0.006945`, `+0.013341`, `+0.048611`
+   respectively) — the closest to clearing of any residual failures in the
+   mission's history; worth re-measuring FIRST once (a)/(b) are
+   independently understood, since closing either might shrink these
+   margins to zero as a side effect (mirrors this iteration's own
+   discovery that `bunade` and 7/8 backlog regressions cleared as a SIDE
+   EFFECT of the `labelInk` fold, without being independently targeted).
+3. **Sites 2/3 + C4's injection mechanism themselves are FULLY
+   re-landable verbatim** the moment (2a)/(2b) close — no further formula
+   search needed on the injection/readback/ink-fold side, only on the
+   3 residual fixtures' own, more precisely scoped mechanisms. This is now
+   the mission's SIXTH prior attempt at (some part of) this floor/mechanism
+   (S4, S13×3, C4, C6) — a seventh needs its own explicit orchestrator/
+   maintainer sign-off, scoped EXACTLY to item 2(a)/2(b)/2(c) above, not a
+   general re-attempt of the whole mechanism.
+4. **C5's own C6+ queue items 1-5 unchanged** (cluster side-margin gap,
+   entrypoint/exitpoint family, multi-line/action-text/stereotype cluster
+   titles, the diagram-level `<style>stateDiagram{}</style>` cascade tier,
+   nested-cluster document order) — NOT attempted this iteration per the
+   authorization's own item 5 gating them on the floor attempt landing,
+   which it did not.
+5. **Unchanged from C0-C5**: the secondary `gutute-00-gaki684` (component
+   port-label divergence) finding remains unresolved, low priority.
