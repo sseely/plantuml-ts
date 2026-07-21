@@ -13,6 +13,7 @@ import type { DiagramAnnotations } from './core/annotations/index.js';
 import { resolveAnnotationStyles } from './core/annotations/style.js';
 import { unwrapKlimtSvg, assembleKlimtShell } from './diagrams/description/renderer.js';
 import { assembleClassShell } from './diagrams/class/renderer-shell.js';
+import { assembleStateShell } from './diagrams/state/renderer-shell.js';
 import { applyClassDocumentMargin } from './diagrams/class/layout-ink-extent.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { jarMeasurer } from './core/measurer-jar.js';
@@ -153,11 +154,17 @@ function resolveMeasurer(pluginType: DiagramType, options?: RenderOptions): Stri
  * shell.ts#assembleDocumentShell`). Unlike description, class has no
  * `CompleteSvg` escape hatch for the unannotated case -- every class
  * fragment reaches this function, so `classShell` is unconditional.
+ *
+ * mission G4 S1: a `RenderFragment` carrying `stateShell: true` (set ONLY
+ * by `state/renderer.ts#renderState`, unconditional like `classShell`) is
+ * reassembled via `state/renderer-shell.ts#assembleStateShell` -- the SAME
+ * shared `assembleDocumentShell` mechanics, parameterized `'STATE'`.
  */
 export function assembleSvg(fragment: AssembledSvg): string {
   if ('completeSvg' in fragment) return fragment.completeSvg;
   if (fragment.klimtShell === true) return assembleKlimtShell(fragment);
   if (fragment.classShell === true) return assembleClassShell(fragment);
+  if (fragment.stateShell === true) return assembleStateShell(fragment);
   return svgRoot(fragment.width, fragment.height, [fragment.body], fragment.background, fragment.extraDefs);
 }
 

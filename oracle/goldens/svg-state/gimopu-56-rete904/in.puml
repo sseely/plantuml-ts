@@ -1,0 +1,7 @@
+@startuml
+
+state Alice
+Alice -> Bob
+Bob --> Alice
+
+@enduml

@@ -3,7 +3,7 @@ import { renderState } from '../../../src/diagrams/state/renderer.js';
 import { assembleSvg } from '../../../src/index.js';
 import { statePlugin } from '../../../src/diagrams/state/index.js';
 import type { StateGeometry, StateNodeGeo, TransitionGeo } from '../../../src/diagrams/state/layout.js';
-import { defaultTheme } from '../../../src/core/theme.js';
+import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 
 // ---------------------------------------------------------------------------
 // Geometry factories — construct geometry manually, no ELK involved
@@ -18,6 +18,7 @@ function makeNode(overrides: Partial<StateNodeGeo> & Pick<StateNodeGeo, 'kind'>)
     width: 80,
     height: 40,
     children: [],
+    transitions: [],
     ...overrides,
   };
 }
@@ -62,20 +63,25 @@ describe('renderState — minimal geometry', () => {
     expect(result.startsWith('<svg')).toBe(true);
   });
 
-  it('embeds width and height from geometry in svg root', () => {
+  it('embeds width and height from geometry in svg root (mission G4 S1: px-suffixed, CucaDiagram shell)', () => {
     const geo = makeGeo({ totalWidth: 400, totalHeight: 250 });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain('width="400"');
-    expect(result).toContain('height="250"');
+    expect(result).toContain('width="400px"');
+    expect(result).toContain('height="250px"');
   });
 
-  it('renders background rect covering full canvas', () => {
+  it('embeds background via the root style attribute, not a full-canvas <rect> (mission G4 S1 mechanism 1: jar draws no background rect for state)', () => {
     const geo = makeGeo({ totalWidth: 300, totalHeight: 200 });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    // Background rect has x=0 y=0 matching totalWidth/totalHeight
-    expect(result).toContain('x="0"');
-    expect(result).toContain('y="0"');
-    expect(result).toContain(`fill="${defaultTheme.colors.background}"`);
+    expect(result).toContain(`background:${defaultTheme.colors.background};`);
+    expect(result).not.toContain('<rect width="300" height="200"');
+  });
+
+  it('carries the CucaDiagram-family root shell (mission G4 S1 mechanism 1)', () => {
+    const geo = makeGeo({ totalWidth: 300, totalHeight: 200 });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).toContain('data-diagram-type="STATE"');
+    expect(result).toContain('zoomAndPan="magnify"');
   });
 });
 
@@ -84,13 +90,17 @@ describe('renderState — minimal geometry', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderState — initial node', () => {
-  it('contains a <circle> with fill matching border color (AC #1)', () => {
+  // mission G4 S2 (mechanism 5): jar draws initial as an <ellipse>, never
+  // <circle> -- and its default fill/stroke is CircleStart.java's own
+  // #222222, independent of theme.colors.border (renderer-pseudostate.ts's
+  // own PSEUDO_ANCHOR_COLOR doc comment, jar-verified gefefe-91-xoge233).
+  it('contains an <ellipse> with the CircleStart default fill (AC #1)', () => {
     const node = makeNode({ kind: 'initial', width: 20, height: 20 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
-    expect(content).toContain('<circle');
-    expect(content).toContain(`fill="${defaultTheme.colors.border}"`);
+    expect(content).toContain('<ellipse');
+    expect(content).toContain('fill="#222222"');
   });
 
   it('circle cx/cy is centred on the node bounding box', () => {
@@ -107,30 +117,32 @@ describe('renderState — initial node', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderState — final node', () => {
-  it('contains exactly two <circle> elements in diagram content — bullseye (AC #2)', () => {
+  // mission G4 S2: jar draws final as two <ellipse> elements (CircleEnd.java),
+  // never <circle> -- jar-verified bajelo-54-dixe684.
+  it('contains exactly two <ellipse> elements in diagram content — bullseye (AC #2)', () => {
     const node = makeNode({ kind: 'final', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    // Count only circles in diagram content, not inside the <defs> markers
+    // Count only ellipses in diagram content, not inside the <defs> markers
     const content = contentAfterDefs(result);
-    const circleCount = (content.match(/<circle/g) ?? []).length;
-    expect(circleCount).toBe(2);
+    const ellipseCount = (content.match(/<ellipse/g) ?? []).length;
+    expect(ellipseCount).toBe(2);
   });
 
-  it('outer circle has fill="none" and inner has border fill', () => {
+  it('outer ellipse has fill="none" and inner has the CircleEnd default fill', () => {
     const node = makeNode({ kind: 'final', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
     expect(content).toContain('fill="none"');
-    expect(content).toContain(`fill="${defaultTheme.colors.border}"`);
+    expect(content).toContain('fill="#222222"');
   });
 
-  it('outer circle uses stroke matching border color', () => {
+  it('outer ellipse uses the CircleEnd default stroke (#222222, independent of theme.colors.border)', () => {
     const node = makeNode({ kind: 'final', x: 0, y: 0, width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain(`stroke="${defaultTheme.colors.border}"`);
+    expect(result).toContain('stroke="#222222"');
   });
 });
 
@@ -139,19 +151,58 @@ describe('renderState — final node', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderState — fork node', () => {
-  it('contains a <rect> with fill matching border color (AC #3)', () => {
+  // mission G4 S2: jar's EntityImageSynchroBar default fill is #555555,
+  // independent of theme.colors.border -- jar-verified cekolo-21-gini183.
+  it('contains a <rect> with the EntityImageSynchroBar default fill (AC #3)', () => {
     const node = makeNode({ kind: 'fork', width: 60, height: 8 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    // At least one rect with border fill (may also have the background rect)
-    expect(result).toContain(`fill="${defaultTheme.colors.border}"`);
+    // At least one rect with the bar's default fill (may also have the
+    // background rect)
+    expect(result).toContain('fill="#555555"');
   });
 
   it('join renders the same thin filled bar', () => {
     const node = makeNode({ kind: 'join', width: 60, height: 8 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain(`fill="${defaultTheme.colors.border}"`);
+    expect(result).toContain('fill="#555555"');
+  });
+});
+
+// mission G4 S16: <style> activityBar { .fork {...} .join {...} } } --
+// jar-verified koguvo-74-kubo455: fork bar fill="#008000", join bar
+// fill="#FFA500".
+describe('renderState — fork/join activityBar cascade (mission G4 S16)', () => {
+  it('applies activityBarForkColor to a fork bar', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { activityBarForkColor: 'green' } },
+    });
+    const node = makeNode({ kind: 'fork', width: 60, height: 8 });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('fill="#008000"');
+  });
+
+  it('applies activityBarJoinColor to a join bar', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { activityBarJoinColor: 'orange' } },
+    });
+    const node = makeNode({ kind: 'join', width: 60, height: 8 });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('fill="#FFA500"');
+  });
+
+  it('does NOT apply activityBarForkColor to a syncBar (different upstream construct)', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { activityBarForkColor: 'green' } },
+    });
+    const node = makeNode({ kind: 'syncBar', width: 60, height: 8 });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('fill="#555555"');
+    expect(result).not.toContain('fill="#008000"');
   });
 });
 
@@ -160,11 +211,13 @@ describe('renderState — fork node', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderState — normal state', () => {
+  // mission G4 S2: jar's leaf-state box rx/ry is 12.5 (EntityImageState.java),
+  // not 8 -- jar-verified jocela-05-niba392/votoki-67-gufa610.
   it('SVG contains rounded rect with rx attribute (AC #8)', () => {
     const node = makeNode({ kind: 'normal', display: 'Active' });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain('rx="8"');
+    expect(result).toContain('rx="12.5"');
   });
 
   it('SVG contains the display label text', () => {
@@ -183,6 +236,80 @@ describe('renderState — normal state', () => {
 });
 
 // ---------------------------------------------------------------------------
+// EntityImageStateEmptyDescription (mission G4 S5): `hide empty description`
+// + a leaf state with no body lines -- jar-verified `gopumi-11-pise779`'s
+// own `S1` (`hide empty description`, `S1 --> S2`, no `S1 :` body line):
+// box x=25.86 y=86 w=50 h=40, text x=42.285 y=109.8889 -- NO divider <line>,
+// and the entity is NOT wrapped in a <g> at all (bare rect+text siblings).
+// ---------------------------------------------------------------------------
+
+describe('renderState — EntityImageStateEmptyDescription (hide empty description, no body)', () => {
+  it('draws NO divider <line> for the empty-description shape', () => {
+    const node = makeNode({
+      kind: 'normal',
+      display: 'S1',
+      x: 25.86,
+      y: 86,
+      width: 50,
+      height: 40,
+      headerLines: [{ text: 'S1', width: 17.15 }],
+      emptyDescription: true,
+    });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).not.toContain('<line');
+  });
+
+  it('centers the label text horizontally AND vertically (not the regular header-line offset)', () => {
+    const node = makeNode({
+      kind: 'normal',
+      display: 'S1',
+      x: 25.86,
+      y: 86,
+      width: 50,
+      height: 40,
+      headerLines: [{ text: 'S1', width: 17.15 }],
+      emptyDescription: true,
+    });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    // jar-verified gopumi-11-pise779: x=42.285 y=109.8889 (jar's own
+    // rounded display precision; our renderer emits full float precision --
+    // compareSvg's numeric tolerance, not string equality, is the real
+    // conformance bar, see tests/oracle/svg-conformance/compare.ts).
+    expect(result).toContain('x="42.285"');
+    expect(result).toContain('y="109.88888888888889"');
+  });
+
+  it('does NOT wrap the entity in a <g> at all -- bare rect+text siblings', () => {
+    const node = makeNode({
+      kind: 'normal',
+      display: 'S1',
+      id: 'S1',
+      headerLines: [{ text: 'S1', width: 17.15 }],
+      emptyDescription: true,
+    });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).not.toContain('data-qualified-name="S1"');
+  });
+
+  it('a regular normal state (no emptyDescription flag) is UNCHANGED -- still wrapped, still has a divider', () => {
+    const node = makeNode({
+      kind: 'normal',
+      display: 'S2',
+      id: 'S2',
+      headerLines: [{ text: 'S2', width: 17.15 }],
+      bodyLines: [],
+    });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).toContain('data-qualified-name="S2"');
+    expect(result).toContain('<line');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Choice pseudostate
 // ---------------------------------------------------------------------------
 
@@ -192,6 +319,21 @@ describe('renderState — choice node', () => {
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('<polygon');
+  });
+
+  // mission G4 S8 (kilato-12-laso661): jar's EntityImageBranch closes the
+  // diamond polygon by repeating its first point last (5 pairs for a
+  // 4-sided diamond) -- a bare 4-point list was a real conformance diff
+  // (svg/.../polygon[1]/@points had 4 tokens vs jar's 5).
+  it('closes the diamond polygon by repeating the first point last', () => {
+    const node = makeNode({ kind: 'choice', width: 20, height: 20, x: 100, y: 100 });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    const m = /<polygon points="([^"]*)"/.exec(result);
+    expect(m, 'expected a <polygon points="..."> for the choice diamond').not.toBeNull();
+    const pairs = m![1]!.split(' ').filter((s) => s.length > 0);
+    expect(pairs).toHaveLength(5);
+    expect(pairs[0]).toBe(pairs[4]);
   });
 });
 
@@ -221,12 +363,16 @@ describe('renderState — history node', () => {
     expect(result).toContain('>H*<');
   });
 
-  it('history ellipse has fill="none" — outline only', () => {
+  // mission G4 S2: jar's history/deepHistory ellipse shares the SAME
+  // fill/border/stroke-width as a plain leaf box (#F1F1F1/border/0.5), NOT
+  // an unfilled outline -- jar-verified cekolo-21-gini183 (`state-render-
+  // colors.ts`'s own module doc comment explains why).
+  it('history ellipse has the plain leaf-box default fill (#F1F1F1)', () => {
     const node = makeNode({ kind: 'history', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
-    expect(content).toContain('fill="none"');
+    expect(content).toContain('fill="#F1F1F1"');
   });
 
   it('history ellipse has a stroke attribute', () => {
@@ -236,12 +382,12 @@ describe('renderState — history node', () => {
     expect(result).toContain(`stroke="${defaultTheme.colors.border}"`);
   });
 
-  it('deepHistory ellipse has fill="none" — outline only', () => {
+  it('deepHistory ellipse has the plain leaf-box default fill (#F1F1F1)', () => {
     const node = makeNode({ kind: 'deepHistory', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
-    expect(content).toContain('fill="none"');
+    expect(content).toContain('fill="#F1F1F1"');
   });
 
   it('history text is centered (text-anchor=middle)', () => {
@@ -321,11 +467,38 @@ describe('renderState — transitions', () => {
     expect(result).toContain('<path');
   });
 
-  it('transition path uses arrow marker', () => {
+  it('transition path uses an inline arrowhead polygon, not a marker ref (mission G4 S1 mechanism 3)', () => {
     const t = makeTransition();
     const geo = makeGeo({ transitions: [t] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain('marker-end="url(#arrow-dependency)"');
+    expect(result).not.toContain('marker-end');
+    expect(result).toContain('<polygon');
+  });
+
+  // mission G4 S16: <style> stateDiagram { arrow { LineColor HeadColor
+  // } } } -- jar-verified nanozi-96-foda024: path stroke="#0000FF"
+  // (LineColor), polygon fill="#FF0000" stroke="#FF0000" (HeadColor).
+  it('applies the statediagram.arrow LineColor cascade to the path stroke', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateArrowLineColor: 'blue' } },
+    });
+    const t = makeTransition();
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('stroke="#0000FF"');
+  });
+
+  it('applies the statediagram.arrow HeadColor cascade to the arrowhead polygon fill+stroke', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateArrowHeadColor: 'red' } },
+    });
+    const t = makeTransition();
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('fill="#FF0000"');
+    const polygonMatch = /<polygon[^>]*>/.exec(result);
+    expect(polygonMatch).not.toBeNull();
+    expect(polygonMatch![0]).toContain('stroke:#FF0000');
   });
 
   it('transition with label renders text element', () => {
@@ -351,29 +524,95 @@ describe('renderState — transitions', () => {
     const result = assembleSvg(renderState(geo, defaultTheme));
     // A single-point path should still produce a <path> with an M command
     expect(result).toContain('<path');
-    expect(result).toContain('M 10,20');
+    expect(result).toContain('M10,20');
   });
 
-  it('transition with exactly two points uses cubic Bézier with two control points', () => {
-    // Covers the points.length === 2 branch in buildPathD
+  // mission G4 S8 (mechanism 19): buildPathD now mirrors class/renderer.ts
+  // #buildPathData exactly -- a 2-point list is NOT a valid 1+3n bezier
+  // spline, so it falls back to a straight L segment (jar's own DotPath
+  // never smooths a raw 2-point secant into a curve; the pre-S8 Catmull-Rom
+  // smoothing here was an un-jar-verified invention).
+  it('transition with exactly two points falls back to a straight L segment (not a bezier spline)', () => {
     const t = makeTransition({ points: [{ x: 10, y: 10 }, { x: 90, y: 90 }] });
     const geo = makeGeo({ transitions: [t] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('<path');
-    expect(result).toContain('M 10,10');
-    // The 2-point path produces a single cubic segment
-    expect(result).toContain('C ');
+    expect(result).toContain('M10,10');
+    expect(result).toContain('L');
   });
 
-  it('path d attribute encodes cubic Bézier segments from points', () => {
+  // mission G4 S8 (mechanism 19): a 3-point list is ALSO not `1 + 3*n`
+  // (n must be a whole number of 3-point groups after the initial M), so it
+  // falls back to straight L segments too -- only EXACTLY `1 + 3*n` point
+  // lists (4, 7, 10, ...) are real dot-layout bezier splines.
+  it('a non-bezier (3-point) point list falls back to straight L segments, not a curve', () => {
     const t = makeTransition({
       points: [{ x: 5, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 90 }],
     });
     const geo = makeGeo({ transitions: [t] });
     const result = assembleSvg(renderState(geo, defaultTheme));
-    expect(result).toContain('M 5,10');
-    expect(result).toContain('C '); // Catmull-Rom → cubic Bézier
-    expect(result).not.toContain(' L ');
+    expect(result).toContain('M5,10');
+    expect(result).toContain('L50,10');
+    expect(result).not.toContain('<path d="M5,10 C');
+  });
+
+  // mission G4 S8 (mechanism 19): a real `1 + 3*1` = 4-point dot-layout
+  // spline renders as a SINGLE M...C... segment, byte-matching jar's own
+  // `DotPath` output (nelupe-49-xova546's `*start*s7_2-to-chat1`:
+  // `M46.11,62.31 C46.11,71.35 46.11,80.49 46.11,92.73`).
+  it('a real 4-point (1+3*1) bezier spline renders as ONE M...C... segment, not a polyline', () => {
+    const t = makeTransition({
+      points: [
+        { x: 5, y: 10 },
+        { x: 5, y: 30 },
+        { x: 5, y: 60 },
+        { x: 5, y: 90 },
+      ],
+    });
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).toContain('M5,10');
+    expect(result).toContain('C5,30 5,55 5,85'); // last two points shifted by the arrowhead trim
+    expect(result).not.toContain('<path d="M5,10 L');
+  });
+
+  // mission G4 S15: `-->o`/`x-->` decorations (`TransitionGeo.circleEnd`/
+  // `.crossStart`) -- jar-verified against xexika-61-fedu273 (see
+  // renderer-arrowhead-decor.test.ts for the pure-function geometry tests;
+  // these cover the FULL `renderState` wiring: dispatch, draw order, and
+  // the `Link#idCommentForSvg` id-separator rule).
+  it('circleEnd draws an ellipse AFTER the arrowhead polygon, using -to- in the path id', () => {
+    const t = makeTransition({ circleEnd: true });
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).toContain('id="A-to-B"');
+    const polygonIdx = result.indexOf('<polygon');
+    const ellipseIdx = result.indexOf('<ellipse');
+    expect(polygonIdx).toBeGreaterThan(-1);
+    expect(ellipseIdx).toBeGreaterThan(polygonIdx);
+  });
+
+  it('crossStart draws an ellipse+lines BEFORE the arrowhead polygon, collapsing the id separator to a bare dash', () => {
+    const t = makeTransition({ crossStart: true });
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    // `looksLikeNoDecorAtAllSvg`: a plain forward transition's head decor
+    // (ARROW) is always non-NONE, so a non-NONE tail decor (crossStart)
+    // makes BOTH sides non-NONE -- jar collapses to "A-B", not "A-to-B".
+    expect(result).toContain('id="A-B"');
+    expect(result).not.toContain('id="A-to-B"');
+    const ellipseIdx = result.indexOf('<ellipse');
+    const polygonIdx = result.indexOf('<polygon');
+    expect(ellipseIdx).toBeGreaterThan(-1);
+    expect(polygonIdx).toBeGreaterThan(ellipseIdx);
+  });
+
+  it('neither decoration flag draws no extra ellipse/line markup', () => {
+    const t = makeTransition();
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, defaultTheme));
+    expect(result).not.toContain('<ellipse');
+    expect(result).toContain('id="A-to-B"');
   });
 });
 

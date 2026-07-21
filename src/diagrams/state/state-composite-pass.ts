@@ -4,18 +4,19 @@
  * composite). Pass FIRING order and tree-assembly RECURSION are decoupled
  * (mission A4 Phase L iteration 17 — `CucaDiagramSimplifierState.getOrdered`
  * port, state-composite-classify.ts's `firingOrder` doc has the full
- * mechanism): `resolveAllAutonomPasses` fires every autonom composite's own
- * `layoutGraph()` call ONCE, up front, strictly in `ctx.classify.firingOrder`
- * order (deepest nesting level first, source order as tie-break within a
- * level, WHOLE-TREE-WIDE) — NOT per-branch depth-first. `resolveMember`'s
- * tree-assembly recursion (still depth-first, unchanged in shape) merely
- * READS each autonom composite's already-computed result from
- * `ctx.resolvedAutonom` when it reaches one; it never fires a pass itself.
- * Firing-order correctness guarantees the lookup always hits: any autonom
- * composite `resolveMember` can reach during a shallower composite's (or the
- * top level's) own build is, by construction, one of ITS descendants, hence
- * strictly deeper, hence already resolved earlier in the SAME firing-order
- * loop.
+ * mechanism): `resolveAllAutonomPasses` (./state-composite-autonom.ts,
+ * mission G4 S3, moved out for the 500-line file cap) fires every autonom
+ * composite's own `layoutGraph()` call ONCE, up front, strictly in
+ * `ctx.classify.firingOrder` order (deepest nesting level first, source
+ * order as tie-break within a level, WHOLE-TREE-WIDE) — NOT per-branch
+ * depth-first. `resolveMember`'s tree-assembly recursion (still depth-first,
+ * unchanged in shape) merely READS each autonom composite's already-computed
+ * result from `ctx.resolvedAutonom` when it reaches one; it never fires a
+ * pass itself. Firing-order correctness guarantees the lookup always hits:
+ * any autonom composite `resolveMember` can reach during a shallower
+ * composite's (or the top level's) own build is, by construction, one of
+ * ITS descendants, hence strictly deeper, hence already resolved earlier in
+ * the SAME firing-order loop.
  *
  * Non-autonom composites are NOT a pass boundary: their members recurse
  * straight into the CURRENT pass's node/edge/cluster accumulator, nested via
@@ -38,21 +39,25 @@ import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph } from '../../core/graph-layout.js';
 import type { DotInputNode, DotInputEdge, DotInputCluster, DotInputGraph, DotLayoutResult } from '../../core/graph-layout.js';
-import { CIRCLE_START_SIZE, CIRCLE_END_SIZE } from './state-sizing.js';
-import { measureAutonomWrapper, type AutonomOffset } from './state-composite-sizing.js';
+import { buildStateGeoTextFields } from './state-sizing.js';
+import type { AutonomOffset } from './state-composite-sizing.js';
 import { classifyDiagram, resolveEndpoint, type ClassifyResult } from './state-composite-classify.js';
 import { hasLocalContent } from './state-composite-detect.js';
 import { buildLeafNode } from './state-leaf-node.js';
-import type { TransitionGeo } from './state-geo-types.js';
+import type { TransitionGeo, StateTextLine } from './state-geo-types.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import { buildEdgeAttrs } from './state-composite-edge-label.js';
-import {
-  buildConcurrentAutonomSpec,
-  buildConcurrentRegionPass,
-  type ConcurrentRegionPassResult,
-} from './state-composite-concurrent.js';
+import { resolveAllAutonomPasses } from './state-composite-autonom.js';
+import type { ConcurrentRegionPassResult } from './state-composite-concurrent.js';
 import { resolveClusterComposite } from './state-composite-cluster.js';
 import { buildNoteGraphPartsByScope, sweepOrphanNoteEdges, type NoteEdgeCandidate, type ScopeNoteParts } from './state-note-layout.js';
+// mission G4 S7: pseudo-anchor id resolution + creation-order sibling
+// sorting moved to ./state-composite-pseudo.ts (500-line file-cap
+// compliance) -- imported for THIS file's own internal use
+// (`addLevelEdges`/`buildTopLevelPass` below) AND re-exported so every
+// pre-existing EXTERNAL importer of THIS module keeps working unchanged.
+import { scopedPseudoIds, sortSpecsByCreationIndex, addLocalPseudoNodes, levelEndpointId } from './state-composite-pseudo.js';
+export { scopedPseudoIds, sortSpecsByCreationIndex, addLocalPseudoNodes, levelEndpointId };
 
 export interface DiagramCtx {
   theme: Theme;
@@ -91,6 +96,18 @@ export interface DiagramCtx {
    *  `buildConcurrentAutonomSpec` (./state-composite-concurrent.ts) reads
    *  from this map instead of building a region's pass inline. */
   resolvedRegions: Map<string, ConcurrentRegionPassResult>;
+  /** mission G4 S5: `ast.hideEmptyDescription`, threaded onto `ctx` so
+   *  `resolveMember`'s LEAF branch can pass it to `buildStateGeoTextFields`
+   *  (`StateNodeGeo.emptyDescription`'s own doc comment) -- a composite's
+   *  own title (`buildPlainAutonomSpec`/`combineConcurrentPasses`) never
+   *  reads this field, since composites are never eligible for the
+   *  EmptyDescription shape upstream (leaf-only branch). */
+  hideEmptyDescription: boolean;
+  /** mission G4 S7: `ast.pseudoCreationIndex`, threaded onto `ctx` so
+   *  `addLocalPseudoNodes` can attach the lazily-assigned pseudostate
+   *  creation tick to its `GeoSpec`s -- see `StateDiagramAST
+   *  .pseudoCreationIndex`'s own doc comment (ast.ts). */
+  pseudoCreationIndex: ReadonlyMap<string, number>;
 }
 
 /** Geometry-tree spec — mirrors visual nesting (unlike the flat
@@ -98,7 +115,20 @@ export interface DiagramCtx {
  *  ./state-composite-geo.ts materializes this into `StateNodeGeo[]` once a
  *  pass's `DotLayoutResult` (real positions) is available. */
 export type GeoSpec =
-  | { kind: 'state'; id: string; stateKind: StateKind; display: string }
+  | {
+      kind: 'state';
+      id: string;
+      stateKind: StateKind;
+      display: string;
+      /** mission G4 S2 -- see `StateNodeGeo.headerLines` doc (state-geo-types.ts). */
+      headerLines?: readonly StateTextLine[];
+      bodyLines?: readonly StateTextLine[];
+      color?: string;
+      /** mission G4 S9 -- see `StateNodeGeo.stereotype`'s own doc comment. */
+      stereotype?: string;
+      /** mission G4 S7 -- see `StateNodeGeo.creationIndex`'s own doc comment. */
+      creationIndex?: number;
+    }
   | {
       kind: 'autonom';
       id: string;
@@ -109,8 +139,45 @@ export type GeoSpec =
       localStates: readonly GeoSpec[];
       localPositions: DotLayoutResult;
       localTransitions: readonly TransitionGeo[];
+      /** mission G4 S3 (mechanism 6) -- the composite box's OWN title
+       *  (`headerLines`, from `state.display`) and optional entry/exit
+       *  action-zone text (`bodyLines`, from `state.description`), measured
+       *  the SAME way a leaf `'state'` spec is (`state-sizing.ts
+       *  #buildStateGeoTextFields`) -- see `state-composite-autonom.ts
+       *  #buildPlainAutonomSpec`'s own doc comment for the jar-verified
+       *  fixtures. `undefined` for a concurrent-region LEAF (`state-
+       *  composite-cluster.ts#buildConcurrentRegionLeaf`), which upstream
+       *  never wraps in `InnerStateAutonom`'s own title/border box at all
+       *  (`GroupMakerState.getImage()` returns a region's raw graph image
+       *  DIRECTLY) -- `renderer-composite-box.ts` falls back to the
+       *  pre-mechanism-6 dashed-rect shape whenever `headerLines` is
+       *  `undefined`, which is also correct for THIS case by construction
+       *  (a named, deliberately-unchanged pre-existing approximation, not a
+       *  new gap -- see that module's own doc comment). */
+      headerLines?: readonly StateTextLine[];
+      bodyLines?: readonly StateTextLine[];
+      color?: string;
+      /** mission G4 S9 -- see `StateNodeGeo.stereotype`'s own doc comment. */
+      stereotype?: string;
+      /** mission G4 S6, mechanism 13: for a CONCURRENT-region-owning
+       *  composite ONLY -- `localStates`/`localTransitions` above stay a
+       *  flat, region-order concatenation (unchanged, still consumed
+       *  whenever `regions` is `undefined`), but this field groups the SAME
+       *  specs/transitions per stacked region so `state-composite-geo.ts
+       *  #materializeAutonom` can build BOTH the flat arrays (by
+       *  concatenating these, preserving object identity for
+       *  `renderer-uid.ts`'s identity-keyed `edgeUid` Map) AND the
+       *  interleaved `StateNodeGeo.concurrentRegions` the renderer needs.
+       *  See `state-composite-concurrent.ts#combineConcurrentPasses`. */
+      regions?: readonly { specs: readonly GeoSpec[]; transitions: readonly TransitionGeo[] }[];
+      /** mission G4 S6, mechanism 13: LOCAL (pre dx/dy-shift) dashed
+       *  separator-line coordinates between stacked regions -- see
+       *  `StateNodeGeo.separators`'s own doc comment (state-geo-types.ts). */
+      separators?: readonly { x1: number; y1: number; x2: number; y2: number }[];
+      /** mission G4 S7 -- see `StateNodeGeo.creationIndex`'s own doc comment. */
+      creationIndex?: number;
     }
-  | { kind: 'cluster'; id: string; display: string; children: readonly GeoSpec[] };
+  | { kind: 'cluster'; id: string; display: string; children: readonly GeoSpec[]; creationIndex?: number };
 
 type ExtractAutonomSpec = Extract<GeoSpec, { kind: 'autonom' }>;
 
@@ -119,21 +186,6 @@ type ExtractAutonomSpec = Extract<GeoSpec, { kind: 'autonom' }>;
  *  Exported: `state-composite-cluster.ts`'s zaent-anchor-node push reuses
  *  this same constant, not a re-derived copy. */
 export const ANCHOR_SIZE = 0.72;
-/** One `[*]`-referencing scope's local start/end anchor ids — scoped per
- *  composite (own id) or '' for the top level (pre-existing per-scope
- *  convention, StateDiagram#getStart/getEnd). */
-function scopedPseudoIds(scopeId: string): { initialId: string; finalId: string } {
-  return scopeId === ''
-    ? { initialId: '__initial__', finalId: '__final__' }
-    : { initialId: `__init_${scopeId}`, finalId: `__final_${scopeId}` };
-}
-
-function usesPseudo(transitions: readonly Transition[]): { start: boolean; end: boolean } {
-  return {
-    start: transitions.some((t) => t.from === '[*]'),
-    end: transitions.some((t) => t.to === '[*]'),
-  };
-}
 
 export interface PassAccumulator {
   nodes: DotInputNode[];
@@ -176,22 +228,6 @@ export function resetEdgeCounter(): void {
   clusterCounter = 0;
 }
 
-export function addLocalPseudoNodes(scopeId: string, transitions: readonly Transition[], acc: PassAccumulator): GeoSpec[] {
-  const { start, end } = usesPseudo(transitions);
-  if (!start && !end) return [];
-  const { initialId, finalId } = scopedPseudoIds(scopeId);
-  const specs: GeoSpec[] = [];
-  if (start) {
-    acc.nodes.push({ id: initialId, width: CIRCLE_START_SIZE, height: CIRCLE_START_SIZE, shape: 'circle' });
-    specs.push({ kind: 'state', id: initialId, stateKind: 'initial', display: '' });
-  }
-  if (end) {
-    acc.nodes.push({ id: finalId, width: CIRCLE_END_SIZE, height: CIRCLE_END_SIZE, shape: 'circle' });
-    specs.push({ kind: 'state', id: finalId, stateKind: 'final', display: '' });
-  }
-  return specs;
-}
-
 /** Push scope `scopeId`'s note DOT nodes into `acc` -- and, for a cluster's
  *  own scope, into `cluster.nodeIds` too (mirrors `addLocalPseudoNodes`'s
  *  pattern for the same reason: a note declared inside a non-autonom
@@ -202,14 +238,6 @@ export function addScopeNotes(scopeId: string, ctx: DiagramCtx, acc: PassAccumul
   if (parts === undefined) return;
   acc.nodes.push(...parts.nodes);
   if (cluster !== undefined) for (const n of parts.nodes) cluster.nodeIds.push(n.id);
-}
-
-function levelEndpointId(raw: string, isFrom: boolean, scopeId: string, ctx: DiagramCtx): string {
-  if (raw === '[*]') {
-    const { initialId, finalId } = scopedPseudoIds(scopeId);
-    return isFrom ? initialId : finalId;
-  }
-  return resolveEndpoint(raw, ctx.classify);
 }
 
 export function addLevelEdges(scopeId: string, transitions: readonly Transition[], acc: PassAccumulator, ctx: DiagramCtx): void {
@@ -288,9 +316,12 @@ function collectRegularTransitions(ast: StateDiagramAST): Transition[] {
  * ever valid NODE ids in exactly one pass's accumulator (entity ids are
  * globally unique), so attempting the pool at every pass boundary can never
  * produce a duplicate edge.
+ * Exported: `state-composite-autonom.ts#buildPlainAutonomSpec` (mission G4
+ * S3, moved out for the file-cap split) reuses this SAME function rather
+ * than a re-derived copy.
  * @see ~/git/plantuml/.../svek/GraphvizImageBuilder.java#buildImage
  */
-function sweepOrphanEdges(acc: PassAccumulator, ctx: DiagramCtx): void {
+export function sweepOrphanEdges(acc: PassAccumulator, ctx: DiagramCtx): void {
   const nodeIds = new Set(acc.nodes.map((n) => n.id));
   const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
   for (const t of ctx.pool) {
@@ -319,7 +350,11 @@ export function resolveMember(s: State, acc: PassAccumulator, ctx: DiagramCtx, p
   const isComposite = hasLocalContent(s);
   if (!isComposite) {
     acc.nodes.push(buildLeafNode(s, ctx));
-    return { kind: 'state', id: s.id, stateKind: s.kind, display: s.display };
+    return {
+      kind: 'state', id: s.id, stateKind: s.kind, display: s.display,
+      ...buildStateGeoTextFields(s, ctx.theme, ctx.measurer, ctx.hideEmptyDescription),
+      ...(s.creationIndex !== undefined ? { creationIndex: s.creationIndex } : {}),
+    };
   }
   if (ctx.classify.kindOf.get(s.id) === 'autonom') {
     const spec = ctx.resolvedAutonom.get(s.id);
@@ -347,6 +382,9 @@ export function runPass(acc: PassAccumulator, ctx: DiagramCtx): DotLayoutResult 
     rankDir: ctx.rankdir,
     omitSepAttrs: true,
     ...(acc.clusters.length > 0 ? { clusters: acc.clusters } : {}),
+    // mission G4 S8 mechanism 19 -- see state-dot-graph.ts#buildDotGraph's
+    // doc comment for the full derivation (mirrors G2 N29).
+    manualArrowheads: true,
   };
   return layoutGraph(graph);
 }
@@ -357,98 +395,32 @@ export function runPass(acc: PassAccumulator, ctx: DiagramCtx): DotLayoutResult 
  *  for a second copy at the geometry layer). */
 export function buildLevelTransitionGeos(acc: PassAccumulator, result: DotLayoutResult): TransitionGeo[] {
   const edgePosMap = new Map(result.edges.map((e) => [e.id, e]));
+  // mission G4 S7 (discovered while jar-verifying mechanism 10's own fix,
+  // `nelupe-49-xova546`): a `'[*]'` transition's RESOLVED scope-local
+  // pseudo-anchor id (`__init_<scopeId>`/`__final_<scopeId>`,
+  // `levelEndpointId` above) already lives on `acc.edges` (`addLevelEdges`/
+  // `sweepOrphanEdges` both resolve before pushing) -- reading `t.from`/
+  // `t.to` directly off the ORIGINAL `Transition` instead re-introduces the
+  // raw `'[*]'` AST token into `svgEndpointId`'s `<path id>` build
+  // (renderer.ts), which only recognizes the FLAT pipeline's own
+  // `INITIAL_ID`/`FINAL_ID` constants -- jar-verified
+  // `id="*start*s7_2-to-chat1"` (expected) vs `id="[*]-to-chat1"` (this
+  // port, pre-fix).
+  const edgeEndpoints = new Map(acc.edges.map((e) => [e.id, { from: e.from, to: e.to }]));
   const geos: TransitionGeo[] = [];
   for (const { t, edgeId } of acc.edgeSources) {
     const edgeResult = edgePosMap.get(edgeId);
     if (edgeResult === undefined) continue;
     const label = attachTransitionLabel(t, edgeResult.points);
-    geos.push({ from: t.from, to: t.to, points: edgeResult.points, ...(label !== undefined ? { label } : {}) });
+    const resolved = edgeEndpoints.get(edgeId);
+    geos.push({
+      from: resolved?.from ?? t.from, to: resolved?.to ?? t.to, points: edgeResult.points, ...(label !== undefined ? { label } : {}),
+      ...(t.creationIndex !== undefined ? { creationIndex: t.creationIndex } : {}),
+      ...(t.crossStart !== undefined ? { crossStart: t.crossStart } : {}),
+      ...(t.circleEnd !== undefined ? { circleEnd: t.circleEnd } : {}),
+    });
   }
   return geos;
-}
-
-/** Build ONE plain (region-free) composite's own child pass: recurse its
- *  children/inner transitions into a FRESH accumulator, run `layoutGraph()`
- *  (the dump — no nodeSep/rankSep, mechanisms.md §3), wrap the result per
- *  InnerStateAutonom's title+body+child-image formula.
- *
- *  `s.transitions` can hold a SELF-referencing entry (`Radio_Configuring -->
- *  Vendor_Radio_Enabled`, written literally inside `state Radio_Configuring {
- *  ... }` — upstream's per-state `:`/`-->` scoping convention repeats the
- *  CURRENT state's own name as a prefix) whose `from`/`to === s.id` resolves
- *  to the composite's OWN id — which is never a node in ITS OWN content pass
- *  (only its CHILDREN are; the composite re-enters its PARENT pass as a
- *  proxy, `resolveMember`'s autonom branch). Unlike `resolveClusterComposite`
- *  (whose `acc` is the SHARED, still-growing pass accumulator — a sibling
- *  resolved LATER in the same walk can supply the missing node before that
- *  pass's own single, deferred `layoutGraph()` call), THIS accumulator is
- *  fresh and gets its own immediate `runPass()` a few lines down: nothing
- *  will ever be added to it after this point, so a self-referencing entry
- *  can never resolve here regardless of order. Excluded from THIS call
- *  (not `addLocalPseudoNodes`, which only reads `'[*]'` endpoints and is
- *  unaffected) so it is never marked `ctx.consumed` here; `collectRegularTransitions`
- *  already pools every composite's own `.transitions` (self-referencing or
- *  not), so `sweepOrphanEdges` retries it — successfully, once against
- *  whichever pass's accumulator DOES contain this composite's re-entry proxy
- *  node (mission A4 Phase L iter 18, giniti-22-fexo000).
- * @see ~/git/plantuml/.../svek/GraphvizImageBuilder.java#buildImage (attempts
- *      EVERY diagram link; a missing SvekNode drops it at THIS pass only) */
-function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
-  const acc = newAccumulator();
-  const memberSpecs = s.children.map((c) => resolveMember(c, acc, ctx, undefined));
-  const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
-  addScopeNotes(s.id, ctx, acc);
-  const localTransitions = s.transitions.filter((t) => t.from !== s.id && t.to !== s.id);
-  addLevelEdges(s.id, localTransitions, acc, ctx);
-  sweepOrphanEdges(acc, ctx);
-  sweepOrphanNoteEdges(acc, ctx.notePool, ctx.consumedNotes, (id) => resolveEndpoint(id, ctx.classify));
-  const result = runPass(acc, ctx);
-  const wrapper = measureAutonomWrapper(s, { width: result.width, height: result.height }, ctx.theme, ctx.measurer);
-  return {
-    kind: 'autonom',
-    id: s.id,
-    display: s.display,
-    offset: wrapper.childOffset,
-    width: wrapper.width,
-    height: wrapper.height,
-    localStates: [...pseudoSpecs, ...memberSpecs],
-    localPositions: result,
-    localTransitions: buildLevelTransitionGeos(acc, result),
-  };
-}
-
-function buildAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
-  return s.concurrentRegions.length > 0 ? buildConcurrentAutonomSpec(s, ctx) : buildPlainAutonomSpec(s, ctx);
-}
-
-/**
- * Fire every autonom composite's own svek pass AND every concurrent
- * region's own pass ONCE, in `ctx.classify.firingOrder` order (deepest
- * nesting level first, source order as tie-break within a level — mission
- * A4 Phase L iteration 17, extended iteration 19 to cover regions;
- * `CucaDiagramSimplifierState.getOrdered` port; firingOrder's doc,
- * state-composite-classify.ts, has the full equivalence argument). Must run
- * BEFORE any `resolveMember` walk (top-level or nested) so every lookup in
- * `resolveMember`'s autonom branch hits, AND before any
- * `buildConcurrentAutonomSpec` call so every region lookup hits too.
- *
- * `buildAutonomSpec`/`buildConcurrentAutonomSpec` are otherwise UNCHANGED
- * (still recurse via `resolveMember` for their own children, and now via a
- * pure `ctx.resolvedRegions` lookup for their own regions) — firing order
- * correctness alone guarantees any autonom composite or region reachable
- * from a shallower build is already resolved, so decoupling firing from
- * assembly required no change to `resolveClusterComposite` either, only to
- * WHEN and WHERE each lookup reads its result from.
- * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
- */
-function resolveAllAutonomPasses(ctx: DiagramCtx): void {
-  for (const unit of ctx.classify.firingOrder) {
-    if (unit.kind === 'composite') {
-      ctx.resolvedAutonom.set(unit.id, buildAutonomSpec(unit.state, ctx));
-    } else {
-      ctx.resolvedRegions.set(unit.id, buildConcurrentRegionPass(unit.owner, unit.regionIndex, unit.members, ctx));
-    }
-  }
 }
 
 /** Top-level entry point: resolve the whole diagram's top scope into ONE
@@ -467,12 +439,13 @@ export function buildTopLevelPass(
   const ctx: DiagramCtx = {
     theme, measurer, rankdir, classify, pool, consumed: new Set(),
     noteParts, notePool, consumedNotes: new Set(), resolvedAutonom: new Map(),
-    resolvedRegions: new Map(),
+    resolvedRegions: new Map(), hideEmptyDescription: ast.hideEmptyDescription ?? false,
+    pseudoCreationIndex: ast.pseudoCreationIndex ?? new Map(),
   };
   resolveAllAutonomPasses(ctx);
   const acc = newAccumulator();
   const specs = ast.states.map((s) => resolveMember(s, acc, ctx, undefined));
-  const pseudoSpecs = addLocalPseudoNodes('', ast.transitions, acc);
+  const pseudoSpecs = addLocalPseudoNodes('', ast.transitions, acc, ctx.pseudoCreationIndex);
   addScopeNotes('', ctx, acc);
   addLevelEdges('', ast.transitions, acc, ctx);
   sweepOrphanEdges(acc, ctx);
@@ -489,7 +462,18 @@ export function buildTopLevelPass(
     ...(theme.nodeSep !== undefined ? { nodeSepExplicit: true } : {}),
     ...(theme.rankSep !== undefined ? { rankSepExplicit: true } : {}),
     ...(acc.clusters.length > 0 ? { clusters: acc.clusters } : {}),
+    // mission G4 S8 mechanism 19 -- see state-dot-graph.ts#buildDotGraph's
+    // doc comment for the full derivation (mirrors G2 N29).
+    manualArrowheads: true,
   };
   const result = layoutGraph(graph);
-  return { acc, result, ctx, specs: [...pseudoSpecs, ...specs] };
+  // mission G4 S5: real states/composites FIRST, pseudo start/end LAST --
+  // matches jar's own document order (`bajelo-54-dixe684`: `Track_FSM`
+  // entity first, `.start.`/`.end.` pseudo entities last) and the FLAT
+  // pipeline's own existing convention (`layout.ts#buildFlatStateGeos`
+  // pushes `buildPseudoNodeGeos` AFTER the real states). The pre-S5
+  // `[...pseudoSpecs, ...specs]` order was backward -- previously masked
+  // by the flat-transitions childCount short-circuit (S1), only visible
+  // once that mismatch was fixed (S5's own transition-nesting mechanism).
+  return { acc, result, ctx, specs: sortSpecsByCreationIndex([...specs, ...pseudoSpecs]) };
 }

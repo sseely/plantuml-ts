@@ -14,7 +14,6 @@
 import type { State, StateKind, StateDiagramAST, Transition } from './ast.js';
 import type { PendingNote } from './state-notes.js';
 import type { PendingJson } from './state-json-commands.js';
-import { isSyncBarId } from './state-transitions.js';
 
 // ---------------------------------------------------------------------------
 // Parser passes
@@ -55,17 +54,13 @@ import { isSyncBarId } from './state-transitions.js';
 export type Pass = 'one' | 'two';
 
 // ---------------------------------------------------------------------------
-// Pseudostate markers
+// Pseudostate markers + stereotype/compound-id classification (mission G4
+// S7: moved to ./state-pseudokind.ts, 500-line file-cap compliance) --
+// re-exported here so every pre-existing importer of this module keeps
+// working unchanged (a pure move, not a public-API change).
 // ---------------------------------------------------------------------------
 
-/** The reserved pseudostate id used for initial and final transitions. */
-export const PSEUDOSTATE = '[*]';
-
-/** The shallow history pseudostate id. */
-const HISTORY_SHALLOW = '[H]';
-
-/** The deep history pseudostate id. */
-const HISTORY_DEEP = '[H*]';
+export { PSEUDOSTATE, stereotypeToKind, pseudoKindForId, compoundHistoryKind } from './state-pseudokind.js';
 
 /**
  * Default namespace separator for state diagrams (`StateDiagram.java:62`,
@@ -77,86 +72,6 @@ const HISTORY_DEEP = '[H*]';
  * @see ~/git/plantuml/.../statediagram/StateDiagram.java:62
  */
 export const DEFAULT_SEPARATOR = '.';
-
-// ---------------------------------------------------------------------------
-// Stereotype → StateKind mapping
-// ---------------------------------------------------------------------------
-
-/**
- * Upstream resolves a pseudostate's leaf type from the FIRST `<<label>>` in
- * a state's stereotype group (`Stereogroup#getLeafType`) — only these
- * labels are recognized; anything else keeps `LeafType.STATE` (our
- * `'normal'`). `<<junction>>` is deliberately ABSENT here (mission A4 Phase
- * L iter 15, livuni-63-fira764): `Stereogroup.java` has NO `junction` case
- * at all, so upstream treats it as a plain, unrecognized stereotype string
- * and keeps `LeafType.STATE` (kind:'normal', rect/rounded shape) — a prior
- * (invented) mapping to a `'junction'` StateKind rendered it as a diamond,
- * wrong shape and wrong size (24x24 vs the correct ~50x50 no-label rect).
- * `entrypoint`/`exitpoint` stay OUT of this table on purpose (see the
- * table's own comment) — a separate classification axis, not a StateKind.
- * @see ~/git/plantuml/.../stereo/Stereogroup.java#getLeafType
- */
-const STEREOTYPE_KIND_MAP: Readonly<Record<string, StateKind>> = {
-  choice: 'choice',
-  fork: 'fork',
-  join: 'join',
-  history: 'history',
-  // Real upstream key is `history*` (Stereogroup.java:127-128), not
-  // `deephistory` — both map here so pre-existing `<<deepHistory>>`
-  // fixtures/tests keep working while the faithful `<<history*>>` spelling
-  // now also resolves correctly.
-  'history*': 'deepHistory',
-  deephistory: 'deepHistory',
-  // Named (non-anonymous) initial/final pseudostates: `state X <<start>>` /
-  // `state X <<end>>` reuse the `'initial'`/`'final'` StateKind values that
-  // were previously reserved-but-unused (only the anonymous `[*]` sentinel
-  // used them, and `[*]` is never turned into a State node at all).
-  start: 'initial',
-  end: 'final',
-  // `<<entrypoint>>`/`<<exitpoint>>` are deliberately ABSENT here (mission
-  // A4/T4 fact-4): Stereogroup.java has no such case, so upstream keeps
-  // these `LeafType.STATE` (kind:'normal') — classification into a
-  // border-point box happens via the INDEPENDENT `EntityPosition` axis
-  // (./state-entity-position.ts), not `StateKind`. A prior (invented)
-  // mapping to `'choice'` here rendered them as diamonds — wrong shape,
-  // wrong size (24x24 vs the correct 12x12 border-point box) — removed.
-};
-
-export function stereotypeToKind(raw: string): StateKind {
-  const key = raw.toLowerCase();
-  return STEREOTYPE_KIND_MAP[key] ?? 'normal';
-}
-
-/**
- * Resolve the kind for a pseudostate transition endpoint id: exact
- * shallow/deep history (`[H]`/`[H*]`), or a `=name=` synchronization bar
- * reference. Compound `StateId[H]`/`StateId[H*]` forms are NOT resolved
- * here — see `compoundHistoryKind` below.
- */
-export function pseudoKindForId(id: string): StateKind | undefined {
-  if (id === HISTORY_SHALLOW) return 'history';
-  if (id === HISTORY_DEEP) return 'deepHistory';
-  if (isSyncBarId(id)) return 'syncBar';
-  return undefined;
-}
-
-/**
- * Compound `StateId[H]`/`StateId[H*]` endpoint — `CommandLinkStateCommon
- * #getEntity`'s `code.endsWith("[H]")`/`code.endsWith("[H*]")` branches
- * (case-SENSITIVE suffix match, unlike the bare form's `equalsIgnoreCase`
- * above — faithfully preserved, not an oversight). Checked in the SAME
- * order as upstream: the deep suffix is tested before the shallow one so a
- * deep reference is never mis-split as a shallow one with a literal `*]`
- * trailing the composite name. Returns the referenced composite's own id
- * (`idShort`) plus which history flavor, or `undefined` when `id` is not a
- * compound history reference at all.
- * @see ~/git/plantuml/.../statediagram/command/CommandLinkStateCommon.java#getEntity
- */
-export function compoundHistoryKind(id: string): { idShort: string; kind: StateKind } | undefined {
-  if (id.endsWith(HISTORY_DEEP)) return { idShort: id.slice(0, -HISTORY_DEEP.length), kind: 'deepHistory' };
-  if (id.endsWith(HISTORY_SHALLOW)) return { idShort: id.slice(0, -HISTORY_SHALLOW.length), kind: 'history' };
-  return undefined;
-}
 
 // ---------------------------------------------------------------------------
 // Parse scope (represents one level of nesting)
@@ -307,6 +222,94 @@ export interface ParseState {
    * @see ~/git/plantuml/.../classdiagram/command/CommandNamespaceSeparator.java
    */
   separator: string | null;
+  /**
+   * mission G4 S7 (mechanism 10, id-numbering creation-index gap): the
+   * SHARED, monotonically-incrementing tick counter behind every state's,
+   * transition's, and pseudostate's `creationIndex` -- mirrors upstream
+   * `net.atmp.CucaDiagram#cpt1` (`AtomicInteger`, starts at 0,
+   * `addAndGet(1)` per tick, so the first real tick is `1`). Also
+   * incremented (its result discarded) for a concurrent-region separator
+   * (`--`/`||`) on pass ONE ONLY (`state-commands.ts`'s rule 4) -- mirrors
+   * upstream `StateDiagram#concurrentState`'s `gotoGroup(..., GroupType
+   * .CONCURRENT_STATE)`, which constructs a real (if never individually
+   * rendered) `Entity` via `CucaDiagram#createGroup` -> `new Entity(...)`,
+   * burning a real `cpt1` tick with NO corresponding visible node -- this is
+   * what makes a CONC-region-owning composite's OWN children's ids skip a
+   * slot (jar-verified `nivanu-50-zajo916`/`semala-31-joji042`/
+   * `pevene-26-kebo361`, plans/g4-state-svg/ledger.md S7). Persistent across
+   * both parser passes (never reset).
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt1
+   */
+  creationCounter: number;
+  /**
+   * mission G4 S7: lazily-assigned `creationIndex` per scope's synthetic
+   * `[*]`-derived pseudostate, keyed by {@link pseudoTickKey}. See
+   * `StateDiagramAST.pseudoCreationIndex`'s doc (ast.ts) for the full
+   * mechanism and why this lives outside the `State`/`Transition` shape.
+   */
+  pseudoCreationIndex: Map<string, number>;
+  /**
+   * mission G4 S14 (CONC-region bare-name global numbering): a SEPARATE
+   * diagram-wide monotonic counter mirroring upstream
+   * `net.atmp.CucaDiagram#cpt2` (`AtomicInteger`), consumed exclusively by
+   * `StateDiagram#concurrentState`'s own
+   * `getUniqueSequence2(CONCURRENT_PREFIX)` -- ONE tick per `--`/`||`
+   * concurrent-region separator, in DOCUMENT (parse) order, regardless of
+   * which composite owns it (StateDiagram.java:194-208). This is
+   * INDEPENDENT of `creationCounter` (cpt1) -- upstream keeps the two
+   * `AtomicInteger` fields separate too. Incremented on pass ONE ONLY
+   * (mirrors `creationCounter`'s own pass-ONE-only discipline, same `--`
+   * handler in state-commands.ts's rule 4). Persistent across both parser
+   * passes.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt2
+   * @see ~/git/plantuml/.../statediagram/StateDiagram.java:194-208
+   */
+  concurrentGlobalCounter: number;
+  /**
+   * mission G4 S14: maps this port's own internal, owner-local
+   * `concurrentRegionScopeId` key (e.g. `"State2::CONC1"`) to the GLOBAL
+   * region number jar's real `cpt2` counter assigned that SAME region
+   * (e.g. `2`, when it is the SECOND `--` encountered anywhere in the
+   * document). The internal `concurrentRegionScopeId` dedup key itself is
+   * UNCHANGED (still owner-local -- see that function's own doc comment
+   * for why every other internal lookup keeps using it as-is); this map is
+   * a SEPARATE, additive translation table consumed only by
+   * `renderer.ts#localScopeName` to produce jar's real global `CONC<n>` in
+   * a rendered `*start*CONC<n>-to-X` path id. Populated on pass ONE only.
+   */
+  concurrentGlobalIds: Map<string, number>;
+}
+
+/**
+ * Consume and return the next shared creation-order tick (mission G4 S7) --
+ * mirrors upstream `CucaDiagram#getUniqueSequenceValue`
+ * (`cpt1.addAndGet(1)`). Callers that only need to BURN a tick (concurrent-
+ * region phantom groups) discard the return value.
+ */
+export function nextCreationIndex(ps: ParseState): number {
+  ps.creationCounter += 1;
+  return ps.creationCounter;
+}
+
+/**
+ * Consume and return the next global concurrent-region number (mission G4
+ * S14) -- mirrors upstream `CucaDiagram#getUniqueSequence2`
+ * (`cpt2.addAndGet(1)`). A SEPARATE counter from {@link nextCreationIndex}
+ * (cpt1) -- see `ParseState.concurrentGlobalCounter`'s own doc comment.
+ */
+export function nextConcurrentGlobalId(ps: ParseState): number {
+  ps.concurrentGlobalCounter += 1;
+  return ps.concurrentGlobalCounter;
+}
+
+/**
+ * Composite key for {@link ParseState.pseudoCreationIndex} /
+ * `StateDiagramAST.pseudoCreationIndex` -- see that field's own doc comment
+ * (ast.ts) for why `scopeId` must be the SAME string
+ * `noteScopeId`/`concurrentRegionScopeId` already produce.
+ */
+export function pseudoTickKey(scopeId: string, which: 'start' | 'end'): string {
+  return `${scopeId}::${which}`;
 }
 
 /** Return the current (innermost) scope. */
@@ -374,8 +377,14 @@ export function scopeOf(ps: ParseState, owner: State): Scope {
   return scope;
 }
 
-/** Emit a transition into the current scope. */
+/** Emit a transition into the current scope -- stamps `t.creationIndex`
+ *  (mission G4 S7) at the SINGLE true creation chokepoint, mirroring
+ *  upstream `Link`'s own ctor tick (`Link.java:135`), which always fires
+ *  AFTER both endpoints are already resolved/auto-created (callers
+ *  `ensureState` both endpoints before calling this — see `Transition
+ *  .creationIndex`'s own doc comment, ast.ts). */
 export function emitTransition(ps: ParseState, t: Transition): void {
+  t.creationIndex = nextCreationIndex(ps);
   currentScope(ps).transitions.push(t);
 }
 

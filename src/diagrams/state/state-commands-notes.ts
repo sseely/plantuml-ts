@@ -11,9 +11,9 @@
 
 import type { NotePosition } from './ast.js';
 import type { Command } from './state-commands.js';
-import { currentScope, noteScopeId } from './state-parse-state.js';
+import { currentScope, noteScopeId, nextCreationIndex } from './state-parse-state.js';
 import {
-  NOTE_COLOR,
+  NOTE_COLOR_CAPTURE,
   NOTE_STEREO,
   NOTE_TARGET,
   NOTE_URL,
@@ -40,6 +40,8 @@ export const NOTE_COMMANDS: readonly Command[] = [
   //     Dispatches on BOTH passes (see the `Command.passes` doc above) --
   //     upstream's real ParserPass.THREE eligibility is instead enforced
   //     at the closer (parser.ts's `noteFinalizePass`).
+  //     mission G4 S12: `#color` is now CAPTURED (match[3]) -- the trailing
+  //     brace-closer capture shifts from match[3] to match[4] accordingly.
   // @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java
   // -------------------------------------------------------------------------
   {
@@ -48,7 +50,7 @@ export const NOTE_COMMANDS: readonly Command[] = [
         NOTE_TARGET +
         `)?` +
         NOTE_STEREO +
-        NOTE_COLOR +
+        NOTE_COLOR_CAPTURE +
         NOTE_URL +
         String.raw`\s*(\{)?\s*$`,
       'i',
@@ -63,7 +65,8 @@ export const NOTE_COMMANDS: readonly Command[] = [
         implicitTarget: target === undefined,
         position,
         textLines: [],
-        ...(match[3] !== undefined ? { closer: 'brace' } : {}),
+        ...(match[3] !== undefined ? { color: match[3] } : {}),
+        ...(match[4] !== undefined ? { closer: 'brace' } : {}),
       };
     },
   },
@@ -73,6 +76,8 @@ export const NOTE_COMMANDS: readonly Command[] = [
   //     `of <State>` absent -> attaches to the last created entity.
   //     Upstream CommandFactoryNoteOnEntity is ParserPass.THREE for state
   //     diagrams -- merged into our single 'two' pass (see Pass's doc).
+  //     mission G4 S12: `#color` is now CAPTURED (match[3]) -- the trailing
+  //     text capture shifts from match[3] to match[4] accordingly.
   // @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:92-116 (regex)
   //      :293-301 (idShort==null -> getLastEntity(); null -> no-op here)
   // -------------------------------------------------------------------------
@@ -82,7 +87,7 @@ export const NOTE_COMMANDS: readonly Command[] = [
         NOTE_TARGET +
         `)?` +
         NOTE_STEREO +
-        NOTE_COLOR +
+        NOTE_COLOR_CAPTURE +
         NOTE_URL +
         String.raw`\s*:\s*(.+)$`,
       'i',
@@ -91,9 +96,14 @@ export const NOTE_COMMANDS: readonly Command[] = [
     execute(ps, match) {
       const target = match[2] ?? ps.lastEntity ?? undefined;
       if (target === undefined) return; // "Nothing to note to" — silent no-op
-      const id = addNote(ps.ast, match[1]!.toLowerCase() as NotePosition, target, match[3]!.trim(), {
+      // mission G4 S10: burned GMN quark-name tick -- see
+      // `StateNote.creationIndex`'s own doc comment.
+      nextCreationIndex(ps);
+      const id = addNote(ps.ast, match[1]!.toLowerCase() as NotePosition, target, match[4]!.trim(), {
         implicitTarget: match[2] === undefined,
         scopeId: noteScopeId(ps),
+        creationIndex: nextCreationIndex(ps),
+        ...(match[3] !== undefined ? { color: match[3] } : {}),
       });
       ps.lastEntity = id;
     },
@@ -104,6 +114,8 @@ export const NOTE_COMMANDS: readonly Command[] = [
   //     transition parsed WITHIN the currently open scope. Position is
   //     OPTIONAL (defaults to BOTTOM — CommandFactoryNoteOnLink.java:203).
   //     CommandFactoryNoteOnLink#isEligibleFor -> ParserPass.TWO only.
+  //     `#color` stays NON-capturing here (unchanged this iteration) --
+  //     see `NOTE_COLOR_CAPTURE`'s own doc comment (state-notes.ts).
   // @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnLink.java
   // -------------------------------------------------------------------------
   {
@@ -141,13 +153,22 @@ export const NOTE_COMMANDS: readonly Command[] = [
   //     `Command.passes` doc above); real ParserPass.ONE eligibility
   //     (CommandFactoryNote's base-class default -- no override) is
   //     enforced at the closer (parser.ts's `noteFinalizePass`).
+  //     mission G4 S12: `#color` is now CAPTURED (match[2]).
   // @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:77-89
   // -------------------------------------------------------------------------
   {
-    pattern: new RegExp(String.raw`^note\s+as\s+` + NOTE_TARGET + NOTE_STEREO + NOTE_COLOR + String.raw`\s*$`, 'i'),
+    pattern: new RegExp(
+      String.raw`^note\s+as\s+` + NOTE_TARGET + NOTE_STEREO + NOTE_COLOR_CAPTURE + String.raw`\s*$`,
+      'i',
+    ),
     passes: ['one', 'two'],
     execute(ps, match) {
-      ps.pendingNote = { kind: 'freestanding', alias: match[1]!, textLines: [] };
+      ps.pendingNote = {
+        kind: 'freestanding',
+        alias: match[1]!,
+        textLines: [],
+        ...(match[2] !== undefined ? { color: match[2] } : {}),
+      };
     },
   },
 
@@ -157,18 +178,21 @@ export const NOTE_COMMANDS: readonly Command[] = [
   //     for — a distinct upstream command from 10/11/13
   //     (CommandFactoryNote's singleLine, not CommandFactoryNoteOnEntity).
   //     No `isEligibleFor` override -> base-class default PASS ONE only.
+  //     mission G4 S12: `#color` is now CAPTURED (match[3]).
   // @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:91-107
   // -------------------------------------------------------------------------
   {
     pattern: new RegExp(
-      String.raw`^note\s+"([^"]+)"\s+as\s+` + NOTE_TARGET + NOTE_STEREO + NOTE_COLOR + String.raw`\s*$`,
+      String.raw`^note\s+"([^"]+)"\s+as\s+` + NOTE_TARGET + NOTE_STEREO + NOTE_COLOR_CAPTURE + String.raw`\s*$`,
       'i',
     ),
     passes: ['one'],
     execute(ps, match) {
-      const id = addFreestandingNote(ps.ast, match[2]!, match[1]!, noteScopeId(ps));
+      const id = addFreestandingNote(ps.ast, match[2]!, match[1]!, noteScopeId(ps), {
+        creationIndex: nextCreationIndex(ps),
+        ...(match[3] !== undefined ? { color: match[3] } : {}),
+      });
       ps.lastEntity = id;
     },
   },
 ] satisfies readonly Command[];
-

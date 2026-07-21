@@ -21,3 +21,11 @@ add explicit label-dimension parameters to `addSubgraph`.
 ## Evidence trail
 
 `plans/g2-class-svg/ledger.md` (cluster-sizing sections feeding N61).
+
+---
+
+**RESOLVED — graphviz-ts 0.1.26072013 (verified 2026-07-20).** Repro DOT
+re-run through `renderSvg`/`getLayout` vs real `dot -Tsvg` (graphviz 15.1):
+`addSubgraph(name, attrs)` accepts attrs and HTML-table labels drive cluster
+width (WIDTH=300 repro: cluster6 width 316 on both engines, byte-identical
+geometry). Consumer-side adoption in production `addClusters` is mission work.

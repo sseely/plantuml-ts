@@ -218,6 +218,35 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(unknown).toEqual([]);
   });
 
+  // G4 S9: `skinparam StateBorderColor<<stereo>> #X` -- SAME direct
+  // stereotype-qualified value-lookup mechanism as `classborderthickness
+  // <<stereo>>` above (`SkinParam#getColor(ColorParam, Stereotype)`), applied
+  // to a state's own box/divider stroke -- see
+  // `theme.ts#stateBorderColorByStereo`'s own doc comment. Jar-verified
+  // `semala-31-joji042` (`skinparam StateBorderColor<<meblue>> blue`, `state
+  // a<<meblue>>` -- box `rect`/divider `line` both render `stroke="#0000FF"`,
+  // children keep the plain `#181818` default).
+  it('maps statebordercolor<<stereo>> to colors.graph.stateBorderColorByStereo', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['statebordercolor<<meblue>>', 'blue']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.stateBorderColorByStereo).toEqual({ meblue: 'blue' });
+    expect(unknown).toEqual([]);
+  });
+
+  // G4 S9: lowercased key, matching `classborderthickness<<stereo>>`'s own
+  // "keyed by the LOWERCASED stereotype label" precedent -- a mixed-case
+  // `<<MeBlue>>` skinparam key must still be retrievable via the lowercased
+  // label a state's own `stereotype` field carries.
+  it('lowercases the stereotype label in statebordercolor<<X>>', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['statebordercolor<<MeBlue>>', '#0000FF']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.stateBorderColorByStereo).toEqual({ meblue: '#0000FF' });
+  });
+
   // G2 N51
   it('maps arrowthickness to colors.graph.arrowThickness', () => {
     const { theme, unknown } = resolveSkinparam(

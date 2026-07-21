@@ -56,6 +56,7 @@ import {
   type Pass,
   makeScope,
   noteScopeId,
+  nextCreationIndex,
   popScope,
   syncAutoScopes,
   DEFAULT_SEPARATOR,
@@ -88,7 +89,7 @@ function handlePendingNoteLine(ps: ParseState, line: string, pass: Pass): boolea
   if (isNoteCloser(ps.pendingNote, line)) {
     if (pass === noteFinalizePass(ps.pendingNote.kind)) {
       const scopeId = noteScopeId(ps);
-      const id = finalizePendingNote(ps.ast, ps.pendingNote, scopeId);
+      const id = finalizePendingNote(ps.ast, ps.pendingNote, scopeId, () => nextCreationIndex(ps));
       if (id !== undefined) ps.lastEntity = id;
     }
     ps.pendingNote = null;
@@ -238,6 +239,10 @@ export function parseState(block: UmlSource): StateDiagramAST {
     globalByName: new Map(),
     scopeByOwner: new Map(),
     separator: DEFAULT_SEPARATOR,
+    creationCounter: 0,
+    pseudoCreationIndex: new Map(),
+    concurrentGlobalCounter: 0,
+    concurrentGlobalIds: new Map(),
   };
 
   // PASS ONE: declaration-family commands only — builds the complete tree.
@@ -257,5 +262,13 @@ export function parseState(block: UmlSource): StateDiagramAST {
 
   ast.states = topScope.states;
   ast.transitions = topScope.transitions;
+  // mission G4 S7: hand off the parse-time pseudostate creation-index map
+  // (see `StateDiagramAST.pseudoCreationIndex`'s own doc comment, ast.ts) --
+  // mirrors the `ast.states`/`ast.transitions` handoff immediately above.
+  ast.pseudoCreationIndex = ps.pseudoCreationIndex;
+  // mission G4 S14: hand off the parse-time CONC-region global-numbering
+  // translation map (see `StateDiagramAST.concurrentGlobalIds`'s own doc
+  // comment, ast.ts) -- mirrors the `pseudoCreationIndex` handoff above.
+  ast.concurrentGlobalIds = ps.concurrentGlobalIds;
   return ast;
 }

@@ -22,6 +22,9 @@ import {
   currentRegionStates,
   rootScope,
   scopeOf,
+  nextCreationIndex,
+  pseudoTickKey,
+  noteScopeId,
 } from './state-parse-state.js';
 import { stripSyncBarEquals } from './state-transitions.js';
 
@@ -71,6 +74,12 @@ function resolveExistingState(ps: ParseState, id: string): State | undefined {
  * seen in ANY prior pass/visit of `scope`.
  */
 function registerStateInto(ps: ParseState, scope: Scope, state: State): void {
+  // mission G4 S7: the SINGLE true "brand new state" chokepoint -- every
+  // creation path (declare, dotted-path, history/deepHistory shorthand,
+  // compound-history graft, transition-endpoint auto-create) funnels through
+  // here exactly once per state, in true parse-time order. See `State
+  // .creationIndex`'s own doc comment (ast.ts) for the full mechanism.
+  state.creationIndex = nextCreationIndex(ps);
   scope.stateIndex.set(state.id, state);
   scope.states.push(state);
   currentRegionStates(scope).push(state);
@@ -298,8 +307,30 @@ function ensureCompoundHistory(ps: ParseState, idShort: string, pseudoKind: Stat
   return s;
 }
 
-export function ensureState(ps: ParseState, id: string, kind: StateKind = 'normal'): State | undefined {
-  if (id === PSEUDOSTATE) return undefined;
+export function ensureState(
+  ps: ParseState,
+  id: string,
+  kind: StateKind = 'normal',
+  isFrom?: boolean,
+): State | undefined {
+  // mission G4 S7: `'[*]'` is never a real `State` node (unchanged), but
+  // upstream's own `getStart(location)`/`getEnd(location)` DOES lazily
+  // construct a real (ticked) `Entity` the FIRST time a scope references it
+  // -- `isFrom` distinguishes which one (a `[*]` written as a transition's
+  // `from` resolves `getStart`; as `to`, `getEnd`), matching the call site's
+  // own `ensureState(ps, rest.from, undefined, true)`/`ensureState(ps,
+  // rest.to, undefined, false)`. Idempotent per scope (memoized in
+  // `ps.pseudoCreationIndex`), mirroring `quark.getData() == null` guarding
+  // `reallyCreateLeaf` inside `getStart`/`getEnd`. `isFrom === undefined`
+  // (every OTHER caller, none of which can pass the literal `'[*]'` token)
+  // skips this entirely -- see `Transition.creationIndex`'s own doc comment.
+  if (id === PSEUDOSTATE) {
+    if (isFrom !== undefined) {
+      const key = pseudoTickKey(noteScopeId(ps), isFrom ? 'start' : 'end');
+      if (!ps.pseudoCreationIndex.has(key)) ps.pseudoCreationIndex.set(key, nextCreationIndex(ps));
+    }
+    return undefined;
+  }
 
   // Sync-bar ids resolve/create under their CANONICAL stripped name (`B1`,
   // not `==B1==`/`===B1===`) -- upstream's `removeEquals()` runs before the

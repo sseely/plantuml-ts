@@ -40,7 +40,9 @@ import type { State, StateKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import type { DotInputNodeShape } from '../../core/graph-layout.js';
+import type { StateTextLine } from './state-geo-types.js';
 import { measureJsonState } from './state-json-sizing.js';
+import { resolveStateFontSize } from './state-render-colors.js';
 
 // ---------------------------------------------------------------------------
 // Creole line splitting
@@ -147,18 +149,23 @@ const EMPTY_DESC_MIN_HEIGHT = 40;
  * BodyFactory.create2, not the description/body lines — the stereotype
  * itself renders as an EMPTY TextBlock, USymbolFrame.asSmall:72).
  *
- * UNVERIFIED against the corpus: cekolo-21-gini183's sdlreceive node is
- * 1.598438x0.611111in (115.0875 x 44pt); this formula computes ~103.09 x
- * 44pt at the WidthTableMeasurer's default-theme metrics — height matches
- * exactly (single-line label, no extra padding), width is off by ~12pt.
- * BodyEnhanced1/BodyFactory.create2's exact creole padding for the FRAME
- * symbol's label was not fully traced (single fixture in the whole corpus,
- * mechanisms.md marks the upstream formula itself as "no fixed formula").
- * Shape (`rect`, not rounded) and structural presence are exact; only this
- * one dimension is approximate — reported, not asserted, mirroring
- * svek-dot-emit.ts's SHIELD_MARGIN precedent for other unverified metrics.
+ * mission G4 S14: the ~12pt width gap this doc comment used to report as
+ * unverified is `BodyEnhancedAbstract#getMarginX()` = 6 (`BodyEnhanced1`'s
+ * own override), applied via `TextBlockUtils.withMargin(block, marginX, 0)`
+ * -- LEFT+RIGHT, so `2 * BODY_MARGIN_X` = 12 total, ON TOP OF
+ * `USymbolFrame`'s own `SDL_MARGIN`. jar-verified byte-exact against
+ * `cekolo-21-gini183`'s sdlreceive node (115.0875 x 44pt): `label.width`
+ * (63.0875, "sdlreceive" at the deterministic theme font) + `SDL_MARGIN.x1
+ * + SDL_MARGIN.x2` (40) + `2 * BODY_MARGIN_X` (12) = 115.0875 exactly;
+ * height (44) needs no correction (single-line label, no extra vertical
+ * padding from `getMarginX`, which is X-only).
+ * @see ~/git/plantuml/.../cucadiagram/BodyEnhancedAbstract.java#getMarginX
+ * @see ~/git/plantuml/.../cucadiagram/BodyEnhanced1.java#getMarginX
+ * @see plans/g4-state-svg/ledger.md (S14)
  */
 const SDL_MARGIN = { x1: 15, x2: 25, y1: 20, y2: 10 };
+/** `BodyEnhanced1#getMarginX` — see {@link SDL_MARGIN}'s own doc comment. */
+const BODY_MARGIN_X = 6;
 
 function measureLines(lines: readonly string[], font: FontSpec, measurer: StringMeasurer): Dim {
   if (lines.length === 0) return { width: 0, height: 0 };
@@ -175,7 +182,10 @@ function measureLines(lines: readonly string[], font: FontSpec, measurer: String
 /** EntityImageState2 sizing (approximate — see SDL_MARGIN doc). */
 function measureSdlReceive(state: State, font: FontSpec, measurer: StringMeasurer): Dim {
   const label = measureLines(splitCreoleLines(state.display), font, measurer);
-  return { width: label.width + SDL_MARGIN.x1 + SDL_MARGIN.x2, height: label.height + SDL_MARGIN.y1 + SDL_MARGIN.y2 };
+  return {
+    width: label.width + SDL_MARGIN.x1 + SDL_MARGIN.x2 + 2 * BODY_MARGIN_X,
+    height: label.height + SDL_MARGIN.y1 + SDL_MARGIN.y2,
+  };
 }
 
 /** EntityImageStateEmptyDescription: `hide empty description` + no body lines. */
@@ -252,7 +262,121 @@ export function measureState(
   if (fixedDim !== undefined) {
     return { ...fixedDim, shape: FIXED_PSEUDOSTATE_SHAPE[state.kind]! };
   }
-  const font: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  // mission G4 S16: `skinparam stateFontSize<<X>> N` -- see
+  // `resolveStateFontSize`'s own doc comment (state-render-colors.ts) for
+  // why this is a LAYOUT-time concern (feeds the DOT node's own
+  // width/height), unlike its `stateBackgroundColor<<X>>`/`stateFontColor
+  // <<X>>` siblings, which are render-time-only.
+  const fontSize = resolveStateFontSize(state, theme, theme.fontSize);
+  const font: FontSpec = { family: theme.fontFamily, size: fontSize };
   const { dim, shape } = measureNormalKind(state, hideEmptyDescription, font, measurer);
   return { ...dim, shape };
+}
+
+// ---------------------------------------------------------------------------
+// Render-time text metrics (mission G4 S2, mechanism 5)
+// ---------------------------------------------------------------------------
+//
+// The renderer (renderer-box.ts/renderer-pseudostate.ts) has no
+// `StringMeasurer` of its own (a pure-function, DOM-free design constraint —
+// see StateNodeGeo.headerLines's own doc comment) — per-line measured widths
+// for jar's exact `textLength="..."` centering must be computed HERE, once,
+// at layout time, and threaded through StateNodeGeo, mirroring the class
+// engine's `ClassifierGeo.rows[].width` precedent.
+
+/** Header (display/name) lines, pre-measured — `kind:'normal'` leaf boxes.
+ *  Jar-verified jocela-05-niba392 (1 line), votoki-67-gufa610 (1 line,
+ *  centered against a WIDER body-dominated box). */
+export function measureTextLines(displayText: string, font: FontSpec, measurer: StringMeasurer): StateTextLine[] {
+  return splitCreoleLines(displayText).map((ln) => ({ text: ln, width: measurer.measure(ln, font).width }));
+}
+
+/**
+ * Body/description lines, pre-measured — `kind:'normal'` leaf boxes.
+ * Jar-verified votoki-67-gufa610 (2 lines), gefefe-91-xoge233 (`IDLE :`,
+ * a truly empty captured line — jar substitutes a literal single SPACE
+ * character for the row rather than drawing a zero-width empty `<text>`;
+ * `textLength="3.85"`, content U+00A0 NBSP, NOT a plain U+0020 space --
+ * confirmed byte-for-byte against the fixture's raw UTF-8, `\xc2\xa0` --
+ * SAME NBSP-substitution convention the class engine's own creole atom
+ * renderer already documents, `renderer-classifier-box.ts#renderRowAtoms`'s
+ * `atom.renderText`/`renderWidth` doc comment, `DriverTextSvg.java`'s
+ * whitespace-only-run branch). This is a render-time cosmetic substitution
+ * only — it does NOT affect `hasBody`/box-height decisions elsewhere
+ * (state-sizing.ts's own `measureNormalState`, which counts ARRAY entries,
+ * not string emptiness — a blank description line already contributes one
+ * full `theme.fontSize` of height either way).
+ */
+const NBSP = '\u00A0';
+export function measureBodyTextLines(
+  description: readonly string[] | undefined,
+  font: FontSpec,
+  measurer: StringMeasurer,
+): StateTextLine[] {
+  const lines = (description ?? []).flatMap(splitCreoleLines).map((ln) => (ln === '' ? NBSP : ln));
+  return lines.map((ln) => ({ text: ln, width: measurer.measure(ln, font).width }));
+}
+
+/** `EntityImagePseudoState`/`EntityImageDeepHistory`'s own "H"/"H*" glyph —
+ *  the SAME text for both shallow and deep history (only the box's shared
+ *  fixed 22x22 size differs from every other pseudostate, not this label).
+ *  @see ~/git/plantuml/.../svek/image/EntityImagePseudoState.java
+ *  @see ~/git/plantuml/.../svek/image/EntityImageDeepHistory.java */
+export function historyLabelText(kind: StateKind | 'note'): string {
+  return kind === 'deepHistory' ? 'H*' : 'H';
+}
+
+/** Optional `StateNodeGeo` fields a leaf `state` spec/geo carries for
+ *  render-time text layout (mission G4 S2) — `headerLines`/`bodyLines` for
+ *  `kind:'normal'`, the single "H"/"H*" label for `kind:'history'`/
+ *  `'deepHistory'`, `color` (raw, unresolved) for every kind. Shared by
+ *  both the flat pipeline (`layout.ts#buildFlatStateGeos`) and the
+ *  composite pipeline (`state-composite-pass.ts#resolveMember`) so the two
+ *  don't independently re-derive the same per-kind dispatch. */
+export interface StateGeoTextFields {
+  headerLines?: readonly StateTextLine[];
+  bodyLines?: readonly StateTextLine[];
+  color?: string;
+  /** mission G4 S5 -- see `StateNodeGeo.emptyDescription`'s own doc comment. */
+  emptyDescription?: true;
+  /** mission G4 S9 -- see `StateNodeGeo.stereotype`'s own doc comment. */
+  stereotype?: string;
+}
+
+/**
+ * mission G4 S5: `hideEmptyDescription` threads the SAME
+ * `isHideEmptyDescriptionForState && rawBody.size()==0` gate
+ * {@link measureNormalKind} already dimensions with (`plans/g4-state-svg/
+ * ledger.md` S5) onto the RENDERED shape too, via the returned
+ * `emptyDescription` marker (`StateNodeGeo.emptyDescription`'s own doc
+ * comment) — `false` for every composite-title call site
+ * (`state-composite-autonom.ts`/`state-composite-concurrent.ts`), since a
+ * composite's own title never takes this leaf-only upstream branch.
+ */
+export function buildStateGeoTextFields(
+  state: State,
+  theme: Theme,
+  measurer: StringMeasurer,
+  hideEmptyDescription = false,
+): StateGeoTextFields {
+  // mission G4 S16: `skinparam stateFontSize<<X>> N` -- see
+  // `measureState`'s own doc comment above; the SAME resolved font size
+  // measures `StateTextLine.width` here so the renderer's `textLength`
+  // attribute matches jar's own larger/smaller glyph metrics.
+  const fontSize = resolveStateFontSize(state, theme, theme.fontSize);
+  const font: FontSpec = { family: theme.fontFamily, size: fontSize };
+  const fields: StateGeoTextFields = {};
+  const hasBody = (state.description?.length ?? 0) > 0;
+  if (state.kind === 'normal' && hideEmptyDescription && !hasBody) {
+    fields.headerLines = measureTextLines(state.display, font, measurer);
+    fields.emptyDescription = true;
+  } else if (state.kind === 'normal') {
+    fields.headerLines = measureTextLines(state.display, font, measurer);
+    fields.bodyLines = measureBodyTextLines(state.description, font, measurer);
+  } else if (state.kind === 'history' || state.kind === 'deepHistory') {
+    fields.headerLines = measureTextLines(historyLabelText(state.kind), font, measurer);
+  }
+  if (state.color !== undefined) fields.color = state.color;
+  if (state.stereotype !== undefined) fields.stereotype = state.stereotype;
+  return fields;
 }

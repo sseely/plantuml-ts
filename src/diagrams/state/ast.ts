@@ -161,6 +161,33 @@ export interface State {
    * @see {@link JsonNode}
    */
   jsonValue?: JsonNode;
+  /**
+   * mission G4 S7 (mechanism 10, id-numbering creation-index gap): the
+   * parse-time tick this state's uid slot was assigned, drawn from a SINGLE
+   * counter (`ParseState.creationCounter`) shared across states, concurrent-
+   * region phantom groups, pseudostates, AND transitions -- mirrors upstream
+   * `net.atmp.CucaDiagram#cpt1` (`AtomicInteger`), the SAME shared counter
+   * behind every `Entity`'s own `ent%04d` uid AND every `Link`'s own `lnkN`
+   * uid (`Entity.java:171`, `Link.java:135`). Stamped exactly once, at the
+   * SINGLE true creation chokepoint (`state-parse-resolve.ts
+   * #registerStateInto`), in the SAME order the two-pass parser (`Pass`'s
+   * doc, state-parse-state.ts) already walks the source -- which already
+   * matches jar's own PASS ONE (declarations, nested source order) THEN
+   * PASS TWO/THREE (transitions + their own newly-auto-created endpoints,
+   * transition source order) structure. A `remove`d state still gets a
+   * REAL `creationIndex` here (stamped during parsing, before
+   * `state-directives.ts#filterRemovedEntities` excludes it from the
+   * layout-input AST) -- its raw tick is simply never attached to any
+   * surviving `StateNodeGeo`, which is what lets downstream numbering
+   * (`renderer-uid.ts`) use RAW `creationIndex` values directly (no dense
+   * re-packing) and still reproduce jar's real id GAP at that slot.
+   * `undefined` for every hand-built AST literal predating this mission
+   * (unit-test fixtures, `renderer-uid.ts`'s own dense-fallback path).
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt1
+   * @see ~/git/plantuml/.../abel/Entity.java:171
+   * @see plans/g4-state-svg/ledger.md (S7)
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +254,23 @@ export interface Transition {
    * @see ~/git/plantuml/.../svek/SvekEdge.java (SvekEdge.java:308-326, mergeLR/mergeTB)
    */
   linkNotePosition?: NotePosition;
+  /**
+   * mission G4 S7 (mechanism 10, id-numbering creation-index gap): the
+   * parse-time tick this transition's `lnkN` uid slot was assigned --
+   * stamped once, at the SINGLE true creation chokepoint
+   * (`state-parse-state.ts#emitTransition`), AFTER both endpoints have
+   * already been resolved-or-auto-created (`state-commands.ts`'s transition
+   * dispatch calls `ensureState(from)` then `ensureState(to)` before
+   * `emitTransition` -- mirrors upstream `Link`'s own ctor tick
+   * (`Link.java:135`, `getUniqueSequence("lnk")`), which always fires AFTER
+   * `CommandLinkStateCommon#getEntity` has already resolved/created both
+   * endpoints). See {@link State.creationIndex}'s doc for the full shared-
+   * counter mechanism and why RAW values (no dense re-packing) are correct.
+   * `undefined` for every hand-built AST literal predating this mission.
+   * @see ~/git/plantuml/.../abel/Link.java:135
+   * @see plans/g4-state-svg/ledger.md (S7)
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -273,6 +317,46 @@ export interface StateNote {
    * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:192
    */
   scopeId: string;
+  /**
+   * mission G4 S10 (notes never render): the parse-time creation tick
+   * (`nextCreationIndex`) this note's own entity was stamped with -- same
+   * raw-value contract as `State.creationIndex`/`Transition.creationIndex`
+   * (see those fields' own doc comments). For an ATTACHED note (`target !==
+   * undefined`), upstream burns an EXTRA tick immediately before this one
+   * (`CommandFactoryNoteOnEntity.java:327`'s `diagram.getUniqueSequence("GMN")`
+   * -- generates the note's internal quark name, `reallyCreateLeaf` then
+   * ticks AGAIN for the entity's own id) -- the burned tick's result is
+   * discarded (the `GMN<n>` string only ever reaches `data-qualified-name`,
+   * which `tests/oracle/svg-conformance/normalize.ts` strips before
+   * comparison entirely, so this port never threads the string itself, only
+   * the tick-count it consumes) -- jar-verified `gedude-95-subi666`/
+   * `xodazu-26-cube992` (`id="ent0005"` after 4 prior ticks: start-pseudo,
+   * state1, the `[*]-->state1` transition, the burned GMN tick). A
+   * freestanding note (`CommandFactoryNote`, has an explicit `as <alias>`)
+   * never generates a GMN name (`quarkInContext` uses the alias directly),
+   * so it consumes exactly ONE tick. `undefined` only for a hand-built test
+   * literal predating this mission.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt1
+   */
+  creationIndex?: number;
+  /**
+   * mission G4 S12: the note's own raw `#color`/`#back:color;...` inline
+   * override -- the SAME raw grammar shape `State.color` uses (see that
+   * field's own doc comment), resolved to a hex fill at RENDER time via
+   * `renderer-note.ts`'s note-fill resolver (mirrors `state-render-
+   * colors.ts#resolveStateFill`'s exact FILL-only precedent -- a note's
+   * border/stroke is never overridden by this token, matching jar's
+   * `EntityImageNote` ctor, which only reads `getColors().getColor(BACK)`).
+   * A GRADIENT token (`#color1|color2`, `#color1-color2`, …) is NOT resolved
+   * this iteration -- `resolveColorToSvgHex` (the SAME limitation
+   * `state-render-colors.ts#resolveStateBucketBackground`'s own doc comment
+   * already names for the `skinparam`-bucket path) passes it through
+   * unresolved; full `Paint`/gradient threading for state notes AND state
+   * boxes is a separate, larger, not-yet-built mechanism (`plans/g4-state-
+   * svg/ledger.md` S12 queue).
+   * @see ~/git/plantuml/.../klimt/image/EntityImageNote.java (ctor)
+   */
+  color?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -356,4 +440,46 @@ export interface StateDiagramAST {
    * `createSpriteRegistry()`.
    */
   sprites?: SpriteRegistry;
+  /**
+   * mission G4 S7 (mechanism 10, id-numbering creation-index gap): the
+   * parse-time `creationIndex` lazily assigned to each scope's synthetic
+   * `[*]`-derived pseudostate (`*start*`/`*end*`, upstream `StateDiagram
+   * #getStart`/`#getEnd`) -- these are NOT `State` nodes in this port's AST
+   * (unlike upstream's real, lazily-`reallyCreateLeaf`d `Entity`), so their
+   * tick has nowhere else to live. Keyed by `pseudoTickKey(scopeId, which)`
+   * (state-parse-state.ts) -- `scopeId` is the SAME string
+   * `noteScopeId`/`concurrentRegionScopeId` already produce (top level `''`,
+   * a composite's own `id`, or a concurrent region's `concurrentRegionScopeId`
+   * form), matching the scope-id convention `state-composite-pass.ts
+   * #scopedPseudoIds`/`addLocalPseudoNodes` already use at layout time so
+   * both sides agree on the same key without re-deriving it independently.
+   * Populated once, at end-of-parse, from `ParseState.pseudoCreationIndex`
+   * (mirrors `ast.states`/`ast.transitions`'s own end-of-parse handoff).
+   * `undefined` for every hand-built AST literal predating this mission.
+   * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getStart
+   * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getEnd
+   * @see plans/g4-state-svg/ledger.md (S7)
+   */
+  pseudoCreationIndex?: ReadonlyMap<string, number>;
+  /**
+   * mission G4 S14 (CONC-region bare-name global numbering): maps this
+   * port's own internal, owner-local `concurrentRegionScopeId` key (e.g.
+   * `"State2::CONC1"`) to the GLOBAL region number jar's real
+   * `net.atmp.CucaDiagram#cpt2` counter assigns -- one tick per `--`/`||`
+   * separator, in document (parse) order, regardless of which composite
+   * owns it (upstream `StateDiagram#concurrentState`'s
+   * `getUniqueSequence2(CONCURRENT_PREFIX)`, StateDiagram.java:194-208).
+   * Consumed only by `renderer.ts#localScopeName` to translate a RENDERED
+   * bare `CONC<n>` pseudo-anchor path id (`*start*CONC<n>-to-X`) from this
+   * port's own per-owner-local numbering to jar's diagram-global one --
+   * the internal `concurrentRegionScopeId` dedup key ITSELF is unchanged
+   * (still owner-local; every other internal lookup keeps using it as-is).
+   * Populated once, at end-of-parse, from `ParseState.concurrentGlobalIds`
+   * (mirrors `pseudoCreationIndex`'s own end-of-parse handoff above).
+   * `undefined` for every hand-built AST literal predating this mission.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#cpt2
+   * @see ~/git/plantuml/.../statediagram/StateDiagram.java:194-208
+   * @see plans/g4-state-svg/ledger.md (S14)
+   */
+  concurrentGlobalIds?: ReadonlyMap<string, number>;
 }

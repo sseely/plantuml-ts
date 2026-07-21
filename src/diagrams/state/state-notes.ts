@@ -22,6 +22,24 @@ export const NOTE_COLOR = '(?:\\s*#[-\\w./|\\\\;:]+)?';
 export const NOTE_URL = '(?:\\s*\\[\\[[^\\]]*\\]\\])?';
 
 /**
+ * CAPTURING variant of {@link NOTE_COLOR} (mission G4 S12) -- used ONLY by
+ * the entity-note family (attached + freestanding, `state-commands-notes.ts`
+ * rules 10/11/13/14). `note on link`'s own rules (12/12b) keep the
+ * non-capturing `NOTE_COLOR` above unchanged -- `note on link`'s own
+ * `#color` support is a SEPARATE, not-yet-built item (blocked on the
+ * `Transition.linkNoteColor` field + the edge-label real-size injection gap
+ * that already blocks `note on link` from reaching byte-exact regardless,
+ * `plans/g4-state-svg/ledger.md` S11/S12) -- keeping ITS capture-group count
+ * unchanged avoids an unrelated, unverified risk to `NOTE_ON_LINK_RE`/
+ * `NOTE_ON_LINK_MULTI_RE`'s own downstream `match[N]` indices.
+ * The `#` sits INSIDE the capture group (matching `State.color`'s own raw
+ * grammar convention -- `state-commands-declarations.ts`'s `COLOR_OPT`, e.g.
+ * `(#(?:...)|#\w+...)`-shaped -- so `resolveBareOrBackColor` sees the exact
+ * same token shape for both a state's and a note's inline override).
+ */
+export const NOTE_COLOR_CAPTURE = '(?:\\s*(#[-\\w./|\\\\;:]+))?';
+
+/**
  * `note <pos> of <State>` target: a bare id (`[%pLN_.]+` upstream) or a
  * quoted display string — `StateDiagramFactory.java:98-99`.
  */
@@ -44,6 +62,8 @@ export type PendingNote =
       implicitTarget: boolean;
       position: NotePosition;
       textLines: string[];
+      /** mission G4 S12 -- see `StateNote.color`'s own doc comment. */
+      color?: string;
       /**
        * `'brace'` for the `note <pos> [of X] {` opener, closed by a bare
        * `}` instead of `end note`.
@@ -51,7 +71,7 @@ export type PendingNote =
        */
       closer?: 'brace';
     }
-  | { kind: 'freestanding'; alias: string; textLines: string[] }
+  | { kind: 'freestanding'; alias: string; textLines: string[]; color?: string }
   | { kind: 'link'; transitions: readonly Transition[]; position: NotePosition; textLines: string[] };
 
 /** True if `line` is the closer for `note` (`}` for a brace note, else `end note`). */
@@ -83,7 +103,7 @@ export function addNote(
   position: NotePosition,
   target: string,
   text: string,
-  opts: { implicitTarget: boolean; scopeId: string },
+  opts: { implicitTarget: boolean; scopeId: string; creationIndex?: number; color?: string },
 ): string {
   const notes = (ast.notes ??= []);
   const id = `__note_${notes.length}`;
@@ -94,13 +114,27 @@ export function addNote(
     position,
     text,
     scopeId: opts.scopeId,
+    ...(opts.creationIndex !== undefined ? { creationIndex: opts.creationIndex } : {}),
+    ...(opts.color !== undefined ? { color: opts.color } : {}),
   });
   return id;
 }
 
-export function addFreestandingNote(ast: StateDiagramAST, alias: string, text: string, scopeId: string): string {
+export function addFreestandingNote(
+  ast: StateDiagramAST,
+  alias: string,
+  text: string,
+  scopeId: string,
+  opts?: { creationIndex?: number; color?: string },
+): string {
   const id = stripQuotes(alias);
-  (ast.notes ??= []).push({ id, text, scopeId });
+  (ast.notes ??= []).push({
+    id,
+    text,
+    scopeId,
+    ...(opts?.creationIndex !== undefined ? { creationIndex: opts.creationIndex } : {}),
+    ...(opts?.color !== undefined ? { color: opts.color } : {}),
+  });
   return id;
 }
 
@@ -114,22 +148,43 @@ export function addFreestandingNote(ast: StateDiagramAST, alias: string, text: s
  * attaches to a transition, not a leaf) and never updates `lastEntity` —
  * mirrors `CommandFactoryNoteOnLink#executeInternal`, which only calls
  * `link.addNote(...)`, never `diagram.setLastEntity(...)`.
+ *
+ * mission G4 S10: `nextTick` is a caller-supplied `ps.creationCounter`
+ * consumer (`() => nextCreationIndex(ps)`) rather than a raw number — an
+ * ATTACHED note burns ONE extra tick (`StateNote.creationIndex`'s own doc
+ * comment) before its own, so this needs two SEQUENTIAL calls, not one
+ * value; `undefined` for a `'link'` note (never ticked, see
+ * `applyNoteOnLink`'s own doc comment) or when the caller passes none (test
+ * literals predating this mission).
  * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:298-301
  */
-export function finalizePendingNote(ast: StateDiagramAST, note: PendingNote, scopeId: string): string | undefined {
+export function finalizePendingNote(
+  ast: StateDiagramAST,
+  note: PendingNote,
+  scopeId: string,
+  nextTick?: () => number,
+): string | undefined {
   const text = note.textLines.join('\n');
   if (note.kind === 'attached') {
     if (note.target === undefined) return undefined;
+    nextTick?.(); // burned GMN quark-name tick -- see StateNote.creationIndex's doc
+    const creationIndex = nextTick?.();
     return addNote(ast, note.position, note.target, text, {
       implicitTarget: note.implicitTarget,
       scopeId,
+      ...(creationIndex !== undefined ? { creationIndex } : {}),
+      ...(note.color !== undefined ? { color: note.color } : {}),
     });
   }
   if (note.kind === 'link') {
     applyNoteOnLink(note.transitions, text, note.position);
     return undefined;
   }
-  return addFreestandingNote(ast, note.alias, text, scopeId);
+  const creationIndex = nextTick?.();
+  return addFreestandingNote(ast, note.alias, text, scopeId, {
+    ...(creationIndex !== undefined ? { creationIndex } : {}),
+    ...(note.color !== undefined ? { color: note.color } : {}),
+  });
 }
 
 

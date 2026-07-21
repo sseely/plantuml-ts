@@ -41,7 +41,7 @@
     "docs:preview": "vitepress preview docs-site"
   },
   "dependencies": {
-    "graphviz-ts": "^0.1.26071415",
+    "graphviz-ts": "^0.1.26072013",
     "jsonc-parser": "^3.3.1",
     "katex": "^0.16.45"
   },

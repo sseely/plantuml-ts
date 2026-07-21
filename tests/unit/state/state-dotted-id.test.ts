@@ -124,7 +124,7 @@ describe('dotted-id hierarchy — LEAF-style declare auto-creates STATE-type (au
 
     // Written at the diagram's own top scope (outside every block), so it
     // lands in `ast.transitions`, not `A`'s own `.transitions`.
-    expect(ast.transitions).toEqual([{ from: 'A', to: 'Y', length: 1 }]);
+    expect(ast.transitions).toEqual([expect.objectContaining({ from: 'A', to: 'Y', length: 1 })]);
     // No phantom duplicate leaf/composite was created by the reference.
     expect(ast.states).toHaveLength(1);
     expect(findState(ast, 'A')?.children).toHaveLength(2);
@@ -195,7 +195,7 @@ describe('dotted-id hierarchy — composite/frame BLOCK opener with a dotted id 
     const inner = outer?.children[0];
     expect(inner?.autoPhantom).toBeUndefined();
     expect(inner?.children).toEqual([]);
-    expect(inner?.transitions).toEqual([{ from: 'I', to: 'I', length: 2 }]);
+    expect(inner?.transitions).toEqual([expect.objectContaining({ from: 'I', to: 'I', length: 2 })]);
 
     expectDotParity('tuvugi-94-gapi519');
   });

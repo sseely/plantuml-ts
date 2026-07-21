@@ -125,6 +125,32 @@ describe('layoutState — single standalone state', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G4 S9: stereotype threading (StateBorderColor<<X>> cascade prerequisite)
+// ---------------------------------------------------------------------------
+
+describe('layoutState — state stereotype threading', () => {
+  it('threads State.stereotype onto the flat-pipeline StateNodeGeo', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('a', { stereotype: 'meblue' })],
+      transitions: [],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const state = result.states.find((s) => s.id === 'a');
+    expect(state?.stereotype).toBe('meblue');
+  });
+
+  it('leaves stereotype undefined for a state with no <<tag>>', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('a')],
+      transitions: [],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const state = result.states.find((s) => s.id === 'a');
+    expect(state?.stereotype).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Acceptance criterion 1: [*] → A → B → [*] layered top-to-bottom
 // ---------------------------------------------------------------------------
 
@@ -226,6 +252,131 @@ describe('layoutState — composite state with 2 children', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Mission G4 S3, mechanism 6: composite headerLines/bodyLines threading
+// ---------------------------------------------------------------------------
+
+describe('layoutState -- composite headerLines/bodyLines (mechanism 6)', () => {
+  it('an autonom composite (no crossing links) carries measured headerLines for its own title', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.headerLines).toEqual([{ text: 'Composite', width: measurer.measure('Composite', { family: theme.fontFamily, size: theme.fontSize }).width }]);
+  });
+
+  it('an autonom composite with a description line carries measured bodyLines', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child], description: ['entry / go();'] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.bodyLines).toEqual([
+      { text: 'entry / go();', width: measurer.measure('entry / go();', { family: theme.fontFamily, size: theme.fontSize }).width },
+    ]);
+  });
+
+  it('an autonom composite with NO description line carries an empty bodyLines array', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.bodyLines).toEqual([]);
+  });
+
+  it('a per-composite #color override threads through onto the materialized StateNodeGeo', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child], color: '#red' });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.color).toBe('#red');
+  });
+
+  // G4 S9: StateBorderColor<<X>> cascade prerequisite -- a composite's OWN
+  // stereotype must reach its materialized StateNodeGeo the SAME way #color
+  // does (jar-verified `semala-31-joji042`: `state a<<meblue>>` with
+  // concurrent regions -- see `state-render-colors.ts#resolveStateBorder`).
+  it('a composite stereotype threads through onto the materialized StateNodeGeo (autonom pipeline)', () => {
+    const child = makeState('Child');
+    const composite = makeState('Composite', { children: [child], stereotype: 'meblue' });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.stereotype).toBe('meblue');
+  });
+
+  it('a concurrent-region-owning composite stereotype ALSO threads through', () => {
+    const region1 = [makeState('R1A')];
+    const region2 = [makeState('R2A')];
+    const composite = makeState('Composite', { concurrentRegions: [region1, region2], stereotype: 'meblue' });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.stereotype).toBe('meblue');
+  });
+
+  it('a concurrent-region-owning composite ALSO carries headerLines for its own title (not just plain autonom composites)', () => {
+    const region1 = [makeState('R1A')];
+    const region2 = [makeState('R2A')];
+    const composite = makeState('Composite', { concurrentRegions: [region1, region2] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.headerLines).toEqual([{ text: 'Composite', width: measurer.measure('Composite', { family: theme.fontFamily, size: theme.fontSize }).width }]);
+  });
+
+  it('a NON-autonom (cluster) composite does NOT carry headerLines -- the boundary a link crossing forces', () => {
+    // A --> B crosses Composite's own boundary (B is declared elsewhere),
+    // forcing the non-autonom/cluster classification (state-composite-
+    // classify.ts) -- this port does not yet thread headerLines through
+    // the cluster path (renderer-composite-box.ts's own doc comment names
+    // this as a deliberate, non-regressing deferral).
+    const a = makeState('A');
+    const composite = makeState('Composite', { children: [a] });
+    const b = makeState('B');
+    const ast: StateDiagramAST = {
+      states: [composite, b],
+      transitions: [{ from: 'A', to: 'B' }],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Composite');
+    expect(comp?.headerLines).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mission G4 S6, mechanisms 13/14: concurrent-region separator lines +
+// per-region pseudo-node scope-id collision
+// ---------------------------------------------------------------------------
+
+describe('layoutState -- concurrent regions (mechanisms 13/14)', () => {
+  it('each concurrent region\'s own [*] pseudo-node gets a DISTINCT id -- no cross-region collision', () => {
+    // Per diagnosis.md (S5 ledger): `buildConcurrentRegionPass` passed
+    // `owner.id` (not a per-region scope id) as the `scopeId` param, so
+    // EVERY region's own `[*]` pseudo-anchor collapsed onto the SAME
+    // `__init_<owner.id>` string id -- `renderer-uid.ts#buildStateUidPlan`
+    // keys its `ent%04d` uid Map by that string, so the LAST region visited
+    // silently overwrote every earlier region's own uid, producing
+    // duplicate `id="entXXXX"` attributes on sibling `<g>` elements (jar-
+    // verified via `nelupe-49-xova546`'s own pretty-printed XML dump).
+    const region1 = [makeState('A')];
+    const region2 = [makeState('B')];
+    const owner = makeState('Owner', {
+      concurrentRegions: [region1, region2],
+      transitions: [makeTransition('[*]', 'A'), makeTransition('[*]', 'B')],
+    });
+    const ast: StateDiagramAST = { states: [owner], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const ownerGeo = result.states.find((s) => s.id === 'Owner');
+    const initialIds = ownerGeo!.children.filter((c) => c.kind === 'initial').map((c) => c.id);
+    expect(initialIds).toHaveLength(2);
+    expect(new Set(initialIds).size).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Acceptance criterion 3: fork node width > height (bar shape)
 // ---------------------------------------------------------------------------
 
@@ -307,6 +458,56 @@ describe('layoutState — transition without label', () => {
 });
 
 // ---------------------------------------------------------------------------
+// mission G4 S15: crossStart/circleEnd threading (flat pipeline)
+// ---------------------------------------------------------------------------
+
+describe('layoutState — crossStart/circleEnd threading (mission G4 S15)', () => {
+  it('threads Transition.circleEnd onto TransitionGeo.circleEnd', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('A'), makeState('B')],
+      transitions: [makeTransition('A', 'B', { circleEnd: true })],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.transitions[0]?.circleEnd).toBe(true);
+    expect(result.transitions[0]?.crossStart).toBeUndefined();
+  });
+
+  it('threads Transition.crossStart onto TransitionGeo.crossStart', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('A'), makeState('B')],
+      transitions: [makeTransition('A', 'B', { crossStart: true })],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.transitions[0]?.crossStart).toBe(true);
+    expect(result.transitions[0]?.circleEnd).toBeUndefined();
+  });
+
+  it('an ordinary transition carries neither flag', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('A'), makeState('B')],
+      transitions: [makeTransition('A', 'B')],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.transitions[0]?.crossStart).toBeUndefined();
+    expect(result.transitions[0]?.circleEnd).toBeUndefined();
+  });
+
+  it('threads circleEnd/crossStart through the COMPOSITE pipeline too (an inner transition owned by a composite)', () => {
+    const child1 = makeState('D1');
+    const child2 = makeState('D2');
+    const composite = makeState('DOuter', {
+      children: [child1, child2],
+      transitions: [makeTransition('D1', 'D2', { circleEnd: true })],
+    });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const outer = result.states.find((s) => s.id === 'DOuter');
+    const innerT = outer?.transitions.find((tr) => tr.from === 'D1');
+    expect(innerT?.circleEnd).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Pseudostate fixed sizes
 // ---------------------------------------------------------------------------
 
@@ -377,19 +578,27 @@ describe('layoutState — normal state minimum width', () => {
 // TransitionGeo from/to fields
 // ---------------------------------------------------------------------------
 
-describe('layoutState — TransitionGeo preserves original [*] from/to', () => {
-  it('from field is [*] for initial transition', () => {
+// mission G4 S2: previously asserted the RAW, unresolved `'[*]'` AST token
+// leaking straight into TransitionGeo -- jar-verified broken (gefefe-91-
+// xoge233/moleco-69-sida106: `<path id="[*]-to-IDLE">` instead of jar's
+// `id="*start*-to-IDLE"`, since `renderer.ts#svgEndpointId` only recognizes
+// the shared `INITIAL_ID`/`FINAL_ID` anchor ids, never the literal AST
+// token). `buildFlatTransitionGeos` now resolves through the SAME
+// `endpointId` (state-dot-graph.ts) the DOT graph itself already used —
+// see that function's own doc comment.
+describe('layoutState — TransitionGeo resolves [*] to the shared start/end anchor id', () => {
+  it('from field resolves to the shared INITIAL_ID anchor for an initial transition', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('[*]', 'A')],
     };
     const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
-    expect(t?.from).toBe('[*]');
+    expect(t?.from).toBe('__initial__');
     expect(t?.to).toBe('A');
   });
 
-  it('to field is [*] for final transition', () => {
+  it('to field resolves to the shared FINAL_ID anchor for a final transition', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('A', '[*]')],
@@ -397,7 +606,7 @@ describe('layoutState — TransitionGeo preserves original [*] from/to', () => {
     const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
     expect(t?.from).toBe('A');
-    expect(t?.to).toBe('[*]');
+    expect(t?.to).toBe('__final__');
   });
 });
 
@@ -494,7 +703,7 @@ describe('layoutState — guard and action combined label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutState — composite state with internal transitions', () => {
-  it('composite with child-to-child transition produces inner transition geos', () => {
+  it('composite with child-to-child transition attaches the inner transition to its OWN node, not the top level', () => {
     const child1 = makeState('C1');
     const child2 = makeState('C2');
     const innerTransition = makeTransition('C1', 'C2', { label: 'next' });
@@ -507,12 +716,18 @@ describe('layoutState — composite state with internal transitions', () => {
       transitions: [],
     };
     const result = layoutState(ast, theme, measurer);
-    // The inner transition should appear in the top-level result
-    const innerT = result.transitions.find((tr) => tr.label?.text === 'next');
+    // mission G4 S5 (transition-nesting mechanism): jar nests a composite
+    // pass's own internal transitions INSIDE that pass's own <g>, never as
+    // flat top-level siblings -- see plans/g4-state-svg/ledger.md S5.
+    const outer = result.states.find((s) => s.id === 'Outer');
+    expect(outer).toBeDefined();
+    const innerT = outer?.transitions.find((tr) => tr.label?.text === 'next');
     expect(innerT).toBeDefined();
+    // Not duplicated at the top level.
+    expect(result.transitions.find((tr) => tr.label?.text === 'next')).toBeUndefined();
   });
 
-  it('composite with many children produces transitions for all inner edges', () => {
+  it('composite with many children attaches transitions for all inner edges to its OWN node', () => {
     // A chain of 3 children forces longer edges that may have >2 waypoints
     const c1 = makeState('IC1');
     const c2 = makeState('IC2');
@@ -531,9 +746,12 @@ describe('layoutState — composite state with internal transitions', () => {
       transitions: [],
     };
     const result = layoutState(ast, theme, measurer);
-    expect(result.states.find((s) => s.id === 'BigOuter')).toBeDefined();
-    // Inner transitions are propagated to top-level
-    expect(result.transitions.length).toBeGreaterThan(0);
+    const bigOuter = result.states.find((s) => s.id === 'BigOuter');
+    expect(bigOuter).toBeDefined();
+    // Inner transitions attach to the composite's OWN node (mission G4 S5),
+    // not the top-level StateGeometry.transitions array.
+    expect(bigOuter?.transitions.length).toBeGreaterThan(0);
+    expect(result.transitions.length).toBe(0);
   });
 });
 

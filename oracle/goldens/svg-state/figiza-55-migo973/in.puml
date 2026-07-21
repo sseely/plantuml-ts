@@ -1,0 +1,9 @@
+@startuml
+state B {
+  state inner
+}
+
+state A {
+    A --> B
+}
+@enduml

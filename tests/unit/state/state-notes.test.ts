@@ -100,7 +100,7 @@ describe('multi-line attached note', () => {
 describe('freestanding notes', () => {
   it('note "text" as N1 creates an unattached note immediately', () => {
     const ast = parse('note "hi there" as N1');
-    expect(ast.notes?.[0]).toEqual({ id: 'N1', text: 'hi there', scopeId: '' });
+    expect(ast.notes?.[0]).toEqual({ id: 'N1', text: 'hi there', scopeId: '', creationIndex: 1 });
   });
 
   it('note as N1 ... end note accumulates multi-line text', () => {
@@ -117,6 +117,62 @@ describe('freestanding notes', () => {
     const ast = parse('note "hi" as N1');
     expect(ast.notes?.[0]?.target).toBeUndefined();
     expect(ast.notes?.[0]?.position).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `#color` override (mission G4 S12: NOTE_COLOR was previously non-capturing
+// -- the color token was matched and discarded by every note-opener rule)
+// ---------------------------------------------------------------------------
+
+describe('note #color override', () => {
+  it('single-line attached note captures a solid #color override', () => {
+    const ast = parse('A --> B\nnote left of A #red : a note');
+    expect(ast.notes?.[0]).toMatchObject({ target: 'A', text: 'a note', color: '#red' });
+  });
+
+  it('multi-line attached note (end note form) captures #color', () => {
+    const ast = parse(`
+      A --> B
+      note right of B #FF0000
+        text
+      end note
+    `);
+    expect(ast.notes?.[0]).toMatchObject({ target: 'B', color: '#FF0000' });
+  });
+
+  it('multi-line attached note (bracket form) captures #color', () => {
+    const ast = parse(`
+      A --> B
+      note left of A #blue {
+        bracketed
+      }
+    `);
+    expect(ast.notes?.[0]).toMatchObject({ target: 'A', color: '#blue' });
+  });
+
+  it('multi-line freestanding note (note as X) captures #color', () => {
+    const ast = parse(`
+      note as N1 #FFF
+        text
+      end note
+    `);
+    expect(ast.notes?.[0]).toMatchObject({ id: 'N1', color: '#FFF' });
+  });
+
+  it('single-line freestanding note (note "text" as X) captures #color', () => {
+    const ast = parse('note "hi" as N1 #yellow');
+    expect(ast.notes?.[0]).toMatchObject({ id: 'N1', color: '#yellow' });
+  });
+
+  it('a note with no #color override has no color field', () => {
+    const ast = parse('note "hi" as N1');
+    expect(ast.notes?.[0]?.color).toBeUndefined();
+  });
+
+  it('a #color override still parses correctly alongside a trailing <<stereotype>>', () => {
+    const ast = parse('note "hi" as N1 <<important>> #red');
+    expect(ast.notes?.[0]).toMatchObject({ id: 'N1', color: '#red' });
   });
 });
 

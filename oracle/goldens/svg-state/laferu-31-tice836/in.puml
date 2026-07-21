@@ -1,0 +1,6 @@
+@startuml
+skinparam stateBackgroundColor<<Foo>> red
+skinparam stateFontColor<<Foo>> yellow
+skinparam stateFontSize<<Foo>> 30
+state state1 <<Foo>>
+@enduml

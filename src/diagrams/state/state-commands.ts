@@ -23,6 +23,9 @@ import {
   emitTransition,
   addDescriptionLine,
   popScope,
+  nextCreationIndex,
+  nextConcurrentGlobalId,
+  concurrentRegionScopeId,
 } from './state-parse-state.js';
 import { ensureState, resolveDescriptionTarget } from './state-parse-resolve.js';
 import { parseLabel } from './state-parse-helpers.js';
@@ -155,7 +158,35 @@ export const COMMANDS: readonly Command[] = [
     execute(ps, match, pass) {
       const scope = currentScope(ps);
       scope.hasConcurrency = true;
-      if (pass === 'one') scope.regions.push([]);
+      if (pass === 'one') {
+        scope.regions.push([]);
+        // mission G4 S7 (mechanism 10, sub-pattern a): jar's own
+        // `concurrentState()` constructs a real (ticked) `Entity` here
+        // (`GroupType.CONCURRENT_STATE`, `CucaDiagram#createGroup` -> `new
+        // Entity(...)`) that is NEVER individually rendered as its own box
+        // -- burn the tick (discard the value) so this region's own members
+        // correctly skip a slot, matching jar's real gap. Pass ONE only
+        // (mirrors `registerStateInto`'s own real-creation-only discipline
+        // -- pass TWO just re-navigates the already-built region tree, no
+        // new jar tick fires on the replay). See `ParseState
+        // .creationCounter`'s own doc comment (state-parse-state.ts).
+        nextCreationIndex(ps);
+        // mission G4 S14 (CONC-region bare-name global numbering): burn a
+        // SEPARATE global `cpt2` tick too, mirroring jar's own
+        // `concurrentState()` (`getUniqueSequence2(CONCURRENT_PREFIX)`) --
+        // see `ParseState.concurrentGlobalCounter`'s own doc comment. The
+        // internal (owner-local) `concurrentRegionScopeId` key is computed
+        // from the region's local number, which at this exact point is
+        // `scope.regions.length - 1` (the array index the just-pushed
+        // region now occupies) -- identical to what `scope.regionCursor`
+        // becomes one line below.
+        const localRegionNumber = scope.regions.length - 1;
+        const ownerId = scope.owner?.id ?? '';
+        ps.concurrentGlobalIds.set(
+          concurrentRegionScopeId(ownerId, localRegionNumber),
+          nextConcurrentGlobalId(ps),
+        );
+      }
       scope.regionCursor++;
     },
   },
@@ -251,8 +282,8 @@ export const COMMANDS: readonly Command[] = [
       // isAutarkic/DOT-endpoint resolution matches by exact id string), not
       // the as-written text. `ensureState` returns `undefined` only for the
       // `'[*]'` sentinel, which stays literal (mission A4 Phase L iter 10).
-      const fromState = ensureState(ps, rest.from);
-      const toState = ensureState(ps, rest.to);
+      const fromState = ensureState(ps, rest.from, undefined, true);
+      const toState = ensureState(ps, rest.to, undefined, false);
 
       const labelParts = parseLabel(rawLabel);
       const t: Transition = {
