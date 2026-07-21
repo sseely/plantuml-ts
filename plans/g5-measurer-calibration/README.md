@@ -41,11 +41,13 @@ aren't in any other task's write-set either"), C0 did NOT modify any
 `src/` file — there is no in-scope measurer bug to fix. See "Next
 iteration" below.
 
-## Gates table (re-verified fresh at C7 end -- DOT gate/censuses/golden
-## ratchets/size-backlog ALL byte-identical to C6's baseline; C7 landed the
-## cluster SIDE-margin mechanism (jar-verified, width-exact on all 5 of
-## C5's own named samples), 0 new pins -- a NEW vertical/height residual
-## now the sole blocker (see ledger.md §C7))
+## Gates table (re-verified fresh at C8 end -- DOT gate/censuses/golden
+## ratchets/size-backlog ALL byte-identical to C7's baseline; C8 re-landed
+## C6's proven stack (font-fix + label-ink fold + HTML injection + floor
+## removal), individually root-caused all six residual fixtures (per-
+## fixture mechanism, not a shared one), then REVERTED IN FULL per protocol
+## since none of the six close without widening `size-backlog.json` (see
+## ledger.md §C8))
 
 | Gate | Value |
 | --- | --- |
@@ -268,7 +270,97 @@ iteration" below.
   corpus-wide 84/84 zero-mismatch validation, the width-exact verification
   table, and the precisely-scoped C8+ queue.
 
-## Next iteration (C8) — recommended scope
+- **C8** (maintainer sign-off 2026-07-21, "the sixth attempt at the
+  edge-label-ink complex with the margin fix in place"): re-landed C6's
+  proven stack VERBATIM (font-size fix at sites 2/3, `TransitionGeo
+  .labelInk` box-fold into `layout-ink-extent.ts#addTransitionInk`, C4's
+  HTML-FIXEDSIZE edge-label injection via `GvEdge.setHtmlAttr`, the
+  `Math.max(geometry.*, result.*)` floor REMOVED from
+  `state-composite-autonom.ts#buildPlainAutonomSpec`) — confirmed
+  byte-identical re-derivation (same 262/268 pass count, same six
+  failing fixtures, same per-fixture deltas as C6's own table). Then
+  root-caused EACH of the six residual fixtures INDIVIDUALLY (per the
+  task's own "no formula variants — per-fixture root-causing only"
+  boundary), via direct render-output comparison against the real oracle
+  SVG (`data-qualified-name`-matched box extraction, mirroring C7's own
+  technique) plus source-level classifier probes — not assumed, not
+  guessed:
+  - **bajelo-54-dixe684**: COMPOUND. `Track_FSM.Run` (a `'cluster'`-
+    classified composite) is excluded from `titleTableEligible` by the
+    pre-existing `ctx.insideAutonomPass !== true` gate (`Run` resolves
+    INSIDE `Track_FSM`'s own autonom child pass, since `Track_FSM` is
+    itself autonom) — AND, independently, `Run` carries action-zone text
+    (`entry`/`exit` lines) that `CLUSTER_TITLE_TABLE_HEIGHT`'s hardcoded
+    single-line-title-only calibration (`= 3`) was never derived for
+    (jar's own real title-table `HEIGHT` for `Run` is 42, not a constant
+    3). Either gap alone would keep `Run` off the real-cluster-geometry
+    path, cascading a large size gap into `Track_FSM`'s own outer bbox.
+  - **rovese-43-tadu368**: SINGLE mechanism. `SharedMemory.Virtual_Config`
+    and `SharedMemory.Data_Space` (both single-line titles, no own action
+    text) are excluded SOLELY by the SAME `ctx.insideAutonomPass` gate
+    (both resolve inside `SharedMemory`'s own autonom child pass) — a
+    clean, isolated instance of the mechanism C3's own doc comment already
+    named (and had jar-verified NECESSARY, under pre-C6 conditions, citing
+    this SAME fixture).
+  - **fotuje-06-fifa085**: SAME `ctx.insideAutonomPass` mechanism as
+    rovese, larger blast radius — `XA5`/`XA7`/`XA9`/`XA10`/`XA16` (5
+    nested clusters, all single-line titles) all resolve inside `XA4`'s
+    own autonom child pass, all excluded identically.
+  - **pesita-10-dene726**: the entrypoint/exitpoint family's ALREADY-
+    NAMED, ALREADY-DEFERRED gap (C3/C5/C7's own repeated queue item) —
+    `AA` carries a DIRECT border-point child (`aa_ok_ex <<exitpoint>>`),
+    permanently excluded from `titleTableEligible` via
+    `hasBorderPointChildren` (unrelated to `insideAutonomPass`). Verified
+    the mechanism is severe, not cosmetic: `AA`'s own fallback-formula
+    bbox collapses to a near-zero 36×36px box (its only child is the
+    excluded border point, so the pre-mechanism-16 flat-bbox formula has
+    nothing measurable left to size around), cascading into
+    `nasreq_auth`'s own outer real-cluster bbox. A source-level classifier
+    probe (`classifyDiagram`/`hasBorderPointDescendant`) DISPROVED this
+    iteration's own first hypothesis (a top-level autarky-classification
+    mismatch) before landing on this mechanism — `nasreq_auth` IS
+    correctly classified `'cluster'` by this port, matching jar; the
+    `class="entity"` attribute on its own rendered `<g>` is a SEPARATE,
+    already-named, cosmetic-only renderer-convention gap (this port never
+    emits `class="cluster"` for ANY state composite, regardless of real
+    classification), not a sizing defect.
+  - **nimana-36-veco708** and **beguxu-19-tize774**: BOTH manifestations
+    of G4 S13's own already-named, three-times-attempted "gap 1" (label-
+    PLACEMENT divergence — `attachTransitionLabel`'s perpendicular-
+    offset-from-spline-midpoint formula was never reconciled against
+    jar's real `SvekEdge.java` placement algorithm; S13 tried three
+    formula variants, all failed differently, and this mission's own
+    "no formula variants" boundary correctly excludes a fourth attempt
+    here). Direct box measurement: `nimana`'s `"yes"` composite is 10px
+    SHORT in height (matches `maxSizeDeltaIn=0.138889in` exactly);
+    `beguxu`'s `"a"`/`"b"` composites are 2px short each (matches
+    `maxSizeDeltaIn=0.027778in` exactly) — NEITHER fixture touches a
+    `'cluster'`-classified composite at all (both are pure `'autonom'`
+    cases), confirming this is a genuinely different mechanism from the
+    other four fixtures above.
+
+  **None of the three underlying mechanisms (the `insideAutonomPass`
+  gate, the entrypoint/exitpoint family's unimplemented WithLabel
+  formula, S13's label-placement gap) are fixable within this iteration's
+  authorized scope** — each requires either relaxing a gate previously
+  verified necessary (needing its own full regression sweep under the NEW
+  ink-fold+floor-removal substrate), porting jar's real `SvekEdge.java`
+  placement algorithm (S13's own "substantial, SvekEdge.java-scale
+  undertaking"), or building the WithLabel port-block sizing formula from
+  scratch (C3's own unresolved item) — all explicitly named as requiring
+  their OWN separately-scoped, sign-off-gated iterations. Since landing
+  the stack as final state would require WIDENING all six fixtures'
+  `size-backlog.json` ceilings (each currently FAILS its pinned
+  allowance) — explicitly forbidden by the mission's own "tighten every
+  improved entry; widen NONE" bar — **REVERTED IN FULL**, mirroring
+  C4/C6's identical protocol (`git show HEAD:<path> > <path>` for all 9
+  touched files, disposable probes deleted, `git status --short`/`git
+  diff --stat` verified EMPTY before re-running gates). All protected
+  sets re-verified byte-identical to the C7 baseline after the revert.
+  See `ledger.md` §C8 for the full derivation, the per-fixture evidence
+  (render-output box comparisons + source probes), and the C9+ queue.
+
+## Next iteration (C9) — recommended scope
 
 0. **PRIORITY, newly characterized this iteration**: the cluster VERTICAL/
    height-margin residual (~1-6px, NOT proportional to
@@ -309,15 +401,34 @@ iteration" below.
    confirmed WIDTH-exact on all 5 of C5's own named samples. Do NOT
    re-derive; `DotInputCluster.innerMarginLevels`/`unwrappedNodeId` is the
    correct, jar-verified final mechanism for `titleTableEligible` clusters.
-7. **Sites 2/3, edge-label-ink mechanism**: unchanged from C6, still
-   parked. `bajelo-54-dixe684`/`rovese-43-tadu368`'s own mechanism is now
-   confirmed unrelated to FOUR independently-derived fixes (font-size,
-   HTML injection, edge-label-ink fold, cluster margin) — a seventh attempt
-   needs a genuinely NEW investigation into these two fixtures specifically
-   (not a re-application of any existing mechanism), and its own explicit
-   orchestrator/maintainer sign-off (3-strike rule, now 6 prior attempts:
-   S4, S13×3, C4, C6).
+7. **Sites 2/3, edge-label-ink mechanism — C8 CLOSED the open question**
+   from C6's own queue: the six residual fixtures do NOT share one
+   mechanism. C8's per-fixture diagnosis found THREE independent, already-
+   named, already-deferred mechanisms: (a) the `ctx.insideAutonomPass`
+   gate in `state-composite-cluster.ts#resolveClusterComposite`'s
+   `titleTableEligible` test — bajelo/rovese/fotuje (3 of 6) — a nested
+   `'cluster'` composite resolved inside an ancestor's own autonom child
+   pass never reaches the real-cluster-geometry path at all; (b) the
+   entrypoint/exitpoint family's unimplemented WithLabel port-block sizing
+   formula (C3's own unresolved item) — pesita (1 of 6), severe enough to
+   collapse a member composite's own bbox to near-zero; (c) G4 S13's own
+   label-PLACEMENT divergence ("gap 1", 3 prior formula attempts, all
+   failed differently) — nimana/beguxu (2 of 6), a genuine but SMALL
+   (2-10px) height shortfall in a pure-autonom (non-cluster) composite. A
+   seventh attempt at ANY of these needs its own separately-scoped
+   investigation and sign-off — (a) needs a full regression sweep of
+   relaxing `insideAutonomPass` under the NOW-landed ink-fold+floor-
+   removal substrate (untested combination); (b) needs the WithLabel
+   formula built from scratch; (c) needs jar's real `SvekEdge.java`
+   placement algorithm ported, not another geometric-box approximation.
+   See `ledger.md` §C8 for the full per-fixture evidence.
 8. **Unchanged from C0-C6**: `gutute-00-gaki684` (component port-label
    divergence) finding remains unresolved, low priority; `class="entity"`
    vs jar's `class="cluster"` convention gap, logged for a future
-   iteration.
+   iteration — C8 confirmed (via a direct classifier probe) this gap is
+   PURELY cosmetic/renderer-convention, not a sizing defect: this port
+   never emits `class="cluster"` for ANY state composite regardless of its
+   real `'cluster'`/`'autonom'` classification, but the classification
+   ITSELF (which DOES drive sizing) was independently verified correct on
+   `nasreq_auth` (pesita's own top-level composite, `kind='cluster'`,
+   matching jar exactly).
