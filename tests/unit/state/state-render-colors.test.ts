@@ -9,7 +9,7 @@
  * comment for the full derivation.
  */
 import { describe, it, expect } from 'vitest';
-import { resolveStateBorder, resolveStateFillBucketed, resolveStateFontColor } from '../../../src/diagrams/state/state-render-colors.js';
+import { resolveStateBorder, resolveStateFillBucketed, resolveStateFontColor, resolveStateFontSize, resolveStateArrowLineColor, resolveStateArrowHeadColor, resolveActivityBarForkColor, resolveActivityBarJoinColor } from '../../../src/diagrams/state/state-render-colors.js';
 import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 
 describe('resolveStateBorder', () => {
@@ -120,5 +120,95 @@ describe('resolveStateFontColor', () => {
       colors: { graph: { stateFontColorByStereo: { foo: 'yellow' } } },
     });
     expect(resolveStateFontColor({ stereotype: 'other' }, theme, '#000000')).toBe('#000000');
+  });
+});
+
+// mission G4 S16: `skinparam stateFontSize<<X>> N` -- jar-verified
+// `laferu-31-tice836`: `skinparam stateFontSize<<Foo>> 30` + `state state1
+// <<Foo>>` -> `font-size="30"` (both header text AND the box's own
+// dimensions, since `resolveStateFontSize` is also read at LAYOUT/measure
+// time -- state-sizing.test.ts covers the measurement-side threading).
+describe('resolveStateFontSize', () => {
+  it('falls back to the given default when the node has no stereotype', () => {
+    expect(resolveStateFontSize({}, defaultTheme, 14)).toBe(14);
+  });
+
+  it('resolves the stereotype-scoped skinparam override', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateFontSizeByStereo: { foo: 30 } } },
+    });
+    expect(resolveStateFontSize({ stereotype: 'Foo' }, theme, 14)).toBe(30);
+  });
+
+  it('does not match a DIFFERENT stereotype not present in the bucket', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateFontSizeByStereo: { foo: 30 } } },
+    });
+    expect(resolveStateFontSize({ stereotype: 'other' }, theme, 14)).toBe(14);
+  });
+
+  it('is case-insensitive on the stereotype label', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateFontSizeByStereo: { meblue: 20 } } },
+    });
+    expect(resolveStateFontSize({ stereotype: 'MeBlue' }, theme, 14)).toBe(20);
+  });
+});
+
+// mission G4 S16: <style> stateDiagram { arrow { LineColor HeadColor } } }
+// -- jar-verified nanozi-96-foda024: path stroke="#0000FF" (LineColor),
+// polygon fill="#FF0000" stroke="#FF0000" (HeadColor).
+describe('resolveStateArrowLineColor', () => {
+  it('falls back to the given default when no cascade override is set', () => {
+    expect(resolveStateArrowLineColor(defaultTheme, '#181818')).toBe('#181818');
+  });
+
+  it('resolves the statediagram.arrow LineColor cascade override', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateArrowLineColor: 'blue' } },
+    });
+    expect(resolveStateArrowLineColor(theme, '#181818')).toBe('#0000FF');
+  });
+});
+
+describe('resolveStateArrowHeadColor', () => {
+  it('falls back to the given default when no cascade override is set', () => {
+    expect(resolveStateArrowHeadColor(defaultTheme, '#181818')).toBe('#181818');
+  });
+
+  it('resolves the statediagram.arrow HeadColor cascade override', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateArrowHeadColor: 'red' } },
+    });
+    expect(resolveStateArrowHeadColor(theme, '#181818')).toBe('#FF0000');
+  });
+});
+
+// mission G4 S16: <style> activityBar { .fork {...} .join {...} } } --
+// jar-verified koguvo-74-kubo455: fork bar fill="#008000", join bar
+// fill="#FFA500".
+describe('resolveActivityBarForkColor', () => {
+  it('returns undefined when no cascade override is set', () => {
+    expect(resolveActivityBarForkColor(defaultTheme)).toBeUndefined();
+  });
+
+  it('resolves the activitybar..fork BackGroundColor cascade override', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { activityBarForkColor: 'green' } },
+    });
+    expect(resolveActivityBarForkColor(theme)).toBe('#008000');
+  });
+});
+
+describe('resolveActivityBarJoinColor', () => {
+  it('returns undefined when no cascade override is set', () => {
+    expect(resolveActivityBarJoinColor(defaultTheme)).toBeUndefined();
+  });
+
+  it('resolves the activitybar..join BackGroundColor cascade override', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { activityBarJoinColor: 'orange' } },
+    });
+    expect(resolveActivityBarJoinColor(theme)).toBe('#FFA500');
   });
 });

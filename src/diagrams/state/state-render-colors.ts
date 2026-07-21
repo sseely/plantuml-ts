@@ -132,6 +132,74 @@ export function resolveStateFontColor(
 }
 
 /**
+ * `skinparam StateFontSize<<X>> N` -- mission G4 S16, the SAME direct-value-
+ * lookup mechanism as {@link resolveStateBorder}/{@link resolveStateFontColor},
+ * applied to a state box's own label TEXT SIZE. Wins over `fallback` (the
+ * caller's own default -- `theme.fontSize` at every current call site) when
+ * `node`'s OWN stereotype (lowercased) has a matching entry in
+ * `theme.colors.graph.stateFontSizeByStereo`. Unlike its two color siblings,
+ * this is read from BOTH `state-sizing.ts` (layout-time measurement, which
+ * feeds the box's own DOT node width/height) and `renderer-box.ts`
+ * (render-time `<text font-size>` + line-step formula) -- see
+ * `theme.ts#stateFontSizeByStereo`'s own doc comment for the full mechanism.
+ */
+export function resolveStateFontSize(
+  node: Pick<StateNodeGeo, 'stereotype'>,
+  theme: Pick<Theme, 'colors'>,
+  fallback: number,
+): number {
+  if (node.stereotype !== undefined) {
+    const override = theme.colors.graph.stateFontSizeByStereo?.[node.stereotype.toLowerCase()];
+    if (override !== undefined) return override;
+  }
+  return fallback;
+}
+
+/**
+ * `<style> stateDiagram { arrow { LineColor ... } } }` -- mission G4 S16.
+ * Wins over `fallback` (`theme.colors.arrow` at the ONE current call
+ * site) when `theme.colors.graph.stateArrowLineColor` is set. See
+ * `theme.ts#stateArrowLineColor`'s own doc comment for the full
+ * derivation and the `style-map-theme.ts#applyStyleMap` injection point.
+ */
+export function resolveStateArrowLineColor(theme: Pick<Theme, 'colors'>, fallback: string): string {
+  const override = theme.colors.graph.stateArrowLineColor;
+  return override !== undefined ? resolveColorToSvgHex(override) : fallback;
+}
+
+/**
+ * `<style> stateDiagram { arrow { HeadColor ... } } }` -- mission G4 S16,
+ * the SAME cascade as {@link resolveStateArrowLineColor}, applied to the
+ * arrowhead `<polygon>`'s OWN fill AND stroke (both, jar-verified
+ * `nanozi-96-foda024` -- see `theme.ts#stateArrowHeadColor`'s own doc
+ * comment).
+ */
+export function resolveStateArrowHeadColor(theme: Pick<Theme, 'colors'>, fallback: string): string {
+  const override = theme.colors.graph.stateArrowHeadColor;
+  return override !== undefined ? resolveColorToSvgHex(override) : fallback;
+}
+
+/**
+ * `<style> activityBar { .fork { BackGroundColor ... } } }` -- mission G4
+ * S16. Returns `undefined` (not a fallback) when unset, so callers can
+ * distinguish "no cascade override" from "resolved to a color" and fall
+ * through to their OWN hardcoded default (`renderer-pseudostate.ts
+ * #renderForkJoin`'s `SYNCHRO_BAR_COLOR`) -- mirrors `theme.ts
+ * #activityBarForkColor`'s own doc comment for the full derivation.
+ */
+export function resolveActivityBarForkColor(theme: Pick<Theme, 'colors'>): string | undefined {
+  const override = theme.colors.graph.activityBarForkColor;
+  return override !== undefined ? resolveColorToSvgHex(override) : undefined;
+}
+
+/** Same mechanism as {@link resolveActivityBarForkColor}, the `.join`
+ *  selector's own BackGroundColor. */
+export function resolveActivityBarJoinColor(theme: Pick<Theme, 'colors'>): string | undefined {
+  const override = theme.colors.graph.activityBarJoinColor;
+  return override !== undefined ? resolveColorToSvgHex(override) : undefined;
+}
+
+/**
  * `fontSize - fontSize/4.5` — the SAME content-independent ascent-from-
  * line-top formula the class engine uses (`class-layout-helpers.ts`'s
  * `fontSpec.size - measurer.getDescent(fontSpec, '')`), reproduced

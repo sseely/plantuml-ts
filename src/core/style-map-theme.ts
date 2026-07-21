@@ -79,6 +79,33 @@ export function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     if (bg !== undefined) graphOverride.enumBackground = bg;
   }
 
+  // mission G4 S16: `<style> stateDiagram { arrow { LineColor HeadColor
+  // } } }` -- selector "statediagram.arrow" (`theme.ts
+  // #stateArrowLineColor`'s own doc comment for the full derivation and
+  // jar evidence).
+  const stateArrow = styleMap.get('statediagram.arrow');
+  if (stateArrow !== undefined) {
+    const lc = stateArrow.get('linecolor');
+    if (lc !== undefined) graphOverride.stateArrowLineColor = lc;
+    const hc = stateArrow.get('headcolor');
+    if (hc !== undefined) graphOverride.stateArrowHeadColor = hc;
+  }
+
+  // mission G4 S16: `<style> activityBar { .fork { BackGroundColor }
+  // .join { BackGroundColor } } }` -- selectors "activitybar..fork"/
+  // "activitybar..join" (`theme.ts#activityBarForkColor`'s own doc
+  // comment for the double-dot selector-key derivation).
+  const activityBarFork = styleMap.get('activitybar..fork');
+  if (activityBarFork !== undefined) {
+    const bg = activityBarFork.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.activityBarForkColor = bg;
+  }
+  const activityBarJoin = styleMap.get('activitybar..join');
+  if (activityBarJoin !== undefined) {
+    const bg = activityBarJoin.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.activityBarJoinColor = bg;
+  }
+
   const pkg = styleMap.get('package');
   if (pkg !== undefined) {
     const bg = pkg.get('backgroundcolor');

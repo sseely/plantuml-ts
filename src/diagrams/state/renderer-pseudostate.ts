@@ -20,6 +20,8 @@ import {
   STATE_DEFAULT_BACKGROUND,
   STATE_BORDER_STROKE_WIDTH,
   resolveStateFill,
+  resolveActivityBarForkColor,
+  resolveActivityBarJoinColor,
   textAscent,
   textDescent,
 } from './state-render-colors.js';
@@ -76,9 +78,20 @@ export function renderFinal(node: StateNodeGeo): string {
 
 /** `EntityImageSynchroBar.java`: a plain filled bar, NO stroke (`stroke:
  *  none`), NOT wrapped in a `<g>` (mission G4 S1's own `wrapClassFor`
- *  dispatch already omits the wrap for this kind). */
-export function renderForkJoin(node: StateNodeGeo): string {
-  const fill = resolveStateFill(node, SYNCHRO_BAR_COLOR);
+ *  dispatch already omits the wrap for this kind). mission G4 S16: `<style>
+ *  activityBar { .fork {...} .join {...} } }` -- see `state-render-colors
+ *  .ts#resolveActivityBarForkColor`'s own doc comment. The cascade default
+ *  is looked up ONLY for `kind:'fork'`/`'join'` -- `syncBar` (a different
+ *  upstream construct, no corpus evidence of a matching selector) keeps
+ *  its pre-S16 `SYNCHRO_BAR_COLOR` default unconditionally. */
+export function renderForkJoin(node: StateNodeGeo, theme: Theme): string {
+  const bucketDefault =
+    node.kind === 'fork'
+      ? resolveActivityBarForkColor(theme)
+      : node.kind === 'join'
+        ? resolveActivityBarJoinColor(theme)
+        : undefined;
+  const fill = resolveStateFill(node, bucketDefault ?? SYNCHRO_BAR_COLOR);
   return rect(node.x, node.y, node.width, node.height, { fill, stroke: 'none', strokeWidth: 1 });
 }
 

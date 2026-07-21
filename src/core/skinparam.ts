@@ -316,6 +316,22 @@ const STATE_BORDER_COLOR_STEREO_RE = new RegExp('^statebordercolor<<(.+)>>$');
 // and the FontSize<<X>> exclusion rationale.
 const STATE_BACKGROUND_COLOR_STEREO_RE = new RegExp('^statebackgroundcolor<<(.+)>>$');
 const STATE_FONT_COLOR_STEREO_RE = new RegExp('^statefontcolor<<(.+)>>$');
+// mission G4 S16: `skinparam stateFontSize<<stereo>> N` -- the FontSize<<X>>
+// field S9/S14/S15's own queue notes deferred (jar-verified via
+// `FromSkinparamToStyle.java`'s `addConFont("state", SName.state)`, which
+// registers `stateFontSize`/`stateFontStyle`/`stateFontColor`/`stateFontName`
+// as a `PName.FontSize`/etc conversion feeding the `SName.state` style --
+// the SAME `SkinParam#getFontSize(stereotype, FontParam...)` direct
+// stereotype-qualified VALUE lookup mechanism (`getFirstValueNonNullWithSuffix
+// ("fontsize" + stereotype.getLabel(...), ...)`) `STATE_BORDER_COLOR_STEREO_RE`
+// already uses for BorderColor -- NOT the `<style>`-block-selector cascade
+// family (`stateDiagram { ... }`/`activityBar { ... }`) this mission's
+// write-set boundary blocks at `core/style-map-theme.ts#applyStyleMap`; see
+// `theme.ts#stateFontSizeByStereo`'s own doc comment for the precedence tier
+// and `state-render-colors.ts#resolveStateFontSize`'s own doc comment for
+// how the parsed numeric override reaches BOTH layout-time measurement and
+// render-time `font-size` emission from this ONE parsed value.
+const STATE_FONT_SIZE_STEREO_RE = new RegExp('^statefontsize<<(.+)>>$');
 
 export function resolveSkinparam(
   skinparams: ReadonlyMap<string, string>,
@@ -385,6 +401,7 @@ export function resolveSkinparam(
   // same accumulation shape as `stateBorderColorByStereo` above.
   let stateBackgroundColorByStereo: Record<string, string> | undefined;
   let stateFontColorByStereo: Record<string, string> | undefined;
+  let stateFontSizeByStereo: Record<string, number> | undefined;
   // G2 N51: `arrowThickness` -- the class-edge default stroke-width (see
   // `theme.ts#arrowThickness`'s doc comment).
   let arrowThickness: number | undefined;
@@ -480,6 +497,7 @@ export function resolveSkinparam(
       const stateBorderStereoMatch = STATE_BORDER_COLOR_STEREO_RE.exec(key);
       const stateBackgroundStereoMatch = STATE_BACKGROUND_COLOR_STEREO_RE.exec(key);
       const stateFontStereoMatch = STATE_FONT_COLOR_STEREO_RE.exec(key);
+      const stateFontSizeStereoMatch = STATE_FONT_SIZE_STEREO_RE.exec(key);
       if (stereoMatch !== null) {
         const v = Number.parseFloat(value.trim());
         if (Number.isFinite(v)) {
@@ -499,6 +517,13 @@ export function resolveSkinparam(
         const stereo = stateFontStereoMatch[1]!.trim();
         stateFontColorByStereo ??= {};
         stateFontColorByStereo[stereo] = resolveColor(value);
+      } else if (stateFontSizeStereoMatch !== null) {
+        const v = Number(value.trim());
+        if (Number.isFinite(v)) {
+          const stereo = stateFontSizeStereoMatch[1]!.trim();
+          stateFontSizeByStereo ??= {};
+          stateFontSizeByStereo[stereo] = v;
+        }
       } else {
         unknown.push(key);
       }
@@ -842,6 +867,7 @@ export function resolveSkinparam(
     stateBorderColorByStereo !== undefined ||
     stateBackgroundColorByStereo !== undefined ||
     stateFontColorByStereo !== undefined ||
+    stateFontSizeByStereo !== undefined ||
     arrowThickness !== undefined ||
     classAttributeFontSize !== undefined ||
     classAttributeFontFamily !== undefined ||
@@ -926,6 +952,8 @@ export function resolveSkinparam(
       graphOverride.stateBackgroundColorByStereo = stateBackgroundColorByStereo;
     if (stateFontColorByStereo !== undefined)
       graphOverride.stateFontColorByStereo = stateFontColorByStereo;
+    if (stateFontSizeByStereo !== undefined)
+      graphOverride.stateFontSizeByStereo = stateFontSizeByStereo;
     if (arrowThickness !== undefined) graphOverride.arrowThickness = arrowThickness;
     if (classAttributeFontSize !== undefined)
       graphOverride.classAttributeFontSize = classAttributeFontSize;

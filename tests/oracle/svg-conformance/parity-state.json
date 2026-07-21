@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-21T06:51:53.167Z",
+  "generatedAt": "2026-07-21T07:41:19.903Z",
   "fixtures": [
     {
       "slug": "bajelo-54-dixe684",
@@ -876,9 +876,7 @@
       "slug": "koguvo-74-kubo455",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/rect[1]/@fill"
+      "verdict": "conformant"
     },
     {
       "slug": "komeja-83-pufo140",
@@ -952,10 +950,7 @@
       "slug": "laferu-31-tice836",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 43.5005,
-      "firstDiff": "svg/g[1]/g[1]/text[1]/@font-size",
-      "maxDeltaPath": "svg/g[1]/g[1]/rect[1]/@width"
+      "verdict": "conformant"
     },
     {
       "slug": "lalava-26-zosi801",
@@ -1221,9 +1216,7 @@
       "slug": "nanozi-96-foda024",
       "type": "state",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[3]/path[1]/@stroke"
+      "verdict": "conformant"
     },
     {
       "slug": "nelupe-49-xova546",
@@ -1661,7 +1654,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 170,
-      "firstDiff": "svg/g[1]/g[5]/path[1]/@stroke",
+      "firstDiff": "svg/g[1]/g[5]/polygon[1]",
       "maxDeltaPath": "svg/g[1]/g[1]/rect[1]/@x"
     },
     {

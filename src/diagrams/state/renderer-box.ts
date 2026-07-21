@@ -36,7 +36,7 @@
 import type { StateNodeGeo, StateTextLine } from './state-geo-types.js';
 import type { Theme } from '../../core/theme.js';
 import { rect, line, text, path } from '../../core/svg.js';
-import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFillBucketed, resolveStateBorder, resolveStateFontColor, textAscent } from './state-render-colors.js';
+import { STATE_DEFAULT_BACKGROUND, STATE_BORDER_STROKE_WIDTH, resolveStateFillBucketed, resolveStateBorder, resolveStateFontColor, resolveStateFontSize, textAscent } from './state-render-colors.js';
 import { javaRound4 } from '../../core/number-format.js';
 
 const STATE_BOX_RX = 12.5;
@@ -59,13 +59,18 @@ function renderTextLines(
   // Defaults to jar's own hardcoded `#000000` label-text default (every
   // pre-S15 call site's unchanged behavior).
   fill: string = '#000000',
+  // mission G4 S16: `skinparam stateFontSize<<X>>` -- see
+  // `state-render-colors.ts#resolveStateFontSize`'s own doc comment.
+  // Defaults to `theme.fontSize` (every pre-S16 call site's unchanged
+  // behavior).
+  fontSize: number = theme.fontSize,
 ): string {
   let out = '';
   lines.forEach((ln, i) => {
-    out += text(xForLine(ln), startY + i * theme.fontSize, ln.text, {
+    out += text(xForLine(ln), startY + i * fontSize, ln.text, {
       fill,
       fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
+      fontSize,
       lengthAdjust: 'spacing',
       textLength: javaRound4(ln.width),
     });
@@ -107,14 +112,19 @@ function renderUnmeasuredFallback(node: StateNodeGeo, theme: Theme, box: string)
  */
 function renderEmptyDescription(node: StateNodeGeo, theme: Theme, box: string): string {
   const headerLines = node.headerLines!;
-  const ascent = textAscent(theme.fontSize);
-  const textBlockHeight = headerLines.length * theme.fontSize;
+  // mission G4 S16: `skinparam stateFontSize<<X>>` -- see
+  // `state-render-colors.ts#resolveStateFontSize`'s own doc comment.
+  const fontSize = resolveStateFontSize(node, theme, theme.fontSize);
+  const ascent = textAscent(fontSize);
+  const textBlockHeight = headerLines.length * fontSize;
   const yDesc = (node.height - textBlockHeight) / 2;
   const headerMarkup = renderTextLines(
     headerLines,
     (ln) => node.x + node.width / 2 - ln.width / 2,
     node.y + yDesc + ascent,
     theme,
+    '#000000',
+    fontSize,
   );
   return box + headerMarkup;
 }
@@ -162,7 +172,10 @@ export function renderSdlReceive(node: StateNodeGeo, theme: Theme): string {
     `L${x0 + textWidth - cornerSize},${y0 + textHeight} L${x0},${y0 + textHeight}`;
   const notch = path(d, { stroke: border, strokeWidth: STATE_BORDER_STROKE_WIDTH });
 
-  const ascent = textAscent(theme.fontSize);
+  // mission G4 S16: `skinparam stateFontSize<<X>>` -- see
+  // `state-render-colors.ts#resolveStateFontSize`'s own doc comment.
+  const fontSize = resolveStateFontSize(node, theme, theme.fontSize);
+  const ascent = textAscent(fontSize);
   const label = text(
     node.x + SDL_MARGIN.x1 + BODY_MARGIN_X,
     node.y + SDL_MARGIN.y1 + ascent,
@@ -170,7 +183,7 @@ export function renderSdlReceive(node: StateNodeGeo, theme: Theme): string {
     {
       fill: '#000000',
       fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
+      fontSize,
       lengthAdjust: 'spacing',
       textLength: javaRound4(node.headerLines?.[0]?.width ?? 0),
     },
@@ -201,7 +214,13 @@ export function renderNormal(node: StateNodeGeo, theme: Theme): string {
     return renderEmptyDescription(node, theme, box);
   }
 
-  const ascent = textAscent(theme.fontSize);
+  // mission G4 S16: `skinparam stateFontSize<<X>>` -- see
+  // `state-render-colors.ts#resolveStateFontSize`'s own doc comment; jar-
+  // verified `laferu-31-tice836` (font-size 30, box widened to match the
+  // `state-sizing.ts` measurement this SAME resolution feeds at layout
+  // time).
+  const fontSize = resolveStateFontSize(node, theme, theme.fontSize);
+  const ascent = textAscent(fontSize);
   // mission G4 S15: `StateFontColor<<X>>` cascade -- see
   // `resolveStateFontColor`'s own doc comment.
   const fontColor = resolveStateFontColor(node, theme, '#000000');
@@ -211,16 +230,17 @@ export function renderNormal(node: StateNodeGeo, theme: Theme): string {
     node.y + MARGIN + ascent,
     theme,
     fontColor,
+    fontSize,
   );
 
-  const dividerY = node.y + MARGIN + node.headerLines.length * theme.fontSize + MARGIN_LINE;
+  const dividerY = node.y + MARGIN + node.headerLines.length * fontSize + MARGIN_LINE;
   const divider = line(node.x, dividerY, node.x + node.width, dividerY, {
     stroke: border,
     strokeWidth: STATE_BORDER_STROKE_WIDTH,
   });
 
   const bodyLines = node.bodyLines ?? [];
-  const bodyMarkup = renderTextLines(bodyLines, () => node.x + MARGIN, dividerY + MARGIN_LINE + ascent, theme, fontColor);
+  const bodyMarkup = renderTextLines(bodyLines, () => node.x + MARGIN, dividerY + MARGIN_LINE + ascent, theme, fontColor, fontSize);
 
   return box + divider + headerMarkup + bodyMarkup;
 }

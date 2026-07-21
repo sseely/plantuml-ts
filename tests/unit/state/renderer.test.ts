@@ -3,7 +3,7 @@ import { renderState } from '../../../src/diagrams/state/renderer.js';
 import { assembleSvg } from '../../../src/index.js';
 import { statePlugin } from '../../../src/diagrams/state/index.js';
 import type { StateGeometry, StateNodeGeo, TransitionGeo } from '../../../src/diagrams/state/layout.js';
-import { defaultTheme } from '../../../src/core/theme.js';
+import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 
 // ---------------------------------------------------------------------------
 // Geometry factories — construct geometry manually, no ELK involved
@@ -167,6 +167,42 @@ describe('renderState — fork node', () => {
     const geo = makeGeo({ states: [node] });
     const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('fill="#555555"');
+  });
+});
+
+// mission G4 S16: <style> activityBar { .fork {...} .join {...} } } --
+// jar-verified koguvo-74-kubo455: fork bar fill="#008000", join bar
+// fill="#FFA500".
+describe('renderState — fork/join activityBar cascade (mission G4 S16)', () => {
+  it('applies activityBarForkColor to a fork bar', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { activityBarForkColor: 'green' } },
+    });
+    const node = makeNode({ kind: 'fork', width: 60, height: 8 });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('fill="#008000"');
+  });
+
+  it('applies activityBarJoinColor to a join bar', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { activityBarJoinColor: 'orange' } },
+    });
+    const node = makeNode({ kind: 'join', width: 60, height: 8 });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('fill="#FFA500"');
+  });
+
+  it('does NOT apply activityBarForkColor to a syncBar (different upstream construct)', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { activityBarForkColor: 'green' } },
+    });
+    const node = makeNode({ kind: 'syncBar', width: 60, height: 8 });
+    const geo = makeGeo({ states: [node] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('fill="#555555"');
+    expect(result).not.toContain('fill="#008000"');
   });
 });
 
@@ -437,6 +473,32 @@ describe('renderState — transitions', () => {
     const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).not.toContain('marker-end');
     expect(result).toContain('<polygon');
+  });
+
+  // mission G4 S16: <style> stateDiagram { arrow { LineColor HeadColor
+  // } } } -- jar-verified nanozi-96-foda024: path stroke="#0000FF"
+  // (LineColor), polygon fill="#FF0000" stroke="#FF0000" (HeadColor).
+  it('applies the statediagram.arrow LineColor cascade to the path stroke', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateArrowLineColor: 'blue' } },
+    });
+    const t = makeTransition();
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('stroke="#0000FF"');
+  });
+
+  it('applies the statediagram.arrow HeadColor cascade to the arrowhead polygon fill+stroke', () => {
+    const theme = deepMergeTheme(defaultTheme, {
+      colors: { graph: { stateArrowHeadColor: 'red' } },
+    });
+    const t = makeTransition();
+    const geo = makeGeo({ transitions: [t] });
+    const result = assembleSvg(renderState(geo, theme));
+    expect(result).toContain('fill="#FF0000"');
+    const polygonMatch = /<polygon[^>]*>/.exec(result);
+    expect(polygonMatch).not.toBeNull();
+    expect(polygonMatch![0]).toContain('stroke:#FF0000');
   });
 
   it('transition with label renders text element', () => {

@@ -37,6 +37,7 @@ import {
   renderHistory,
 } from './renderer-pseudostate.js';
 import { renderNormal, renderSdlReceive } from './renderer-box.js';
+import { resolveStateArrowLineColor, resolveStateArrowHeadColor } from './state-render-colors.js';
 import { renderComposite } from './renderer-composite-box.js';
 import { renderStateNote } from './renderer-note.js';
 
@@ -78,7 +79,7 @@ function renderShape(node: StateNodeGeo, theme: Theme): string {
     // fork/join bar shape, the closest visual analog -- upstream itself
     // renders synchronization bars and fork/join with the same bar shape.
     case 'syncBar':
-      return renderForkJoin(node);
+      return renderForkJoin(node, theme);
     case 'choice':
       return renderChoiceJunction(node, theme);
     case 'history':
@@ -337,7 +338,12 @@ function buildTransitionInnerMarkup(
   theme: Theme,
   concurrentGlobalIds: ReadonlyMap<string, number>,
 ): string {
-  const arrowhead = buildTransitionArrowhead(transition, theme.colors.arrow, 1);
+  // mission G4 S16: <style> stateDiagram { arrow { LineColor HeadColor
+  // } } } -- see state-render-colors.ts#resolveStateArrowLineColor's own
+  // doc comment.
+  const arrowLineColor = resolveStateArrowLineColor(theme, theme.colors.arrow);
+  const arrowHeadColor = resolveStateArrowHeadColor(theme, theme.colors.arrow);
+  const arrowhead = buildTransitionArrowhead(transition, arrowHeadColor, 1);
   const points = applyHeadTrim(transition.points, arrowhead.trim);
   const d = buildPathD(points);
   if (d === '') return '';
@@ -354,17 +360,17 @@ function buildTransitionInnerMarkup(
   // `id="*start*-to-foo"` on the SAME fixture's other edge.
   const idSep = transition.crossStart === true ? '-' : '-to-';
   const pathEl = path(d, {
-    stroke: theme.colors.arrow,
+    stroke: arrowLineColor,
     strokeWidth: 1,
     id: `${svgEndpointId(transition.from, concurrentGlobalIds)}${idSep}${svgEndpointId(transition.to, concurrentGlobalIds)}`,
   });
 
   const decorBackground = resolveColorToSvgHex(theme.colors.background);
   const circleEndEl = transition.circleEnd === true
-    ? buildCircleEndMarkup(transition, theme.colors.arrow, decorBackground)
+    ? buildCircleEndMarkup(transition, arrowHeadColor, decorBackground)
     : '';
   const crossStartEl = transition.crossStart === true
-    ? buildCrossStartMarkup(transition, theme.colors.arrow, decorBackground)
+    ? buildCrossStartMarkup(transition, arrowHeadColor, decorBackground)
     : '';
 
   const labelEl =

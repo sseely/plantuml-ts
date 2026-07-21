@@ -5464,3 +5464,853 @@ authoritative census numbers, matching S14's own resolution pattern.
 15. `gokife-89-boja382`'s `skinparam state { backgroundColor<<X>> }`
     NESTED-block form (distinct syntax from mechanism 28's flat form) —
     still not isolated from a possible mechanism-16 interaction.
+
+## S16 — CLOSING iteration: mechanism 29 (`stateFontSize<<X>>`) and mechanism
+30 (`<style>` `statediagram.arrow`/`activitybar..fork`/`activitybar..join`)
+LANDED in full, jar-verified; full 271-fixture per-fixture accounting
+produced (49/271 -> 52/271 zero-diff; 219 non-conformant fixtures each
+attributed to a named mechanism, 36 distinct mechanisms, several newly
+discovered this iteration); mission-closing summary written to README.md
+
+### Mechanism 29 — `stateFontSize<<X>>` stereotype-qualified skinparam (LANDED)
+
+Closes the S9/S14/S15 queue's own three-fields-load-bearing-together item:
+`stateBackgroundColor<<X>>`/`stateFontColor<<X>>` (S9/S15) plus this
+iteration's `stateFontSize<<X>>` together fully zero `laferu-31-tice836`
+(`skinparam stateFontSize<<Foo>> 30`, `state state1 <<Foo>>`).
+
+Read `SkinParam#getFont`/`#getFontSize` (`skin/SkinParam.java:531-538`) BEFORE
+writing any code: `getFirstValueNonNullWithSuffix("fontsize" +
+stereotype.getLabel(...), FontParam.STATE)` is a DIRECT stereotype-qualified
+VALUE lookup — the SAME mechanism `StateBorderColor<<X>>` (S9) already uses,
+NOT the `<style>`-block cascade family. Confirmed via
+`FromSkinparamToStyle.java:206` (`addConFont("state", SName.state)`, which
+registers `stateFontSize`/`stateFontStyle`/`stateFontColor`/`stateFontName`
+as `PName.FontSize`/etc conversions FOR the `SName.state` style) that jar's
+OWN implementation routes this through its internal style-conversion
+`knowledge` map — but per S9's own established precedent (mirroring
+`classBorderThicknessByStereo`, G2 N51), this port implements the
+stereotype-qualified VALUE form as a direct lookup reproducing the SAME net
+effect, without building the general `<style>`-block-parsing framework —
+consistent, not a shortcut.
+
+Unlike its two color siblings, FontSize is a genuine LAYOUT-time concern
+(changes MEASURED text width/height, therefore the box's own DOT node
+dimensions), not just a render-time swap — landed as a SINGLE new resolver,
+`state-render-colors.ts#resolveStateFontSize`, consumed from BOTH
+`state-sizing.ts#measureState`/`#buildStateGeoTextFields` (measurement) AND
+`renderer-box.ts#renderNormal`/`#renderEmptyDescription`/`#renderSdlReceive`
+(render-time `font-size` attribute + ascent + header/body line-step
+formula) — the SAME single source of truth feeds both layers, eliminating
+any risk of the two diverging.
+
+Jar-verified byte-exact against `laferu-31-tice836` (0 diffs): `rect
+width="101.5625" height="50"`, `line y1="47"`, `text y="35.3333" font-
+size="30" textLength="81.5625"` — the `textAscent(fontSize)` formula
+(`fontSize - fontSize/4.5`, unchanged from S2) reproduces the exact
+baseline offset at font-size 30 without modification, confirming it was
+already parametric, not hardcoded to 14. TDD-first: `core/skinparam.ts`
+parsing (9 new tests, `state-skinparam-cascade.test.ts`), the resolver
+itself (4 new tests, `state-render-colors.test.ts`), layout-time threading
+(3 new tests, `state-sizing.test.ts`), render-time threading (5 new tests,
+NEW `renderer-box.test.ts` — the first dedicated test file for that
+module, since S2 only ever exercised it through the full `renderState`
+pipeline).
+
+### Mechanism 30 — `<style>` `statediagram.arrow` (LineColor/HeadColor) and
+### `activitybar..fork`/`activitybar..join` (BackGroundColor) cascades LANDED
+
+S14/S15's own "confirmed WRITE-SET BLOCKED" finding is now resolved: this
+iteration's mission brief explicitly grants `core/style-map-theme.ts`
+(additive-only, full census-proof required). Traced the exact selector-key
+shape a real `<style>` block produces via a disposable probe
+(`parseStyleBlock`) BEFORE writing any consumption code — `activityBar {
+.fork {...} .join {...} } }` produces keys `"activitybar..fork"`/
+`"activitybar..join"` (the double-dot is `parseStyleBlock`'s own
+stack-join artifact: a child selector that ITSELF starts with `.` joins as
+`"activitybar" + "." + ".fork"`), `stateDiagram { arrow { LineColor
+HeadColor } } }` produces `"statediagram.arrow"` — both confirmed against
+the actual `koguvo-74-kubo455`/`nanozi-96-foda024` `<style>` blocks, not
+guessed.
+
+Four new `Theme.colors.graph` fields (`stateArrowLineColor`/
+`stateArrowHeadColor`/`activityBarForkColor`/`activityBarJoinColor`),
+parsed in `style-map-theme.ts#applyStyleMap` (two new selector-lookup
+blocks, mirroring every existing selector's own `if (selector !== undefined)
+{ ... }` shape verbatim — RAW values stored, resolved to SVG hex only at
+CONSUMPTION time via `resolveColorToSvgHex`, matching every pre-existing
+`graphOverride` color field's convention), four new resolver functions in
+`state-render-colors.ts` (`resolveStateArrowLineColor`/
+`resolveStateArrowHeadColor`/`resolveActivityBarForkColor`/
+`resolveActivityBarJoinColor` — the latter two return `undefined` rather
+than a fallback, so `renderer-pseudostate.ts#renderForkJoin` can
+distinguish "no cascade override" from "resolved to a color" and fall
+through to its own pre-existing `SYNCHRO_BAR_COLOR` hardcoded default).
+`renderForkJoin` gained a `theme` parameter (previously took none) — the
+cascade default is looked up ONLY for `kind:'fork'`/`'join'`; `syncBar`
+(a DIFFERENT upstream construct, T2's `=name=` bar, no corpus evidence of
+a matching selector) deliberately keeps its unconditional pre-S16 default.
+
+Jar-verified byte-exact against BOTH target fixtures (0 diffs each):
+`koguvo-74-kubo455` (fork bar `fill="#008000"`, join bar `fill="#FFA500"`,
+the PRE-EXISTING bare `state{BackGroundColor}` bucket for `a`/`b` — S10's
+own mechanism — unaffected/still correct) and `nanozi-96-foda024` (`path
+stroke="#0000FF"` from LineColor; `polygon fill="#FF0000"
+stroke="#FF0000"` from HeadColor — BOTH attributes from ONE color value,
+confirmed via direct jar SVG read before coding, not assumed). TDD-first:
+7 new tests in `tests/unit/core/style-map-theme.test.ts` (NEW file — the
+FIRST dedicated unit test for `applyStyleMap` in this mission's own
+write-set, since the pre-existing coverage lives in
+`tests/unit/skinparam.test.ts`, outside the write-set, mirroring
+mechanism 28's own `state-skinparam-cascade.test.ts` precedent for the
+identical reason), 4 new tests in `state-render-colors.test.ts`, 5 new
+tests in `renderer.test.ts` (full-pipeline wiring: path stroke, polygon
+fill+stroke, fork bar, join bar, syncBar non-application).
+
+Sampling this iteration's own instrumented `StateGeometry`-walk probe
+(built for the accounting phase, see below) surfaced a THIRD selector-
+value case, `HeadColor none` (`sokiga-03-xovo249` — 24 diffs, isolated),
+which jar renders as "omit the arrowhead polygon entirely, draw a short
+connector `<line>` instead" — a STRUCTURAL swap, not a color value, and
+therefore NOT landed this iteration (single-fixture evidence only, a
+genuinely different render branch) — named precisely in the accounting
+table below and the S17+ queue.
+
+### THE ACCOUNTING (this iteration's own primary deliverable)
+
+Built a disposable, two-pass probe (`scripts/_tmp-s16-accounting.ts`/
+`_tmp-s16-accounting2.ts`, deleted before finishing per the write-set's
+temp-script rule) that renders EVERY one of the 271 `test-results/dot-
+cache/state/` fixtures through the REAL production pipeline
+(`parseState` -> `layoutState` -> `renderState`, `DeterministicMeasurer`,
+identical to the ratchet/census harness) and captures, per fixture: the
+FULL `compareSvg(..., 'deterministic')` diff list (not just the first
+diff — every diff, `familyOf`-de-indexed where useful), PLUS a direct
+structural walk of the resulting `StateGeometry.states` tree checking
+`node.headerLines === undefined` on every composite (`children.length >
+0`) node — `renderer-composite-box.ts#renderComposite`'s OWN real
+dispatch condition for mechanism 16's dashed-rect fallback, read from
+source rather than guessed at via string matching. Cross-verified both
+scripts report IDENTICAL `diffCount` for all 271 fixtures before trusting
+either (0 mismatches).
+
+Built a rule-based classifier (Python, `/tmp` scratch, not committed)
+applying a PRIORITY-ORDERED decision tree over: the structural
+`hasFallbackComposite` flag (highest priority — mechanism 16 is a
+confirmed, deepest-level structural blocker whenever present, matching
+this mission's own established "cross-blocked" convention from S14/S15's
+attribution tables), the `<<entrypoint>>`/`<<exitpoint>>` marker,
+`note ... on link` syntax, note/composite-depth combination, `json`
+entities, gradient color specs (`#a-b`/`#a|b`), border line-style
+overrides (`##[dashed]` family), four distinct creole markup tags
+(`<math>`, `<sup>`/`<sub>`, `**bold**`, `<color:X>`), hyperlinks,
+pseudostate stereotypes, self-loop detection (word-boundary-corrected
+after an initial false-positive run matched `NotShooting --> Shooting` as
+a self-loop via an unanchored backreference — caught by manually
+inspecting the flagged fixtures' own diff counts, which were far too
+large — 100-300 — for a genuine small spline delta, and re-verified via
+direct puml inspection BEFORE trusting the corrected regex), six `<style>`
+sub-family variants, two skinparam-form variants, and a generic
+"has ANY labeled transition" fallback for the parked edge-label mechanism.
+Iteratively refined THREE regex bugs during construction (self-loop
+backreference anchoring; `has_labeled_transition`'s `startswith('state')`
+substring-collision with identifiers like `state_1`/`state_7`; a missing
+`has_note_table`/`has_self_loop`-with-decoration wiring that initially
+mis-sorted `fatupo-62-bemu777` and `xexika-61-fedu273` into the singleton
+bucket) — each caught by manually inspecting the RESULTING bucket contents
+for implausible entries (a "self-loop spline delta" bucket containing
+300-diff fixtures; a "singleton" bucket containing the mission's own
+already-named `fatupo`/`xexika` fixtures) rather than trusting the first
+pass.
+
+**A significant S16 finding, not previously characterized at this scope**:
+the parked edge-label-ink mechanism (S11-S13) was framed in every prior
+iteration's queue as blocking "12 composite fixtures + note-on-link" —
+the full-corpus sweep shows it is dramatically larger: **0 of the 52
+pinned zero-diff fixtures carry ANY transition label**, while **30 of the
+219 non-zero fixtures (flat AND composite) carry one and have NO other
+identifiable blocker** (plus 6 more via the `note ... on link` sub-case) —
+confirming the mechanism reaches flat, non-composite diagrams too, not
+just composite-internal labels as previously scoped. This revises the
+S17+ recommended priority (see README.md's closing summary) — it is now
+confirmed the single highest-leverage remaining item by a wide margin
+(36/219 ≈ 16% of all remaining non-conformant fixtures, once `note ... on
+link`'s 6 are folded in), ahead of mechanism 16 itself in PER-FIXTURE
+terms (mechanism 16 has more fixtures — 112 — but is a single well-
+understood, already-partially-derived shape; the edge-label mechanism's
+own THIRD attempt already failed twice on a subtler root cause, see S11-
+S13).
+
+At least 20 fixtures were spot-verified by hand beyond the classifier's
+own automated signal, rendered individually via a disposable probe
+(`scripts/_tmp-s16-check-singletons.ts`, deleted) and their FULL diff list
+read and compared against the claimed mechanism's expected signature:
+4 random `mechanism-16-entity-vs-cluster` samples (`xepafa-33-lazi826`,
+`desebo-47-maro096`, `bupani-17-puxi938`, `kiniro-32-mama877` — all show
+`svg/g[1][childCount]` structural mismatches, confirming the dashed-rect-
+vs-real-shape signature), 4 random `parked-edge-label-ink-general` samples
+(`jomazi-30-fupe393`, `fojisi-40-zogo372`, `tocitu-93-sidu557`,
+`fadupe-90-koti079` — all show ONLY position/size deltas, NO childCount
+mismatch, confirming the "everything shifted slightly" cascading-position
+signature distinct from mechanism 16's own), plus the two landed
+mechanisms' own 2 jar-verified fixtures, `sokiga-03-xovo249`
+(HeadColor=none, verified via direct golden SVG read — a `<line>`
+substituted for the polygon), `domoru-86-coki670` (`scale 1.3`, verified
+the 775*1.3≈1007/288*1.3≈374 proportional match), `defiga-15-puki727` +
+`jezuju-97-jado372` (reverse/directional arrows, verified the SYMMETRIC
+`g[1]`/`g[2]` x-position swap), `kinuca-03-nice683` (creole table state
+body, verified `childCount 10 vs 24`), `sumiri-68-suvo696` (`skin debug`,
+verified `svg/@background` #FFFFFF vs #AAAAAA), `xupine-90-cupu906`
+(arrow bracket overrides, verified position/size deltas across every
+edge), `kujuzo-76-bavi505` (gradient, verified `#red|yellow`/`#black-
+yellow` syntax against the puml), `fatupo-62-bemu777`/`xexika-61-fedu273`
+(re-verified against the mission's own PRE-EXISTING S9/S15 diagnoses),
+`dajipi-09-doki542`/`joleju-94-maru748`/`tumaba-64-tosu281`/
+`xupefu-98-roni234` (re-verified each of the 4 known "composite-scoped
+notes" candidates is STILL individually cross-blocked by a DIFFERENT
+mechanism each — hyperlink, 3-level-concurrent-nesting, note-on-link x2 —
+exactly matching S14/S15's own re-confirmation, this iteration's own
+structural walk additionally PROVING `joleju`'s note never enters the
+geometry tree at all, `hasNoteNode=False`, because its owning scope is a
+concurrent-region composite). 20+ fixtures verified.
+
+### Full per-fixture attribution (all 219 non-conformant fixtures)
+
+Every state fixture NOT in the 52-pin ratchet set is attributed below to a named mechanism, grouped by mechanism (largest reach first). Evidence is per-mechanism (shared across every fixture in that group) unless a fixture-specific note follows its slug. Programmatically classified via a disposable `scripts/_tmp-s16-accounting2.ts` probe (render every fixture through the REAL `parseState`/`layoutState`/`renderState` pipeline with `DeterministicMeasurer`, `compareSvg` against the cached jar golden, PLUS a direct `state-composite-detect.ts`-equivalent walk of the resulting `StateGeometry` tree to test `headerLines === undefined` -- mechanism 16's own real dispatch condition, not a string guess) -- deleted before finishing per the write-set's temp-script rule. At least 20 fixtures (spanning every large bucket) were spot-verified by hand: rendered individually and their FULL `compareSvg` diff list inspected against the claimed mechanism's expected signature (childCount mismatch for mechanism 16; position/size-only deltas with NO childCount mismatch for the parked edge-label mechanism; document-wide proportional deltas for `scale`; symmetric g[1]/g[2] position swaps for the reverse-arrow finding; etc.).
+
+
+#### Mechanism 16 -- entity-vs-cluster wrap (PARKED) — 92 fixture(s)
+
+Composite state took the non-autonom `cluster` DOT path -> `renderCompositeFallback` dashed-rect placeholder instead of jar's real half-rounded-header shape. Largest single family in the corpus.
+
+
+| Fixture | Evidence |
+|---|---|
+| `bajelo-54-dixe684` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=46) |
+| `bemena-23-zebu249` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `bujuta-44-rovo666` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `bupani-17-puxi938` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `butigu-57-tobi481` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `cagego-53-vemo516` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=6) |
+| `cakaxu-97-nexe753` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `cekavi-25-cija650` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `cesifo-37-rugu443` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `cinoni-00-sere847` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `cupesu-59-sajo991` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `darime-88-moda428` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `dazogu-93-vaka045` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `decede-10-buvu414` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=3) |
+| `desebo-47-maro096` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `dikipu-79-noko487` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `dogeji-46-sapo750` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `fajegu-17-joba577` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `fevida-60-kope208` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `figevo-73-dani805` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `filunu-15-losu567` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `fonono-53-roci689` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `fotuje-06-fifa085` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=12) |
+| `fovafu-44-mifu394` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=6) |
+| `fugedo-34-fice721` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=6) |
+| `gageze-91-fese022` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `giniti-22-fexo000` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=46) |
+| `gojuja-90-pune699` | composite state took non-autonom cluster path -> mechanism 16 (also carries the S14-named forward-declared-composite-ordering issue as a secondary, likely-masked defect) (diffCount=3) |
+| `gopudo-91-bego999` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `jaxebo-54-nifi592` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `jejani-73-risu845` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `jetuse-93-gopi146` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `jijuze-43-ceva131` | composite state took non-autonom cluster path -> mechanism 16 (also carries the S7/S8-named buildConcurrentRegionLeaf creationIndex gap as a secondary, likely-masked defect) (diffCount=5) |
+| `jufevo-34-taxu911` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `kideju-07-gero206` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `kiniro-32-mama877` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `komeja-83-pufo140` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `ladoni-64-boni035` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `lasasi-13-nona547` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=1) |
+| `lojeju-04-fadu517` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=31) |
+| `lukuma-74-loti931` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `lumamo-63-zupa263` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `matezo-28-duka427` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `mefici-97-tudu030` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `mifuti-36-jine785` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `mimaga-15-doze740` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `movuva-53-jude799` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `mozumu-67-mixa626` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `naneba-92-pixu619` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `nenita-48-zuze128` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `nevezi-29-momo816` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `nijugi-19-jazi166` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `niveno-60-tiro789` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=6) |
+| `nufigo-87-pivi558` | composite state took non-autonom cluster path -> mechanism 16 (also carries the S14-named forward-declared-composite-ordering issue as a secondary, likely-masked defect) (diffCount=3) |
+| `nuvura-69-mafe604` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=31) |
+| `pajefo-95-neri955` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `pasosa-28-zudu135` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `piveje-28-zeko469` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `polodo-05-rene471` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `pomose-68-juba775` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `rijoki-89-teno556` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `rinisi-79-peko570` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `rovese-43-tadu368` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=70) |
+| `rufosi-58-kegi649` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `sosoxe-55-demi451` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `soxene-95-domu248` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=1) |
+| `temuxi-28-cega322` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `teseci-80-sivi292` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `tilili-10-buca517` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `tiriku-91-kipo610` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `tofezi-64-koda860` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=3) |
+| `tubojo-49-tudu915` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `tuvugi-94-gapi519` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `vagexa-37-gijo825` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `vakama-53-jata958` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `vedapo-96-xoro464` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `vekoja-22-made430` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `vinujo-20-kugi617` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `vogotu-43-puli923` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `vubale-26-daza585` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `xacona-99-peze211` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=6) |
+| `xepafa-33-lazi826` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `xipela-98-nuvu593` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `xojudi-20-keco020` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=3) |
+| `zecivu-62-pagu681` | composite state took non-autonom cluster path -> mechanism 16 (also carries the S7/S8-named buildConcurrentRegionLeaf creationIndex gap as a secondary, likely-masked defect) (diffCount=6) |
+| `zizemo-86-gisa766` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `zofaxi-81-jupa375` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `zonuni-64-jovo214` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `zoriza-41-rege543` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=214) |
+| `zoxutu-11-giru788` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `zujuxa-28-buka872` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+| `zumeri-82-julo078` | composite state took non-autonom cluster path -> renderCompositeFallback dashed-rect placeholder (diffCount=5) |
+
+#### Parked -- edge-label real-size/ink mechanism (general) — 30 fixture(s)
+
+`graph-layout-build.ts#addEdges` under-reserves DOT rank separation for a labeled transition's real (measured) size (S11-S13, 3-strike PARKED). S16 finding: this reaches FLAT, non-composite diagrams too, not just composite-internal labels -- 0/52 pinned fixtures carry ANY transition label; 30+6+ of the 219 non-zero carry one.
+
+
+| Fixture | Evidence |
+|---|---|
+| `bunade-42-fudu910` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=171) |
+| `buniva-95-zije634` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=44) |
+| `dulixa-11-kufe247` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=122) |
+| `fadupe-90-koti079` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=66) |
+| `fojisi-40-zogo372` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=92) |
+| `fomusu-59-fupe538` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=308) |
+| `gifasa-23-zile558` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=66) |
+| `jomazi-30-fupe393` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=21) |
+| `jorere-75-peja265` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=229) |
+| `kejabo-83-vinu490` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=151) |
+| `ketibo-84-juzo029` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=229) |
+| `lurage-50-kobo763` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=17) |
+| `moleco-69-sida106` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=23) |
+| `mosigo-88-rove013` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=168) |
+| `nibelu-74-pido796` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=61) |
+| `nimana-36-veco708` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=81) |
+| `nimise-04-jove070` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=139) |
+| `pavuzo-79-zodu430` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=153) |
+| `pifido-37-jipu349` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=144) |
+| `rifefi-73-rofo730` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=61) |
+| `ruruce-78-feno407` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=9) |
+| `sagica-63-godi019` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=5) |
+| `susena-02-gusa448` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=73) |
+| `tocitu-93-sidu557` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=9) |
+| `vafagi-07-zixo408` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=20) |
+| `viguto-81-gana093` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=157) |
+| `vumika-03-guko738` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=22) |
+| `xetase-70-zaza808` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=32) |
+| `zacajo-09-tamu628` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=267) |
+| `zitifa-97-bizo337` | labeled transition -- graph-layout-build.ts#addEdges under-reserves DOT rank separation for the label (S11-S13, PARKED); S16 census shows this reaches flat, non-composite diagrams too (0/52 pinned carry a label, 80/219 non-zero do) (diffCount=229) |
+
+#### Mechanism 16 sub-family -- <<entrypoint>>/<<exitpoint>> — 20 fixture(s)
+
+`hasBorderPointDescendant` unconditionally disqualifies the owning composite from autonom -> mechanism 16's dashed-rect fallback. Confirmed S15, all 20 corpus fixtures.
+
+
+| Fixture | Evidence |
+|---|---|
+| `bitaxo-18-tamo974` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `diteme-18-favi840` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `dobexo-69-zeki749` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `fukexa-85-cuvi894` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `gevoba-34-tesa857` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `jucori-40-cevo136` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `kacifo-58-dale036` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `kotagu-43-miza629` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `lulozu-10-bopu547` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=3) |
+| `madinu-29-seji621` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `mokima-31-kani630` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `nicebo-05-guxa290` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `peliro-87-guva098` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `pesita-10-dene726` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `resido-15-reza040` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `sopuzi-48-bobu113` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `viroxo-69-fito663` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `vujuru-50-toku619` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `zaloga-87-lonu477` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+| `zumuje-46-gufe080` | <<entrypoint>>/<<exitpoint>> pseudostate -> owning composite disqualified from autonom, hits dashed-rect fallback (diffCount=5) |
+
+#### <style> stateDiagram-ancestor tier (not landed) — 10 fixture(s)
+
+`<style> stateDiagram { state|start|end {...} } }` diagram-ancestor tier (RoundCorner/Shadowing/BackgroundColor/LineColor/FontColor) -- the injection point (`style-map-theme.ts#applyStyleMap`) IS now write-set-reachable (this iteration's grant) but this specific sub-family was not landed this iteration (queued next).
+
+
+| Fixture | Evidence |
+|---|---|
+| `datodo-22-beci222` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=4) |
+| `judova-36-kana429` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=2) |
+| `kujaju-47-neku764` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=49) |
+| `lonuti-97-voko521` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=9) |
+| `masofa-52-puli433` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=7) |
+| `pacami-67-dafe414` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=20) |
+| `rorebi-96-gane144` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=4) |
+| `tacufe-37-fono831` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=7) |
+| `taluke-81-noxa842` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=9) |
+| `titika-34-xoze301` | <style> stateDiagram { state|start|end {...} } } diagram-ancestor tier -- not built (write-set-reachable but not landed this iteration) (diffCount=38) |
+
+#### State hyperlink ([[url]]) — 7 fixture(s)
+
+`State.url` missing from the AST entirely; a separate anchor-reference `[[{alias}]]` resolution path also needed (S8/S9's own re-scoped finding).
+
+
+| Fixture | Evidence |
+|---|---|
+| `dajipi-09-doki542` | [[url]] hyperlink syntax -- State.url missing from AST / anchor resolution unbuilt (diffCount=3) |
+| `dapunu-39-kava045` | [[url]] hyperlink syntax -- State.url missing from AST / anchor resolution unbuilt (diffCount=62) |
+| `feziva-71-gufo538` | [[url]] hyperlink syntax -- State.url missing from AST / anchor resolution unbuilt (diffCount=5) |
+| `kenuci-20-cane702` | [[url]] hyperlink syntax -- State.url missing from AST / anchor resolution unbuilt (diffCount=1) |
+| `mujipe-99-fume794` | [[url]] hyperlink syntax -- State.url missing from AST / anchor resolution unbuilt (diffCount=5) |
+| `nixoja-06-guxe431` | [[url]] hyperlink syntax -- State.url missing from AST / anchor resolution unbuilt (diffCount=5) |
+| `xasoka-58-temi462` | [[url]] hyperlink syntax -- State.url missing from AST / anchor resolution unbuilt (diffCount=7) |
+
+#### Parked -- edge-label mechanism, note-on-link sub-case — 6 fixture(s)
+
+`note ... on link` syntax -- S11's own named sub-case of the same parked mechanism (the note's own position depends on the SAME under-reserved label-ink calculation).
+
+
+| Fixture | Evidence |
+|---|---|
+| `fotigo-12-gufu949` | note ... on link syntax -- parked (S11), needs edge-label real-size injection (diffCount=22) |
+| `jaxuxe-73-sije305` | note ... on link syntax -- parked (S11), needs edge-label real-size injection (diffCount=24) |
+| `kupexa-94-dude266` | note ... on link syntax -- parked (S11), needs edge-label real-size injection (diffCount=14) |
+| `tumaba-64-tosu281` | note ... on link syntax -- parked (S11), needs edge-label real-size injection (diffCount=86) |
+| `vateco-92-pece508` | note ... on link syntax -- parked (S11), needs edge-label real-size injection (diffCount=9) |
+| `xupefu-98-roni234` | note ... on link syntax -- parked (S11), needs edge-label real-size injection (diffCount=64) |
+
+#### Border line-style override (NEW, S16) — 5 fixture(s)
+
+`##[dashed]`/`##[dotted]`/`##[bold]`/`#line.dashed` and the `;line:X;line.bold` inline-color-grammar line-style modifiers -- not read by the state box renderer at all (fill/plain-stroke only).
+
+
+| Fixture | Evidence |
+|---|---|
+| `jotini-12-fuba072` | ##[dashed]/##[dotted]/##[bold] or ;line:X;line.bold inline grammar -- not read by state renderer (diffCount=22) |
+| `novolu-35-fole223` | ##[dashed]/##[dotted]/##[bold] or ;line:X;line.bold inline grammar -- not read by state renderer (diffCount=4) |
+| `puvaco-19-geka094` | ##[dashed]/##[dotted]/##[bold] or ;line:X;line.bold inline grammar -- not read by state renderer (diffCount=8) |
+| `sesafu-14-nora165` | ##[dashed]/##[dotted]/##[bold] or ;line:X;line.bold inline grammar -- not read by state renderer (diffCount=16) |
+| `xekebe-42-tuci754` | ##[dashed]/##[dotted]/##[bold] or ;line:X;line.bold inline grammar -- not read by state renderer (diffCount=18) |
+
+#### Creole bold (**text**) markup — 5 fixture(s)
+
+`**bold**` creole markup for state description/name text -- unimplemented (S14's own named item, mazuzu family).
+
+
+| Fixture | Evidence |
+|---|---|
+| `fibudu-53-bode309` | **bold** creole markup for state description/name text -- unimplemented (diffCount=90) |
+| `gokife-89-boja382` | **bold** creole markup for state description/name text -- unimplemented (diffCount=3) |
+| `guligu-53-cufe221` | **bold** creole markup for state description/name text -- unimplemented (diffCount=33) |
+| `mazuzu-54-mene929` | **bold** creole markup for state description/name text -- unimplemented (diffCount=3) |
+| `zinupo-20-vuma863` | **bold** creole markup for state description/name text -- unimplemented (diffCount=33) |
+
+#### addStateBoxInk max-corner 1px asymmetry — 3 fixture(s)
+
+A 1px viewBox/width asymmetry in `addStateBoxInk`'s own max-corner ink formula (S6, 3 known fixtures, algebraically derived fix not yet landed -- blast radius unverified).
+
+
+| Fixture | Evidence |
+|---|---|
+| `bilare-19-fufe539` | addStateBoxInk max-corner 1px asymmetry (S6), 3 known fixtures (diffCount=2) |
+| `jelusa-98-nexa591` | addStateBoxInk max-corner 1px asymmetry (S6), 3 known fixtures (diffCount=2) |
+| `lavera-29-vuka790` | addStateBoxInk max-corner 1px asymmetry (S6), 3 known fixtures (diffCount=2) |
+
+#### Creole inline <color:X>/<font color> tag (NEW, S16) — 3 fixture(s)
+
+`<color:red>text</color>` / `<font color=red>` creole inline tags inside a state name/label/header/footer -- not rendered.
+
+
+| Fixture | Evidence |
+|---|---|
+| `papifi-44-caxo706` | <color:X>/<font color=X> creole inline tag -- not rendered (diffCount=25) |
+| `rovado-96-boda672` | <color:X>/<font color=X> creole inline tag -- not rendered (diffCount=5) |
+| `xeziki-47-zomo866` | <color:X>/<font color=X> creole inline tag -- not rendered (diffCount=37) |
+
+#### Self-loop spline delta (small, NEW 2nd/3rd samples, S16) — 3 fixture(s)
+
+A plain (undecorated) self-loop transition (`X --> X`) with a SMALL (<=15) diff count -- same family as mechanism 27's own remainder, now with independent samples to eventually triangulate against.
+
+
+| Fixture | Evidence |
+|---|---|
+| `pebepi-32-cati486` | self-loop transition (X-->X), small localized diff count -- same family as mechanism-27-remainder (diffCount=5) |
+| `taxile-56-goca422` | self-loop transition (X-->X), small localized diff count -- same family as mechanism-27-remainder (diffCount=5) |
+| `tigibi-80-zidi137` | self-loop transition (X-->X), small localized diff count -- same family as mechanism-27-remainder (diffCount=5) |
+
+#### skinparam tabSize / tab-character expansion unsupported (NEW, S16) — 3 fixture(s)
+
+Literal tab characters (`\t`) in description/body lines, and `skinparam tabSize N`, are not expanded/measured per jar's own tab-stop convention.
+
+
+| Fixture | Evidence |
+|---|---|
+| `duzazu-41-telu529` | skinparam tabSize / literal tab chars in description -- tab expansion not implemented (diffCount=5) |
+| `lokija-02-dipe348` | skinparam tabSize / literal tab chars in description -- tab expansion not implemented (diffCount=11) |
+| `vixobo-14-jole910` | skinparam tabSize / literal tab chars in description -- tab expansion not implemented (diffCount=5) |
+
+#### skinparam wrapWidth text wrapping unsupported (NEW, S16) — 3 fixture(s)
+
+Long state names/labels are not wrapped at the configured `wrapWidth`, unlike upstream's creole wrap-aware `TextBlock` construction.
+
+
+| Fixture | Evidence |
+|---|---|
+| `jafazu-60-leca675` | skinparam wrapWidth N -- long state name/label text wrapping not applied (diffCount=5) |
+| `kubona-45-boso556` | skinparam wrapWidth N -- long state name/label text wrapping not applied (diffCount=27) |
+| `rejike-58-rote606` | skinparam wrapWidth N -- long state name/label text wrapping not applied (diffCount=27) |
+
+#### Creole <math> (MathML) tag (NEW, S16) — 2 fixture(s)
+
+`<math>...</math>` creole tag in a state description line -- not rendered (a LaTeX/KaTeX-adjacent gap despite `latex.ts` existing for other diagram types).
+
+
+| Fixture | Evidence |
+|---|---|
+| `corumi-91-mizo869` | <math> creole tag in state description -- not rendered (diffCount=21) |
+| `gupeto-19-mesa256` | <math> creole tag in state description -- not rendered (diffCount=9) |
+
+#### Gradient / Paint fill (not landed) — 2 fixture(s)
+
+`#colorA-colorB` / `#colorA|colorB` gradient color spec -- state has no `Paint`/gradient resolution at all (S12's own finding).
+
+
+| Fixture | Evidence |
+|---|---|
+| `fikuga-98-tagu554` | gradient color spec (#a-b / #a|b) -- state has no Paint/gradient resolution (diffCount=19) |
+| `kujuzo-76-bavi505` | gradient color spec (#a-b / #a|b) -- state has no Paint/gradient resolution (diffCount=2) |
+
+#### <<sdlsend>>/<<rect>>/<<junction>> pseudostate stereotypes — 2 fixture(s)
+
+No dedicated render shape for these three stereotypes (S14's own item 13, partially unblocked by the S14 sdlreceive landing but not fully).
+
+
+| Fixture | Evidence |
+|---|---|
+| `fakali-52-zuje420` | <<sdlsend>>/<<rect>>/<<junction>> pseudostate stereotype -- no dedicated shape (diffCount=150) |
+| `livuni-63-fira764` | <<sdlsend>>/<<rect>>/<<junction>> pseudostate stereotype -- no dedicated shape (diffCount=124) |
+
+#### Reverse/directional-hint arrow rank-order gap (NEW, S16) — 2 fixture(s)
+
+`b <- a` (reverse arrow) or `a -l-> b` (explicit direction hint) -- jar swaps the two states' DOT rank/x-order; the port keeps forward source order. Two independent samples show the IDENTICAL symmetric position-swap signature.
+
+
+| Fixture | Evidence |
+|---|---|
+| `defiga-15-puki727` | b <- a (reverse arrow) -- jar swaps the two states' rank/x-order vs our port (rect g[1]/g[2] x-positions transposed, jar-verified byte delta 85 both directions) (diffCount=21) |
+| `jezuju-97-jado372` | a -l-> b (left direction hint) -- SAME symmetric rank-order swap signature as defiga-15-puki727 (rect g[1]/g[2] x-positions transposed) (diffCount=21) |
+
+#### skinparam state { BackGroundColor<<X>> } nested-block form — 2 fixture(s)
+
+The nested-block skinparam syntax (`skinparam state { BackGroundColor<<X>> blue }`) -- distinct from the flat `skinparam stateBackgroundColor<<X>>` form S9/S15/S16 already parse (S15's own gokife item).
+
+
+| Fixture | Evidence |
+|---|---|
+| `beguxu-19-tize774` | skinparam state { BackGroundColor<<X>> ... } nested-block form -- distinct syntax from the flat stateBackgroundColor<<X>> form (diffCount=42) |
+| `nuboca-13-xape657` | skinparam state { BackGroundColor<<X>> ... } nested-block form -- distinct syntax from the flat stateBackgroundColor<<X>> form (diffCount=48) |
+
+#### <style> .tagname { ... } } cascade for state (NEW, S16) — 2 fixture(s)
+
+A `.mystyle { linecolor: ...; linethickness: ... }` custom class selector applied via `#highlight <<mystyle>>` or similar -- state has no `.tagname` cascade resolver (class engine has a dedicated one, `style-cascade-class.ts`, not shared).
+
+
+| Fixture | Evidence |
+|---|---|
+| `livama-83-toci194` | <style> .tagname { ... } } class-selector cascade for state -- not built (diffCount=26) |
+| `style-stereotype-on-arrow-5` | <style> .tagname { ... } } class-selector cascade for state -- not built (diffCount=26) |
+
+#### Arrow bracket per-edge color/linestyle overrides (NEW, S16) — 1 fixture(s)
+
+`-[#color]->` / `-[dashed]->` / `-[dotted]->` / `-[bold]->` per-edge bracket overrides -- none applied; large cascading position/size deltas since every edge falls back to the default LineColor/LineStyle.
+
+
+| Fixture | Evidence |
+|---|---|
+| `xupine-90-cupu906` | -[#color]->/-[dashed]->/-[dotted]->/-[bold]-> per-edge bracket overrides -- none applied (every edge in this fixture carries one); large cascading position/size deltas (244 diffs) since default LineColor/LineStyle is used throughout instead (diffCount=244) |
+
+#### Bare (non-stereotype) StateFontColor/BorderColor/BackgroundColor (NEW, S16) — 1 fixture(s)
+
+`skinparam StateFontColor white` (no `<<X>>` qualifier) -- only the stereotype-qualified `<<X>>` forms are built (S9/S15/S16); the bare global-default form is not. Best-effort tag -- fixture's childCount-1 gap not fully root-caused this iteration.
+
+
+| Fixture | Evidence |
+|---|---|
+| `dapuko-98-zuzo096` | skinparam StateFontColor/StateBorderColor/StateBackgroundColor (bare, non-stereotype form) -- unbuilt; composite child off by 1 (childCount 5 vs 6, height off by 1) -- not fully root-caused this iteration, best-effort tag (diffCount=4) |
+
+#### Composite-scoped notes (not landed) — 1 fixture(s)
+
+`state-composite-geo.ts#materializeCluster`/`#materializeAutonom` never call note materialization -- a note attached inside a composite (including one owned by a concurrent region) never enters the `StateNodeGeo` tree at all.
+
+
+| Fixture | Evidence |
+|---|---|
+| `joleju-94-maru748` | note as Note.OS1.IS1 / Note.OS1.IS2 inside a 3-level-nested concurrent-region composite -- confirmed the SAME "composite pipeline never calls note materialization" mechanism (S10/S12/S14/S15 known item), here the note never even enters the StateNodeGeo tree (hasNoteNode=False) because the OWNING scope is a concurrent-region composite, a variant the auto-detector could not see (diffCount=5) |
+
+#### || concurrent separator layout gap (NEW, S16) — 1 fixture(s)
+
+`state D { state E || state F }` -- the `||` form (vs `--`) produces a different jar layout (viewBox/path deltas); not root-caused, flagged as a new, distinct concurrent-region sub-mechanism.
+
+
+| Fixture | Evidence |
+|---|---|
+| `fimivu-15-vogi904` | state D { state E || state F } -- the || concurrent separator (as opposed to --) produces a different jar layout (viewBox/path deltas) -- not root-caused, new finding (diffCount=36) |
+
+#### Creole <sup>/<sub> tag (NEW, S16) — 1 fixture(s)
+
+`<sup>`/`<sub>` creole markup -- not rendered.
+
+
+| Fixture | Evidence |
+|---|---|
+| `juvagu-33-dupa212` | <sup>/<sub> creole tag -- not rendered (diffCount=32) |
+
+#### Creole/markdown table -- NOTE body — 1 fixture(s)
+
+A note body containing a `|= header |` creole table -- no row-drawing infra for note content (fatupo family).
+
+
+| Fixture | Evidence |
+|---|---|
+| `fatupo-62-bemu777` | note with a creole markdown-style table (|= header |) -- fatupo family, no row-drawing infra for notes (diffCount=9) |
+
+#### Creole/markdown table -- STATE body (NEW, S16) — 1 fixture(s)
+
+A `state X : |= header |` style markdown table used as the STATE'S OWN body/description (not a note) -- same missing row-drawing infra, different host element.
+
+
+| Fixture | Evidence |
+|---|---|
+| `kinuca-03-nice683` | X: |= header 1 |= header 2 |= header 3 | -- a markdown-style creole table used as a STATE'S OWN body/description text (not a note) -- childCount 10 vs 24, no table-row rendering infra for state body lines (diffCount=5) |
+
+#### skinparam dpi N unsupported (NEW, S16) — 1 fixture(s)
+
+`skinparam dpi 300` -- DPI scaling factor not applied to document dimensions.
+
+
+| Fixture | Evidence |
+|---|---|
+| `saxedi-32-xubo205` | skinparam dpi N -- DPI scaling factor not applied to document dimensions (diffCount=45) |
+
+#### json table content (maruju family) — 1 fixture(s)
+
+`renderJson` reuses `renderNormal` verbatim -- zero row-drawing infrastructure for a `json` leaf's own header/divider/key-value cells.
+
+
+| Fixture | Evidence |
+|---|---|
+| `maruju-55-soko478` | json entity -- renderJson reuses renderNormal verbatim, no row-drawing infra (diffCount=3) |
+
+#### Mechanism 27 remainder -- self-loop spline (original sample) — 1 fixture(s)
+
+The `xexika-61-fedu273` fixture itself: fixing the `o--`/`x-->` decoration childCount gap (S15) unmasked a pre-existing 2-8-unit `path/@d` spline delta on the SAME self-loop edges, not yet root-caused.
+
+
+| Fixture | Evidence |
+|---|---|
+| `xexika-61-fedu273` | o--/x--> decoration on a self-loop edge -- pre-existing self-loop spline path/@d delta, 2-8 units (diffCount=11) |
+
+#### !theme X directive gap (NEW, S16) — 1 fixture(s)
+
+`!theme plain` (or any non-default named theme) -- state's own rendering does not pick up the named theme's palette/skin differences.
+
+
+| Fixture | Evidence |
+|---|---|
+| `sugico-41-vase848` | !theme X directive -- named theme resolution gap for state (diffCount=151) |
+
+#### pevene minlen=0 same-rank clip-inset delta — 1 fixture(s)
+
+A genuine, sub-0.5px graphviz-ts vs real-dot clip-inset delta on same-rank `minlen=0` edges (S8) -- reproduced, not yet filed, needs a second independent sample.
+
+
+| Fixture | Evidence |
+|---|---|
+| `pevene-26-kebo361` | minlen=0 same-rank clip-inset sub-0.5px delta (S8) (diffCount=27) |
+
+#### scale N directive unsupported (NEW, S16) — 1 fixture(s)
+
+`scale 1.3` -- jar-verified: the ENTIRE document's width/height are scaled by exactly 1.3x (775*1.3=1007.5≈1007; 288*1.3=374.4≈374); the port applies no scale factor anywhere in the state pipeline.
+
+
+| Fixture | Evidence |
+|---|---|
+| `domoru-86-coki670` | scale 1.3 directive -- jar-verified: expected/actual dims differ by EXACTLY the 1.3x factor (775*1.3=1007.5≈1007 height; 288*1.3=374.4≈374 width) -- scale not applied anywhere in the state pipeline (diffCount=391) |
+
+#### Singleton -- not root-caused this iteration — 1 fixture(s)
+
+Diagnosed only to the extent of naming the first diff; not traced to a mechanism this iteration.
+
+
+| Fixture | Evidence |
+|---|---|
+| `xomize-22-poro350` | first diff: svg/@height, diffCount=3 (diffCount=3) |
+
+#### skin debug / named-skin-file directive (unscoped) — 1 fixture(s)
+
+`skin debug` -- jar-verified `svg/@background` differs (#AAAAAA vs our #FFFFFF) confirming the named-skin-file feature is entirely unbuilt (S6/S9/S15's own named, unscoped item).
+
+
+| Fixture | Evidence |
+|---|---|
+| `sumiri-68-suvo696` | skin debug directive -- svg/@background #FFFFFF (ours) vs #AAAAAA (jar) confirms the named-skin-file feature is unbuilt (S6/S9/S15's own named, unscoped item) (diffCount=6) |
+
+#### skinparam ActivityBarColor<<stereo>> direct form (NEW, S16) — 1 fixture(s)
+
+`skinparam ActivityBarColor<<fork>> green` -- a DIRECT stereotype-qualified skinparam VALUE (mirrors StateBorderColor<<X>>'s own mechanism), distinct from the `<style> activityBar {.fork/.join}` CASCADE landed this iteration.
+
+
+| Fixture | Evidence |
+|---|---|
+| `kedibo-23-kopo893` | skinparam ActivityBarColor<<stereo>> direct-value form -- distinct from the <style> activityBar cascade landed this iteration (diffCount=2) |
+
+#### <style> arrow { HeadColor none } special case (NEW, S16) — 1 fixture(s)
+
+jar treats the literal value `none` as "omit the arrowhead polygon entirely, draw a short connector line instead" -- the port's S16 cascade instead draws an INVISIBLE (fill/stroke=none) polygon, still present structurally.
+
+
+| Fixture | Evidence |
+|---|---|
+| `sokiga-03-xovo249` | HeadColor none -- jar omits the polygon entirely, substitutes a short connector line; port draws an invisible (fill/stroke=none) polygon instead (diffCount=24) |
+
+### Files changed (S16)
+
+- `src/core/skinparam.ts` — `STATE_FONT_SIZE_STEREO_RE`, `stateFontSizeByStereo`
+  accumulator + `<<`-branch case + `graphOverride` field (mechanism 29).
+- `src/core/theme.ts` — `stateFontSizeByStereo`/`stateArrowLineColor`/
+  `stateArrowHeadColor`/`activityBarForkColor`/`activityBarJoinColor` fields
+  (mechanisms 29/30).
+- `src/core/style-map-theme.ts` — `statediagram.arrow`/`activitybar..fork`/
+  `activitybar..join` selector parsing in `applyStyleMap` (mechanism 30,
+  the newly-granted write-set file).
+- `src/diagrams/state/state-render-colors.ts` — `resolveStateFontSize`
+  (mechanism 29), `resolveStateArrowLineColor`/`resolveStateArrowHeadColor`/
+  `resolveActivityBarForkColor`/`resolveActivityBarJoinColor` (mechanism 30).
+- `src/diagrams/state/state-sizing.ts` — `measureState`/
+  `buildStateGeoTextFields` thread `resolveStateFontSize` (mechanism 29).
+- `src/diagrams/state/renderer-box.ts` — `renderTextLines`/
+  `renderEmptyDescription`/`renderSdlReceive`/`renderNormal` thread the
+  resolved font size (mechanism 29).
+- `src/diagrams/state/renderer.ts` — `buildTransitionInnerMarkup` uses
+  `resolveStateArrowLineColor`/`resolveStateArrowHeadColor` (mechanism 30);
+  `renderShape`'s fork/join/syncBar dispatch passes `theme` to
+  `renderForkJoin` (mechanism 30).
+- `src/diagrams/state/renderer-pseudostate.ts` — `renderForkJoin` gains a
+  `theme` parameter + activityBar cascade dispatch (mechanism 30).
+- `tests/unit/state/state-skinparam-cascade.test.ts` — +5 tests (mechanism 29).
+- `tests/unit/state/state-render-colors.test.ts` — +12 tests (mechanisms
+  29/30: `resolveStateFontSize` ×3, `resolveStateArrowLineColor`/
+  `resolveStateArrowHeadColor`/`resolveActivityBarForkColor`/
+  `resolveActivityBarJoinColor` ×2 each).
+- `tests/unit/state/state-sizing.test.ts` — NEW, 3 tests (mechanism 29).
+- `tests/unit/state/renderer-box.test.ts` — NEW, 5 tests (mechanism 29).
+- `tests/unit/state/renderer.test.ts` — +5 tests (mechanism 30: LineColor/
+  HeadColor cascade ×2, fork/join/syncBar cascade ×3).
+- `tests/unit/core/style-map-theme.test.ts` — NEW, 7 tests (mechanism 30).
+- `oracle/goldens/svg-state/{laferu-31-tice836,koguvo-74-kubo455,
+  nanozi-96-foda024}/{in.puml,golden.svg}` — 3 new golden dirs.
+- `oracle/goldens/svg-state/ratchet.json` — 3 fixtures added (49 -> 52).
+- `tests/oracle/svg-conformance/parity-state.json` — regenerated (SINGLE
+  invocation, 271/271 surveyed cleanly, 0 timeouts, `SVG_PARITY_TIMEOUT_MS
+  =30000 SVG_PARITY_CONCURRENCY=2`).
+- `plans/g4-state-svg/README.md`, `ledger.md`, `decision-journal.md` — this
+  entry + the mission-closing summary.
+
+### Ratchet / pins
+
+**+3 new pins** (49 -> **52**): `laferu-31-tice836` (mechanism 29),
+`koguvo-74-kubo455`, `nanozi-96-foda024` (mechanism 30).
+`state.golden.ratchet.test.ts` now **54 tests** (52 pins), up from 51 (49
+pins). All 49 pre-existing pins re-verified `dotEqual: true, verdict:
+conformant` in the freshly regenerated `parity-state.json`.
+
+### size-backlog.json: unchanged (0 entries touched)
+
+Neither mechanism touches a composite ink-extent formula (mechanism 29's
+own target, `laferu-31-tice836`, is a flat, non-composite fixture — its
+box-size change never reaches `size-backlog.json`'s composite-only tracked
+set; mechanism 30 is a pure render-time color swap). `state-dot-parity
+.test.ts` (size-backlog ratchet) stayed **268/268** passing throughout,
+checked before and after both mechanisms landed.
+
+### Gates (S16, final)
+
+- `state` census: **52/271** zero-diff (`1-3:20, 4-10:126, 11-30:26,
+  31+:47, errors:0`) — the 49 S15 pins plus 3 new: `laferu-31-tice836`,
+  `koguvo-74-kubo455`, `nanozi-96-foda024`.
+- Class census: **303/718**, intact, unchanged.
+- Object census: **22/80**, intact, unchanged.
+- Description census (no-arg, 355 fixtures): **48/355**, intact, unchanged.
+- DOT gate: `component 262/262 - usecase 90/90 - class 708/708 - object
+  78/80 - state 267/267` — EXACTLY unchanged, re-verified fresh via
+  `dot-sync-report.ts`.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** passing at
+  both the START and END of this iteration.
+- `npm test -- --run`: **10128/10128** passing (377 files), up from
+  10089/10089.
+- `npm run typecheck` / `npm run lint`: both clean.
+- `state.golden.ratchet.test.ts`: **54 tests** (52 pins), up from 51 (49
+  pins).
+
+### S17+ queue (recommended priority — see README.md's closing summary for
+### the full rationale)
+
+1. **Parked edge-label-ink mechanism (S11-S13, re-scoped S16)** — the
+   single highest-leverage remaining item: 36/219 fixtures (30 general +
+   6 note-on-link), confirmed this iteration to reach FLAT diagrams too,
+   not just composite-internal labels. THREE prior attempts (S4, S12,
+   S13) each hit the same wall (jar's real `SvekEdge.java` label
+   placement is NOT simply "centered on graphviz's own virtual label-node
+   position", compounded by a ~7% `StringMeasurer` width-calibration gap
+   vs jar's real Java font metrics). A future iteration should close the
+   `StringMeasurer` calibration gap FIRST (a focused, independently
+   verifiable sub-task) before re-attempting the placement algorithm.
+2. **Mechanism 16 (entity-vs-cluster wrap)** — 112/219 fixtures (92
+   general + 20 entrypoint/exitpoint), the single largest family. Needs a
+   DOT-native cluster-label sizing path (library-level cluster-bbox
+   exposure) — a genuinely unbounded, multi-iteration item per S3's own
+   original assessment, unchanged.
+3. **`<style>` `stateDiagram`-ancestor tier** (10 fixtures) — the
+   injection point is NOW write-set-reachable (this iteration's grant);
+   land it alongside or after mechanism 16 (S15's own finding: most known
+   target fixtures are ALSO mechanism-16-blocked).
+4. Creole markup family (bold ×5, inline-color ×3, math ×2, sup/sub ×1) —
+   11 fixtures total, a coherent single feature (creole tag support) worth
+   landing together.
+5. Border line-style overrides (`##[dashed]` family, 5 fixtures) + arrow
+   bracket color/linestyle overrides (`-[#color]->`/`-[dashed]->`, NEW
+   S16, 1 fixture but affects EVERY edge when present — likely higher
+   real-world reach than the corpus alone shows).
+6. `HeadColor none` structural swap (mechanism 30's own remainder, 1
+   fixture, fully diagnosed) — small, isolated, landable independently of
+   the rest of the `<style>` cascade family.
+7. State hyperlinks (7 fixtures) — re-scoped multiple times (S8/S9), still
+   unbuilt; `dajipi-09-doki542` (a composite-scoped-notes candidate) would
+   ALSO clear once this lands.
+8. Reverse/directional-arrow rank-order gap (NEW S16, 2 fixtures, precise
+   symmetric-swap signature already derived) — likely a small, bounded fix
+   once someone traces the exact DOT-emission-order rule.
+9. `scale N` directive (NEW S16, 1 fixture, exact 1.3x proportional
+   relationship already derived) — likely a small, bounded fix (apply a
+   uniform scale factor to the final document dimensions/viewBox).
+10. Remaining small/singleton items (addStateBoxInk asymmetry ×3,
+    forward-declared composite ordering ×2 [now confirmed ALSO mechanism-
+    16-blocked], concurrent creationIndex gap ×2 [same], pevene clip-inset
+    ×1, self-loop spline delta family ×4, json/gradient/dpi/wrapWidth/
+    tabSize/theme/skin-debug/bare-skinparam/nested-skinparam/
+    ActivityBarColor<<X>>/`.tagname` cascade/`||` separator — each
+    named precisely in the S16 attribution table above, none independently
+    bounded/cheap this iteration).

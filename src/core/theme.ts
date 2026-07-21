@@ -242,13 +242,13 @@ export interface Theme {
        * mission G4 S15: `skinparam stateBackgroundColor<<stereo>> #X` /
        * `skinparam stateFontColor<<stereo>> #X` -- the SAME direct-value-
        * lookup mechanism as {@link stateBorderColorByStereo} above, applied
-       * to a state box's own FILL / text color instead of its border.
-       * Scoped to these two color fields only -- `stateFontSize<<X>>` is
-       * NOT included (it changes MEASURED text width, a layout-time
-       * concern requiring `state-sizing.ts` threading, not a render-time
-       * color swap -- see `plans/g4-state-svg/ledger.md` S9/S14's own
-       * "three fields load-bearing together" queue note). Keyed by the
-       * LOWERCASED stereotype label (`core/skinparam.ts
+       * to a state box's own FILL / text color instead of its border. The
+       * SIBLING field for the box's own text SIZE, `stateFontSize<<X>>`, is
+       * `stateFontSizeByStereo` below (mission G4 S16 -- S9/S14/S15's own
+       * "three fields load-bearing together" queue note is now resolved:
+       * all three are landed, just via two separate Theme fields since
+       * FontSize is also a layout-time concern the other two are not).
+       * Keyed by the LOWERCASED stereotype label (`core/skinparam.ts
        * #STATE_BACKGROUND_COLOR_STEREO_RE`/`#STATE_FONT_COLOR_STEREO_RE`).
        * Read by `state-render-colors.ts#resolveStateFillBucketed`/
        * `#resolveStateFontColor` as a fallback tier BELOW the `#color`
@@ -257,6 +257,73 @@ export interface Theme {
        */
       stateBackgroundColorByStereo?: Readonly<Record<string, string>>;
       stateFontColorByStereo?: Readonly<Record<string, string>>;
+      /**
+       * mission G4 S16: `skinparam stateFontSize<<stereo>> N` -- the SAME
+       * direct-value-lookup mechanism as {@link stateBorderColorByStereo}
+       * above, applied to a state box's own label TEXT SIZE. Unlike its two
+       * color siblings, this field is a LAYOUT-time concern too, not just a
+       * render-time swap: `state-render-colors.ts#resolveStateFontSize`
+       * reads it during MEASUREMENT (feeds `StringMeasurer` and therefore
+       * the box's own DOT node width/height) as well as at render time (the
+       * `<text font-size="...">` attribute and the header/body line-step
+       * formula, `renderer-box.ts`). Keyed by the LOWERCASED stereotype
+       * label (`core/skinparam.ts#STATE_FONT_SIZE_STEREO_RE`), same
+       * lookup key shape as `stateBackgroundColorByStereo`/
+       * `stateFontColorByStereo` above. Jar-verified `laferu-31-tice836`
+       * (`skinparam stateFontSize<<Foo>> 30`, `state state1 <<Foo>>` ->
+       * `font-size="30"`, box widened/heightened to fit the larger glyph).
+       */
+      stateFontSizeByStereo?: Readonly<Record<string, number>>;
+      /**
+       * mission G4 S16: `<style> stateDiagram { arrow { LineColor
+       * HeadColor } } }` -- selector `statediagram.arrow`
+       * (`style-map-theme.ts#applyStyleMap`, the ONLY merge point for any
+       * diagram-type-specific `<style>` selector -- S14/S15's own
+       * "WRITE-SET BLOCKED" finding, resolved by this iteration's explicit
+       * write-set grant). LineColor overrides the transition PATH's own
+       * stroke (raw, unresolved -- resolved via `resolveColorToSvgHex` at
+       * consumption time, mirroring every other `graphOverride` color
+       * field's convention). Read by `state-render-colors.ts
+       * #resolveStateArrowLineColor` as a fallback tier BELOW
+       * `theme.colors.arrow`'s own default. Jar-verified
+       * `nanozi-96-foda024` (`LineColor blue` -> `path stroke="#0000FF"`).
+       */
+      stateArrowLineColor?: string;
+      /**
+       * mission G4 S16: the SAME `statediagram.arrow` selector's HeadColor
+       * declaration -- overrides the arrowhead `<polygon>`'s OWN fill AND
+       * stroke (BOTH, jar-verified `nanozi-96-foda024`: `polygon
+       * fill="#FF0000" stroke="#FF0000"` -- a single color feeds both
+       * attributes, unlike `stateArrowLineColor` above, which only ever
+       * feeds the path's stroke). Read by `state-render-colors.ts
+       * #resolveStateArrowHeadColor`.
+       */
+      stateArrowHeadColor?: string;
+      /**
+       * mission G4 S16: `<style> activityBar { .fork { BackGroundColor }
+       * .join { BackGroundColor } } }` -- selector `activitybar..fork`/
+       * `activitybar..join` (the double-dot is `parseStyleBlock`'s own
+       * stack-join artifact: a child selector that itself starts with `.`
+       * joins as `"activitybar" + "." + ".fork"`). A cross-diagram-type
+       * selector (shared with the activity-diagram engine, which this port
+       * has not built) -- but state's OWN fork/join synchro-bars
+       * (`EntityImageSynchroBar`) reuse the SAME selector name upstream, so
+       * this field is consumed entirely within `src/diagrams/state/`
+       * (`renderer-pseudostate.ts#renderForkJoin`), not a real
+       * cross-engine dependency. Read as a fallback tier BELOW the `#color`
+       * inline override and ABOVE the hardcoded `SYNCHRO_BAR_COLOR` default
+       * -- `syncBar` (T2's `=name=` construct, a DIFFERENT upstream
+       * shape from `<<fork>>`/`<<join>>` stereotype states, no corpus
+       * evidence of a matching selector) is deliberately EXCLUDED from this
+       * lookup, unaffected. Jar-verified `koguvo-74-kubo455`
+       * (`activityBar { .fork { BackGroundColor: green; } } }` -> fork bar
+       * `fill="#008000"`).
+       */
+      activityBarForkColor?: string;
+      /** Same mechanism as {@link activityBarForkColor}, the `.join`
+       *  selector's own BackGroundColor. Jar-verified `koguvo-74-kubo455`
+       *  (join bar `fill="#FFA500"`). */
+      activityBarJoinColor?: string;
       /** G2 N51: `skinparam arrowThickness N` -- `FromSkinparamToStyle.java
        *  :150`: `SName.arrow` LineThickness, the DEFAULT stroke-width every
        *  edge draws at when it carries no `-[thickness=N]->`/`-[bold]->`

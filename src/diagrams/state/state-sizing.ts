@@ -42,6 +42,7 @@ import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import type { DotInputNodeShape } from '../../core/graph-layout.js';
 import type { StateTextLine } from './state-geo-types.js';
 import { measureJsonState } from './state-json-sizing.js';
+import { resolveStateFontSize } from './state-render-colors.js';
 
 // ---------------------------------------------------------------------------
 // Creole line splitting
@@ -261,7 +262,13 @@ export function measureState(
   if (fixedDim !== undefined) {
     return { ...fixedDim, shape: FIXED_PSEUDOSTATE_SHAPE[state.kind]! };
   }
-  const font: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  // mission G4 S16: `skinparam stateFontSize<<X>> N` -- see
+  // `resolveStateFontSize`'s own doc comment (state-render-colors.ts) for
+  // why this is a LAYOUT-time concern (feeds the DOT node's own
+  // width/height), unlike its `stateBackgroundColor<<X>>`/`stateFontColor
+  // <<X>>` siblings, which are render-time-only.
+  const fontSize = resolveStateFontSize(state, theme, theme.fontSize);
+  const font: FontSpec = { family: theme.fontFamily, size: fontSize };
   const { dim, shape } = measureNormalKind(state, hideEmptyDescription, font, measurer);
   return { ...dim, shape };
 }
@@ -352,7 +359,12 @@ export function buildStateGeoTextFields(
   measurer: StringMeasurer,
   hideEmptyDescription = false,
 ): StateGeoTextFields {
-  const font: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  // mission G4 S16: `skinparam stateFontSize<<X>> N` -- see
+  // `measureState`'s own doc comment above; the SAME resolved font size
+  // measures `StateTextLine.width` here so the renderer's `textLength`
+  // attribute matches jar's own larger/smaller glyph metrics.
+  const fontSize = resolveStateFontSize(state, theme, theme.fontSize);
+  const font: FontSpec = { family: theme.fontFamily, size: fontSize };
   const fields: StateGeoTextFields = {};
   const hasBody = (state.description?.length ?? 0) > 0;
   if (state.kind === 'normal' && hideEmptyDescription && !hasBody) {
