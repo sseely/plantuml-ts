@@ -139,8 +139,49 @@ iteration" below.
   byte-identical. See `ledger.md` §C3 for the full derivation, the
   corpus-wide 134-sample probe, and the C4+ queue.
 
-## Next iteration (C4) — recommended scope
+- **C4** (maintainer sign-off 2026-07-21, "Attempt the ink mechanism" —
+  fourth attempt at the G4 S4/S12/S13 edge-label-ink mechanism): derived and
+  landed a principled mechanism -- HTML `<TABLE FIXEDSIZE>` edge labels via
+  `GvEdge.setHtmlAttr` (mirrors `SvekEdge.appendTable`, C3's public-API
+  precedent extended from subgraphs to edges) sized with C1's jar-exact
+  13pt measurement, plus reading graphviz's own real `labelX`/`labelY`
+  back for render placement (via `textAscent()`, an EXISTING convention,
+  not a new formula) instead of the pre-existing perpendicular-offset
+  approximation. Re-landed C1's sites 2/3 font-size fix verbatim
+  (un-skipped its TDD tests, all passing). Measured against the S12/S13
+  control set (15 unique fixtures): 9/15 improved (including the S13
+  founding fixture `bemena-23-zebu249`, now well inside its size-backlog
+  allowance, and two fixtures S13 itself had proven "unrelated to this
+  mechanism at all 3 variants" also improved) but 6/15 regressed — same
+  already-4-times-attempted `buildPlainAutonomSpec#Math.max(geometry.width,
+  result.width)` floor (C1/C3's own named gap), now precisely re-confirmed
+  as the SOLE remaining blocker for three independent, otherwise-working
+  mechanisms. Per the mission's own explicit protocol ("if this attempt
+  fails the control set, journal it and stop; do not try formula variants
+  past your first principled derivation"), REVERTED IN FULL (7 files
+  restored byte-for-byte to the C3 HEAD commit) rather than widen any
+  `size-backlog.json` entry. All protected sets (DOT gate, four censuses,
+  four golden ratchets, size-backlog ratchet) re-verified byte-identical
+  to the C3 baseline after the revert. See `ledger.md` §C4 for the full
+  derivation, the 15-fixture control-set table, the jar-verified mechanism
+  of the 6 regressions, and the C5+ queue.
 
+## Next iteration (C5) — recommended scope
+
+0. **PRIORITY, now the confirmed sole blocker for THREE independent
+   mechanisms** (this iteration's own edge-label-ink derivation, mechanism
+   16's nested-cluster adoption from C3, and sites 2/3): `state-composite-
+   autonom.ts#buildPlainAutonomSpec`'s `Math.max(geometry.width,
+   result.width)` floor. C4 proved `result.width` is now jar-accurate for
+   the label-reservation component (9/15 control-set fixtures improved) —
+   the remaining gap is `geometry.width`'s own `computeSvekResultGeometry`
+   ink walk never folding label ink in at all. A fifth attempt at this
+   floor (S4 + S13's 3 variants = 4 prior attempts) needs its own explicit
+   orchestrator/maintainer sign-off — C4's own sign-off covered the
+   injection/readback mechanism only. See `ledger.md` §C4's C5+ queue item
+   2 for the specific next-derivation candidate (fold `TransitionGeo
+   .label`'s now-jar-verified real box into `addNodeInk` directly, rather
+   than re-deriving an approximation).
 1. **Document order** (largest remaining lever toward the first true
    byte-exact cluster-shape pin): jar's real top-level document order does
    NOT match `.puml` declaration order once a `'cluster'`-classified

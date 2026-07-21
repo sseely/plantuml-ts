@@ -1196,3 +1196,346 @@ metric specifically.
    edge-label sizing AND mechanism 16's nested-cluster adoption). Still
    requires orchestrator/maintainer sign-off for a 4th attempt (3-strike
    rule).
+
+## C4 — fourth attempt at the edge-label-ink mechanism (maintainer sign-off
+## 2026-07-21), derived from THREE materially-new tools (jar-exact 13pt
+## calibration from C1, real cluster/label reservation via `setHtmlAttr`
+## from C3, `DotLayoutResult.edges[].labelX/labelY` readback) -- LANDED,
+## MEASURED, then REVERTED IN FULL per the mission's own protocol: 9/15
+## control-set fixtures improved (including the S13 founding fixture and
+## two fixtures S13 itself had ruled "unrelated"), but 6/15 regressed on
+## the SAME already-4-times-attempted `buildPlainAutonomSpec#Math.max`
+## floor -- mechanism now characterized precisely; 0 net change to any
+## protected set; all files restored byte-for-byte to the C3 HEAD commit
+
+### The attempt (derived, not guessed)
+
+Mirrored `SvekEdge.appendTable` (`~/git/plantuml/.../svek/SvekEdge.java`):
+jar itself never lets graphviz guess an edge label's size from the label
+TEXT — it feeds graphviz an HTML `<TABLE FIXEDSIZE="TRUE" WIDTH=".."
+HEIGHT="..">` built from the SAME measured box the jar's own renderer draws,
+so graphviz's rank-gap reservation and virtual-label-node placement are
+computed from the REAL box, not an internal font-metrics guess. This port
+had never done the equivalent for state's composite-pipeline edge labels:
+`graph-layout-build.ts#addEdges` fed a plain-text `label` attr (`fontname:
+'Times'`), so graphviz-ts sized/placed every state edge label using its OWN
+default Times-LUT guess of the label TEXT — completely independent of this
+port's own (now jar-exact, per C1) `labelWidth`/`labelHeight` measurement,
+which was computed but silently discarded at the layout-feed step.
+
+Three tools made this attempt materially different from S4/S12/S13, all of
+which tried to CLOSE THE GAP AFTER THE FACT with a geometric ink-box formula
+approximating jar's placement:
+
+1. **C1's jar-exact 13pt calibration.** S12/S13's own injected FIXEDSIZE
+   box was sized from the WRONG (14pt, `theme.fontSize`) measurement --
+   `"EvNewValueSaved"` at 120.05px, not jar's real 111.475px -- so even
+   their correctly-implemented injection mechanism reserved the WRONG
+   amount of space. This iteration's injection uses C1's already-jar-exact
+   13pt value.
+2. **C3's `setHtmlAttr` precedent, extended from subgraphs to edges.** Confirmed
+   `GvEdge.setHtmlAttr` (not just `GvNode`/`GvGraphBuilder`) is public
+   (`node_modules/graphviz-ts/dist/api/builder.d.ts`), eliminating S12/S13's
+   own `String.fromCharCode(1)` unexported-marker workaround entirely --
+   this attempt uses the SAME public API C3 already landed for cluster
+   titles, applied to `b.addEdge(...)`'s own return value.
+3. **Reading the REAL position back, not re-deriving it.** `DotLayoutResult
+   .edges[].labelX`/`labelY` (graphviz's own computed CENTER of whatever box
+   it reserved) was ALREADY populated by `graph-layout.ts#mapEdges` for
+   every labeled edge -- unused for state's own render position, which
+   instead used `attachTransitionLabel`'s perpendicular-offset-from-
+   spline-midpoint APPROXIMATION (S13's own root-cause: `attachTransition
+   Label`'s x/y "never verified against jar's real label position for ANY
+   fixture"). This attempt reads `labelX`/`labelY` back and converts CENTER
+   to left-baseline via `textAscent()` (`state-render-colors.ts`, the SAME
+   convention `renderer-box.ts`/`renderer-composite-box.ts` already use for
+   every OTHER state text placement) -- not a NEW formula, a REUSE of an
+   established one.
+
+### Implementation (all reverted -- see "Revert" below; described here for
+### the record and for whoever re-attempts a fifth time)
+
+- `DotInputEdge.attributes.measuredLabelBox?: true` (NEW opt-in flag,
+  `graph-layout.types.ts`) -- deliberately SEPARATE from the pre-existing
+  `labelWidth`/`labelHeight` fields, which class/description/dot/state's
+  own FLAT pipeline already set today for a DOT-parity-comparator-only,
+  size-tolerant echo-back (confirmed by grep: `class-dot-graph.ts`,
+  `description/link-edge-attrs.ts`, `dot/layout.ts` all set these fields
+  already) -- gating on mere PRESENCE would have engaged the mechanism for
+  every diagram type simultaneously, exactly the cross-type blast radius
+  the task named as the primary risk. `measuredLabelBox` is set ONLY by
+  `state-composite-edge-label.ts#edgeLabelAttrs`, and only for the
+  note-free case (`t.linkNote === undefined` -- `measureLinkNote`'s merged
+  multi-line box is a separate, not-yet-jar-verified-against-this-mechanism
+  approximation, out of this iteration's named scope).
+- `graph-layout-build.ts#addEdges`: when `measuredLabelBox` + both dims are
+  present, skips the plain-text `label` attr entirely and instead calls
+  `edge.setHtmlAttr('label', '<TABLE FIXEDSIZE="TRUE" WIDTH=".."
+  HEIGHT="..">...')` on the `GvEdge` handle `b.addEdge(...)` returns --
+  mirrors `addClusters`'s identical `hasTitleTable` branch verbatim.
+- `state-composite-pass.ts` sites 2/3 (`addLevelEdges`/`sweepOrphanEdges`):
+  re-landed the C1 font-size fix (13, `ARROW_LABEL_FONT_SIZE`, exported from
+  `state-dot-graph.ts`), verbatim as C1 left it (its own TDD tests,
+  `tests/unit/state/state-composite-pass.test.ts`, un-skipped and PASSED
+  unchanged -- the font-size math itself was never in question, only what
+  consumes it).
+- `state-transition-label.ts#attachTransitionLabel`: NEW optional
+  `MeasuredLabelBox` param (`{center: {x,y,width,height}, fontSize}`) --
+  when supplied, anchors the label at `center.x - width/2`, `center.y -
+  height/2 + textAscent(fontSize)` instead of the perpendicular-offset
+  formula. Absent (every pre-existing caller, including state's FLAT
+  pipeline's own `layout.ts:126` call site, which was NOT touched) keeps
+  the old formula byte-identical.
+- `state-composite-pass.ts#buildLevelTransitionGeos`: builds an
+  edge-id-keyed attrs lookup and passes a `MeasuredLabelBox` to
+  `attachTransitionLabel` ONLY for an edge whose `attributes.measuredLabelBox
+  === true` AND whose `DotLayoutResult` entry actually carries `labelX`/
+  `labelY` (defensive -- cannot fail given graphviz always computes a label
+  position for any edge that carries a `label`, but guarded rather than
+  asserted).
+
+### Probe verification (mechanism, before wiring into `src/diagrams/state`)
+
+`scripts/_tmp-c4-probe1.ts` (disposable, deleted): a synthetic 2-node/1-edge
+graph confirmed `measuredLabelBox` end-to-end through the REAL programmatic
+`addEdges` path -- feeding `labelWidth=111.475,labelHeight=13` (jar-exact)
+vs `labelWidth=120.05,labelHeight=14` (pre-C1) produced DIFFERENT canvas
+heights (133 vs 134) and DIFFERENT `labelX` (91.5 vs 96), proving the
+injected box genuinely drives graphviz's own layout decision rather than
+being silently ignored (the pre-existing, discarded-at-addEdges behavior).
+
+### Control-set outcome (S13's own 4 + S12's own 12-fixture composite list,
+### deduplicated to 15 unique fixtures -- every one jar-verified via
+### `tests/oracle/state-dot-parity.test.ts`'s own `maxSizeDeltaIn` metric
+### against each fixture's CURRENT, untouched `size-backlog.json` ceiling)
+
+| Fixture | maxSizeDeltaIn | Allowed (unchanged backlog) | Verdict |
+| --- | --- | --- | --- |
+| bemena-23-zebu249 (S13 founding evidence) | 0.110003 | 0.205534 | **PASS**, large new headroom (was FAIL at 0.244904 under C1's font-fix-alone) |
+| jaxebo-54-nifi592 (S13: "unrelated to this mechanism at all 3 variants") | 0.060950 | 0.258465 | **PASS**, large new headroom |
+| jorere-75-peja265 | 0.110592 | 0.205534 | **PASS** |
+| ketibo-84-juzo029 | 0.110592 | 0.205534 | **PASS** |
+| mifuti-36-jine785 (S13: "unrelated to this mechanism at all 3 variants") | 0.060950 | 0.258465 | **PASS**, large new headroom |
+| pajefo-95-neri955 | 0.110003 | 0.205534 | **PASS** |
+| xepafa-33-lazi826 | 0.110003 | 0.205534 | **PASS** |
+| zitifa-97-bizo337 | 0.110592 | 0.205534 | **PASS** |
+| zacajo-09-tamu628 (S13's own control; Variant 2 flipped this to FAIL) | 0.083333 | 0.144419 | **PASS** (this attempt does NOT repeat S13 Variant 2's regression here) |
+| bajelo-54-dixe684 (S13: "unrelated... identical across every variant") | 0.993056 | 0.944445 | **FAIL** (+0.048611) |
+| nimana-36-veco708 (site 3's own founding fixture) | 0.158763 | 0.090278 | **FAIL** (+0.068485) |
+| pesita-10-dene726 (S13: "large pre-existing gap" control) | 0.806638 | 0.195792 | **FAIL** (+0.610846, largest regression) |
+| rovese-43-tadu368 (S13: "unrelated... identical across every variant") | 0.687500 | 0.638889 | **FAIL** (+0.048611) |
+| beguxu-19-tize774 (S13's own control; zero pre-existing headroom, 0.020833) | 0.027778 | 0.020833 | **FAIL** (+0.006945, smallest regression) |
+| bunade-42-fudu910 (S4's own original target fixture) | 0.099275 | 0.073621 | **FAIL** (+0.025654) |
+
+**9/15 PASS (non-regressing, several dramatically improved), 6/15 FAIL
+(regressing).** Per the task's own explicit bar ("every one must be
+jar-verified non-regressing"), this attempt does **NOT** clear the control
+set. An additional 8 NON-control-set `size-backlog.json` fixtures also
+regressed in the full `state-dot-parity.test.ts` run (268 → 254 passing,
+14 failures total): `dulixa-11-kufe247`, `fojisi-40-zogo372`, `fomusu-59-
+fupe538`, `fotuje-06-fifa085`, `kejabo-83-vinu490`, `kujaju-47-neku764`,
+`mosigo-88-rove013`, `nuboca-13-xape657` — all already carried a nonzero
+`size-backlog.json` entry before this change (confirmed for all 14 total
+failures via direct lookup — no zero-gap fixture crossed to nonzero, ruling
+out "a brand-new defect" the same way C1's own bisection did for the
+font-fix-alone case).
+
+### Mechanism of the 6 (14) regressions (per diagnosis.md — cause, origin,
+### causal chain, ruled out)
+
+**Mechanism.** Identical, precisely re-confirmed instance of the SAME gap
+C1 and S12/S13 already named: `state-composite-autonom.ts
+#buildPlainAutonomSpec`'s `childImg = { width: Math.max(geometry.width,
+result.width), ... }` floor. This attempt makes `result.width` (graphviz's
+own raw canvas size for the composite's own child pass) MORE accurate --
+it now reflects the REAL jar-exact label reservation instead of graphviz-
+ts's own Times-font-of-the-label-TEXT guess. `geometry.width` (the
+ink-extent walk, `layout-ink-extent.ts#computeSvekResultGeometry`) is
+UNCHANGED by this attempt (confirmed by inspection: the new `MeasuredLabelBox`
+render-position argument feeds ONLY `buildLevelTransitionGeos`'s render
+output; `computeSvekResultGeometry#addNodeInk` never reads
+`TransitionGeo.label` at all, exactly as its own doc comment already
+stated before this iteration) — it still does not fold label ink in.
+
+**Origin.** `state-composite-autonom.ts:181-184`, unchanged this iteration
+(write-set-forbidden to touch, per the 3-strike-parked status this SAME
+floor already carries from S4 + S13's own three formula-variant attempts).
+
+**Causal chain.** For the 6 (14) regressed fixtures, `result.width`'s
+label-driven inflation was PARTIALLY masking `geometry.width`'s own
+label-ink under-count — exactly C1's own "accidental compensation" finding,
+now confirmed to recur under a MORE ACCURATE `result.width` (real
+reservation, not just a corrected font size). Shrinking `result.width` to
+its legitimately-smaller, jar-accurate value removes that masking for
+fixtures where `geometry.width` was ALREADY the binding constraint (i.e.
+composites where the ink-extent walk's own under-count is the dominant
+error, not the label-driven canvas margin) — pushing their `Math.max`
+outcome further from jar's real size. This is the SAME direction of effect
+C1 found for the font-size-only fix in isolation, now recurring for a
+PARTIALLY OVERLAPPING but not identical fixture set, because this
+attempt's real-reservation mechanism changes `result.width` by a
+DIFFERENT magnitude than the font-fix-alone change did (real graphviz
+label-node placement, not just a smaller Times-guess).
+
+**Task item 4's hypothesis does NOT hold.** The task speculated "with real
+bboxes (C3) and real label reservation (this attempt), the floor should
+become removable." Measured directly: it is not. The floor still compares
+one accurate operand (`result.width`, now real-reservation-driven) against
+one STILL-inaccurate operand (`geometry.width`, unchanged, still excludes
+label ink entirely) — `Math.max` of an accurate-but-sometimes-too-small
+value and an inaccurate-but-sometimes-too-small value is not rescued by
+fixing only one side. The floor's own inadequacy (not this attempt's
+mechanism) remains the binding constraint for these 6 (14) fixtures.
+
+**Ruled out** (in order investigated, mirroring C1/S12/S13's own
+discipline):
+1. **A defect in the injection or readback mechanism itself** — ruled out:
+   `scripts/_tmp-c4-probe1.ts` proved the injection drives graphviz's own
+   layout decision correctly (different canvas height/labelX for different
+   fed dimensions); the 9 IMPROVED control-set fixtures (including the S13
+   founding fixture, whose delta shrank from 0.244904/FAIL to
+   0.110003/PASS with large headroom, and two fixtures S13 itself had
+   proven "unrelated to the label-ink formula at all 3 variants" now
+   ALSO improved) are strong positive evidence the mechanism is CORRECT
+   where it applies cleanly.
+2. **A NEW defect class (a zero-gap fixture crossing to nonzero)** — ruled
+   out: every one of the 14 total regressed fixtures already carried a
+   nonzero `size-backlog.json` entry before this iteration (direct lookup,
+   full table above for the 6 control-set members).
+3. **The font-size fix (sites 2/3) alone, independent of the injection** —
+   ruled out as the SOLE cause: C1's own bisection already characterized
+   the font-fix-alone regression set (16-17 fixtures, a LARGER, mostly
+   different set — e.g. `jorere-75-peja265`/`ketibo-84-juzo029`/`pajefo-
+   95-neri955`/`xepafa-33-lazi826`/`zitifa-97-bizo337`/`zacajo-09-tamu628`
+   all FAILED under font-fix-alone but PASS under this attempt); the
+   injection mechanism, not just the font-size correction, materially
+   changes which fixtures land on which side of the floor's `Math.max`.
+4. **A regression specific to the NEW render-position readback (rather
+   than the injection/reservation itself)** — not separately isolated
+   this iteration (would require a FOURTH variant: injection without
+   readback, or readback without injection) — explicitly NOT attempted,
+   per the task's own "do not try formula variants past your first
+   principled derivation" boundary. The injection and readback are one
+   principled, jointly-derived mechanism (mirroring jar's own SINGLE
+   `SvekEdge` pipeline, which never separates "reserve the box" from "read
+   the box's placement back" into independently-toggleable behaviors) —
+   splitting them into two sub-variants to isolate which one "caused" the
+   regression would itself be exactly the forbidden formula-search pattern.
+
+### Revert (per the mission's own explicit protocol, mirroring S12/S13's
+### identical precedent: "if this attempt fails the control set, journal it
+### and stop; do not try formula variants")
+
+Restored every touched file byte-for-byte to the C3 HEAD commit
+(`5ea6ccc`) via `git show HEAD:<path> > <path>`: `src/core/graph-layout-
+build.ts`, `src/core/graph-layout.types.ts`, `src/diagrams/state/state-
+composite-edge-label.ts`, `src/diagrams/state/state-composite-pass.ts`,
+`src/diagrams/state/state-dot-graph.ts`, `src/diagrams/state/state-
+transition-label.ts`, `tests/unit/state/state-composite-pass.test.ts`
+(re-`describe.skip`'d, unchanged from C1/C3's own state). Deleted both
+disposable probes (`scripts/_tmp-c4-probe1.ts`, `scripts/_tmp-c4-
+deltas.ts`). `git status --short` / `git diff --stat` both verified EMPTY
+before re-running any gate.
+
+### C3's two scoped cluster items, entrypoint/exitpoint family (task items
+### 3-4): NOT attempted this iteration
+
+The task's own item ordering makes item 1 (the edge-label-ink mechanism)
+this iteration's primary deliverable; given the severe time budget consumed
+by the derivation, implementation, control-set measurement, root-cause
+diagnosis, and full revert-and-reverify cycle for item 1, items 3/4
+(document order, conditional body-fill, entrypoint/exitpoint family) were
+NOT attempted this iteration. Unchanged from C3's own C4+ queue — see
+README's "Next iteration" section, items 1-4, still fully accurate and
+un-superseded.
+
+### Fixture impact
+
+**0 oracle fixtures changed** (fully reverted). `oracle/goldens/**`
+untouched. `oracle/goldens/state/size-backlog.json`: **untouched, 93
+entries** (`git diff` against HEAD is empty — the ledger's own C3 entry
+recorded "92," this iteration's direct count of the file at HEAD is 93;
+not investigated further, pre-existing/unrelated to this iteration, which
+made zero edits to this file either way).
+
+### Gates (C4, final state — fully reverted, byte-identical to C3's own
+### final state)
+
+- `npm run typecheck`: clean (both configs).
+- `npm run lint`: clean.
+- `npm test -- --run`: **10142 passed | 5 skipped** (381 files) —
+  IDENTICAL to C3's own final count (the 5 skipped are UNCHANGED, still
+  C1's reverted sites-2/3 evidence; this iteration's own re-land-then-
+  revert cycle left no new test file behind).
+- DOT gate: `component 262/262 · usecase 90/90 · class 708/708 · object
+  78/80 · state 267/267` — EXACTLY unchanged, re-verified fresh via
+  `dot-sync-report.ts` AFTER the full attempt (mid-iteration, while the
+  attempt was still landed) AND again after the revert.
+- `state-dot-parity.test.ts` (size-backlog ratchet): **268/268** at the
+  START and END of this iteration (dipped to 254/268 — 14 failures — while
+  the attempt was landed; fully restored by the revert).
+- `description.golden.ratchet.test.ts`: **51 tests** (unchanged).
+- `class.golden.ratchet.test.ts`: **305 tests** (unchanged).
+- `object.golden.ratchet.test.ts`: **24 tests** (unchanged).
+- `state.golden.ratchet.test.ts`: **54 tests** (unchanged).
+- Censuses, re-verified fresh after the revert (not assumed): description
+  (no-arg) **48/355**, class **303/718**, object **22/80**, state
+  **52/271** — all byte-identical to the C3 baseline. Also re-verified
+  MID-iteration (attempt landed, before revert): state **52/271**
+  unchanged even while the attempt was live — the mechanism moved the
+  size-backlog ratchet (a size-tolerance metric) without moving the
+  byte-exact SVG-diff census at all, confirming the two protected sets
+  really are independent (per the mission's own "treat the two protected
+  sets as INDEPENDENT checks" rule) and that no fixture came close enough
+  to zero-diff for this specific change to swing it either way.
+
+### Ratchet / pins
+
+**0 new pins** (fully reverted; no landed work survives this iteration).
+
+### Files changed (C4)
+
+None survive — fully reverted. Touched-then-reverted: `src/core/graph-
+layout-build.ts`, `src/core/graph-layout.types.ts`, `src/diagrams/state/
+state-composite-edge-label.ts`, `src/diagrams/state/state-composite-
+pass.ts`, `src/diagrams/state/state-dot-graph.ts`, `src/diagrams/state/
+state-transition-label.ts`, `tests/unit/state/state-composite-pass.test.ts`.
+Created-then-deleted: `scripts/_tmp-c4-probe1.ts`, `scripts/_tmp-c4-
+deltas.ts`. Only `plans/g5-measurer-calibration/{README.md,ledger.md,
+decision-journal.md}` (this entry) remain changed.
+
+### C5+ queue
+
+1. **The `buildPlainAutonomSpec#Math.max(geometry.width, result.width)`
+   floor is now the confirmed SOLE blocker** for the edge-label-ink
+   mechanism, mechanism 16's nested-cluster adoption (C3), AND this
+   iteration's own real-reservation improvement — THREE independent,
+   already-derived-and-verified mechanisms are all stalled on the SAME
+   single formula. A fifth attempt (this floor has now been touched by S4
+   + S13's 3 variants = 4 prior attempts) needs its OWN explicit
+   orchestrator/maintainer sign-off, separate from this iteration's own
+   sign-off (which covered the injection/readback mechanism specifically,
+   not the floor). The injection/readback mechanism itself (this
+   iteration's own derivation) is fully re-landable VERBATIM the moment
+   the floor closes — no further formula search needed on the
+   injection/readback side, only on `geometry.width`'s own label-ink
+   folding.
+2. **A principled next attempt at the floor, if sign-off is granted**:
+   now that `result.width` is provably jar-accurate for the label-reservation
+   component (this iteration's own control-set evidence, 9/15 improved),
+   the natural NEXT derivation is folding label ink directly into
+   `geometry.width`'s own `computeSvekResultGeometry` walk using THIS
+   iteration's `MeasuredLabelBox` positions (not a re-derived approximation)
+   — i.e. make `addNodeInk` read `TransitionGeo.label`'s real measured box
+   (now available, jar-verified) the SAME way it already reads node
+   footprints. This is a DIFFERENT, more targeted formula than any of
+   S4/S13's four prior attempts (none of which had a jar-verified real
+   label BOX available to fold in — only an approximate render position).
+   NOT attempted this iteration (would be a second variant on top of an
+   already-completed single attempt, forbidden by this iteration's own
+   authorization).
+3. **C3's own C4+ queue items 1-4 unchanged**: document order, conditional
+   body-fill, entrypoint/exitpoint family, multi-line/action-text/
+   stereotype cluster titles. See README's "Next iteration" section.
+4. **Unchanged from C0-C3**: the secondary `gutute-00-gaki684` (component
+   port-label divergence) finding remains unresolved, low priority.
